@@ -592,6 +592,13 @@ public class JavaViewer extends LanguageViewer {
                         .append(toString(value))
                         .append(!value.allChildren().isEmpty() ? ")" : "");
             }
+            builder.deleteCharAt(builder.length() - 1);
+            builder.deleteCharAt(builder.length() - 1);
+
+            if (!printValues.addsNewLine() && printValues.end != null && !((StringLiteral)printValues.end).getUnescapedValue().isEmpty()) {
+                builder.append(", ");
+                builder.append(toString(printValues.end));
+            }
         }
         builder.append(")");
         return builder.toString();
