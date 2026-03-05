@@ -571,7 +571,7 @@ public class JavaViewer extends LanguageViewer {
 
         if (printValues.valuesCount() == 1) {
             builder.append(toString(printValues.getArguments().getFirst()));
-            if (printValues.end != null && (!printValues.addsNewLine() || !toString(printValues.end).equals("\"\""))) {
+            if (printValues.end != null && !printValues.addsNewLine() && !toString(printValues.end).equals("\"\"")) {
                 builder
                         .append(" + ")
                         .append(!printValues.end.allChildren().isEmpty() ? "(" : "")

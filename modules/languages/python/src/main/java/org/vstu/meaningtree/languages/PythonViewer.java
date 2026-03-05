@@ -1286,12 +1286,14 @@ public class PythonViewer extends LanguageViewer {
                 builder.append(String.format("%s(%s)", toString(PythonSpecificFeatures.getFunctionExpression(funcCall)), argumentsToString(funcCall.getArguments())));
                 if (funcCall instanceof PrintValues) {
                     builder.deleteCharAt(builder.length() - 1);
-                    if (((PrintValues)funcCall).separator == null) {
-                        builder.append(", sep=\"\"");
-                    } else if (!(((PrintValues)funcCall).separator instanceof StringLiteral && ((StringLiteral)((PrintValues)funcCall).separator).getUnescapedValue().equals(" "))) {
-                        builder
-                                .append(", sep=")
-                                .append(toString(((PrintValues)funcCall).separator));
+                    if (((PrintValues)funcCall).valuesCount() > 1) {
+                        if (((PrintValues)funcCall).separator == null) {
+                            builder.append(", sep=\"\"");
+                        } else if (!(((PrintValues) funcCall).separator instanceof StringLiteral && ((StringLiteral) ((PrintValues) funcCall).separator).getUnescapedValue().equals(" "))) {
+                            builder
+                                    .append(", sep=")
+                                    .append(toString(((PrintValues) funcCall).separator));
+                        }
                     }
                     if (((PrintValues)funcCall).end == null) {
                         builder.append(", end=\"\"");

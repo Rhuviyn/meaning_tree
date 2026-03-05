@@ -1410,9 +1410,10 @@ public class CppParser extends LanguageParser {
         }
 
         if ((clearFunctionName.toString().equals("puts") || clearFunctionName.toString().equals("puts_s")) && arguments.size() == 1) {
-            return new PrintValues(arguments,
-                    StringLiteral.fromUnescaped("", StringLiteral.Type.NONE),
-                    StringLiteral.fromUnescaped("", StringLiteral.Type.NONE));
+            return new PrintValues.PrintValuesBuilder()
+                    .endWithNewline()
+                    .setValues(arguments)
+                    .build();
         }
 
         if (clearFunctionName.toString().equals("gets") || clearFunctionName.toString().equals("gets_s")) {
@@ -1584,7 +1585,7 @@ public class CppParser extends LanguageParser {
                     boolean isEndl = sanitizeFromStd(exprs.getLast()).equalsIdentifier("endl");
                     if (sanitizeFromStd(fName).equalsIdentifier("cout")) {
                         yield new PrintValues(exprs.subList(1, exprs.size() - (isEndl ? 1 : 0)),
-                                StringLiteral.fromUnescaped("", StringLiteral.Type.NONE),
+                                null,
                                 StringLiteral.fromUnescaped(isEndl ? "\n" : "", StringLiteral.Type.NONE)
                         );
                     } else if (sanitizeFromStd(fName).equalsIdentifier("cin")) {
