@@ -38,10 +38,7 @@ import org.vstu.meaningtree.nodes.expressions.other.*;
 import org.vstu.meaningtree.nodes.expressions.pointers.PointerPackOp;
 import org.vstu.meaningtree.nodes.expressions.pointers.PointerUnpackOp;
 import org.vstu.meaningtree.nodes.expressions.unary.*;
-import org.vstu.meaningtree.nodes.io.FormatInput;
-import org.vstu.meaningtree.nodes.io.FormatPrint;
-import org.vstu.meaningtree.nodes.io.InputCommand;
-import org.vstu.meaningtree.nodes.io.PrintValues;
+import org.vstu.meaningtree.nodes.io.*;
 import org.vstu.meaningtree.nodes.memory.MemoryAllocationCall;
 import org.vstu.meaningtree.nodes.memory.MemoryFreeCall;
 import org.vstu.meaningtree.nodes.modules.*;
@@ -355,42 +352,75 @@ public class JavaViewer extends LanguageViewer {
     private String toStringInputCommand(InputCommand inputCommand) {
         var builder = new StringBuilder();
 
+        if (inputCommand instanceof InputValue inputValue) {
+            if (!inputValue.hasValue()) {
+                return builder.toString();
+            }
+
+            StringBuilder promptBuilder = new StringBuilder();
+            if (inputValue.hasMessage()) {
+                promptBuilder
+                        .append(String.format(
+                        "System.out.print(%s);\n",
+                        toString(inputValue.promptMessage)))
+                        .append(indent(""));
+            }
+
+            if (inputValue.hasScanner()) {
+                builder.append(toString(inputValue.scannerName));
+            } else {
+                builder.append("new Scanner(System.in)");
+            }
+
+            if (inputValue.type instanceof IntType) {
+                builder.append(".nextInt()");
+            } else if (inputValue.type instanceof FloatType) {
+                builder.append(".nextFloat()");
+            } else if ((inputValue.type instanceof StringType)
+                    || (inputValue.type instanceof ArrayType array && array.getItemType() instanceof CharacterType)) {
+                if (inputValue.readsLine) {
+                    builder.append(".nextLine()");
+                } else {
+                    builder.append(".next()");
+                }
+            } else {
+                throw new IllegalStateException("Unsupported type in Java input: " + toString(inputValue.type));
+            }
+            builder
+                    .insert(0, " = ")
+                    .insert(0, toString(inputValue.getValue()));
+            return promptBuilder.append(builder).toString();
+        }
+
         int i = 0;
         for (Expression stringPart : inputCommand.getArguments()) {
             if (i > 0) {
-                builder
-                        .append(indent(toString(inputCommand.getArguments().getFirst())))
-                        .append(" = ")
-                        .append("new Scanner(System.in).");
+                builder.append(indent(toString(inputCommand.getArguments().get(i))));
             }
             else {
-                builder
-                        .append(toString(inputCommand.getArguments().getFirst()))
-                        .append(" = ")
-                        .append("new Scanner(System.in).");
+                builder.append(toString(inputCommand.getArguments().getFirst()));
             }
 
+            builder.append(" = new Scanner(System.in).next");
             Type exprType = ctx.inferType(stringPart);
             switch (exprType) {
-                case StringType stringType -> {
-                    builder.append("next()");
+                case StringType ignored -> {
+                    builder.append("()");
                 }
-                case IntType integerType -> {
-                    builder.append("nextInt()");
+                case IntType ignored -> {
+                    builder.append("Int()");
                 }
-                case FloatType floatType -> {
-                    builder.append("nextDouble()");
+                case FloatType ignored -> {
+                    builder.append("Double()");
                 }
                 default -> {
-                    throw new IllegalStateException("Unsupported type in format input in Java: " + exprType);
+                    throw new IllegalStateException("Unsupported type in Java input: " + toString(exprType));
                 }
             }
-
-            builder.append("\n");
+            builder.append(";\n");
             i += 1;
         }
-
-        builder.deleteCharAt(builder.length() - 1);
+        builder.delete(builder.length() - 2, builder.length());
         return builder.toString();
     }
 
