@@ -48,10 +48,7 @@ import org.vstu.meaningtree.nodes.expressions.pointers.PointerMemberAccess;
 import org.vstu.meaningtree.nodes.expressions.pointers.PointerPackOp;
 import org.vstu.meaningtree.nodes.expressions.pointers.PointerUnpackOp;
 import org.vstu.meaningtree.nodes.expressions.unary.*;
-import org.vstu.meaningtree.nodes.io.FormatPrint;
-import org.vstu.meaningtree.nodes.io.InputCommand;
-import org.vstu.meaningtree.nodes.io.PrintCommand;
-import org.vstu.meaningtree.nodes.io.PrintValues;
+import org.vstu.meaningtree.nodes.io.*;
 import org.vstu.meaningtree.nodes.memory.MemoryAllocationCall;
 import org.vstu.meaningtree.nodes.memory.MemoryFreeCall;
 import org.vstu.meaningtree.nodes.modules.*;
@@ -371,13 +368,57 @@ public class CppViewer extends LanguageViewer {
     }
 
     /*******************************************************************/
-    /* Перевод оператора ввода (cin) */
+    /* Перевод оператора ввода */
     private String toStringInput(InputCommand inputCommand) {
         StringBuilder builder = new StringBuilder();
 
-        builder.append("std::cin");
-        for (var expr : inputCommand.getArguments()) {
-            builder.append(" >> ").append(toString(expr));
+        boolean preferC = getConfigFlag("preferC");
+
+        if (inputCommand instanceof InputValue inputValue) {
+            if (!inputValue.hasValue()) {
+                return builder.toString();
+            }
+
+            if (inputValue.hasMessage()) {
+                if (preferC) {
+                    // TODO вывод через printf()
+                } else {
+                    builder
+                            .append(String.format(
+                                    "std::cout << %s;\n",
+                                    toString(inputValue.promptMessage)))
+                            .append(indent(""));
+                }
+            }
+
+            Expression value = inputValue.getValue();
+            if (inputValue.readsLine) {
+                if (preferC || (inputValue.type instanceof ArrayType array && array.getItemType() instanceof CharacterType)) {
+                    // TODO определить размер буффера
+                    builder.append(String.format("std::cin.getline(%s, 100)", toString(value)));
+                } else if (inputValue.type instanceof StringType) {
+                    builder.append(String.format("std::getline(std::cin, %s)", toString(value)));
+                } else {
+                    throw new IllegalStateException("Unsupported type in C/C++ input: " + toString(inputValue.type));
+                }
+                return builder.toString();
+            }
+
+            if (preferC) {
+                // TODO ввод через scanf()
+            } else {
+                builder.append(String.format("std::cin >> %s", toString(value)));
+            }
+            return builder.toString();
+        }
+
+        if (preferC) {
+            // TODO ввод через scanf()
+        } else {
+            builder.append("std::cin");
+            for (var expr : inputCommand.getArguments()) {
+                builder.append(" >> ").append(toString(expr));
+            }
         }
 
         return builder.toString();
