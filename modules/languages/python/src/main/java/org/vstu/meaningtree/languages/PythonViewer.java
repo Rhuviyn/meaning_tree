@@ -36,9 +36,7 @@ import org.vstu.meaningtree.nodes.expressions.other.*;
 import org.vstu.meaningtree.nodes.expressions.pointers.PointerPackOp;
 import org.vstu.meaningtree.nodes.expressions.pointers.PointerUnpackOp;
 import org.vstu.meaningtree.nodes.expressions.unary.*;
-import org.vstu.meaningtree.nodes.io.FormatInput;
-import org.vstu.meaningtree.nodes.io.FormatPrint;
-import org.vstu.meaningtree.nodes.io.PrintValues;
+import org.vstu.meaningtree.nodes.io.*;
 import org.vstu.meaningtree.nodes.memory.MemoryAllocationCall;
 import org.vstu.meaningtree.nodes.memory.MemoryFreeCall;
 import org.vstu.meaningtree.nodes.modules.*;
@@ -912,6 +910,11 @@ public class PythonViewer extends LanguageViewer {
     }
 
     private String variableDeclarationToString(VariableDeclaration varDecl) {
+
+        if (varDecl.getType() instanceof UserType userType && userType.getName().equalsIdentifier("Scanner")) {
+            return "";
+        }
+
         StringBuilder lValues = new StringBuilder();
         StringBuilder rValues = new StringBuilder();
         VariableDeclarator[] decls = varDecl.getDeclarators();
@@ -1283,24 +1286,92 @@ public class PythonViewer extends LanguageViewer {
             case FunctionCall funcCall -> {
                 StringBuilder builder = new StringBuilder();
                 funcCall = parenFiller.processForPython(funcCall);
-                builder.append(String.format("%s(%s)", toString(PythonSpecificFeatures.getFunctionExpression(funcCall)), argumentsToString(funcCall.getArguments())));
-                if (funcCall instanceof PrintValues) {
-                    builder.deleteCharAt(builder.length() - 1);
-                    if (((PrintValues)funcCall).valuesCount() > 1) {
-                        if (((PrintValues)funcCall).separator == null) {
-                            builder.append(", sep=\"\"");
-                        } else if (!(((PrintValues) funcCall).separator instanceof StringLiteral && ((StringLiteral) ((PrintValues) funcCall).separator).getUnescapedValue().equals(" "))) {
-                            builder
-                                    .append(", sep=")
-                                    .append(toString(((PrintValues) funcCall).separator));
+                if (funcCall instanceof InputCommand inputCommand) {
+
+                    if (inputCommand instanceof InputValue inputValue) {
+                        if (!inputValue.hasValue()) {
+                            return builder.toString();
+                        }
+
+                        builder.append("input(");
+                        if (inputValue.hasMessage()) {
+                            builder.append(toString(inputValue.promptMessage));
+                        }
+                        builder.append(")");
+
+                        if (!((inputValue.type instanceof StringType)
+                                || (inputValue.type instanceof ArrayType array && array.getItemType() instanceof CharacterType))) {
+                            switch (inputValue.type) {
+                                case IntType integerType -> {
+                                    builder
+                                            .insert(0, "int(")
+                                            .append(")");
+                                }
+                                case FloatType floatType -> {
+                                    builder
+                                            .insert(0, "float(")
+                                            .append(")");
+                                }
+                                case null, default -> {
+                                    throw new IllegalStateException("Unsupported type in Python input: " + toString(inputValue.type));
+                                }
+                            }
+                        }
+                        builder
+                                .insert(0, " = ")
+                                .insert(0, (toString(inputValue.getValue())));
+                        return builder.toString();
+                    } else if (inputCommand instanceof FormatInput formatInput) {
+                        // TODO
+                        return builder.toString();
+                    }
+
+                    for (Expression variable : inputCommand.getArguments()) {
+                        builder
+                                .append((toString(variable)))
+                                .append(" = ");
+
+                        Type exprType = ctx.inferType(variable);
+                        switch (exprType) {
+                            case StringType ignored -> {
+                                builder.append("input()\n");
+                            }
+                            case CharacterType ignored -> {
+                                builder.append("input()\n");
+                            }
+                            case IntType ignored -> {
+                                builder.append("int(input())\n");
+                            }
+                            case FloatType ignored -> {
+                                builder.append("float(input())\n");
+                            }
+                            default -> {
+                                throw new IllegalStateException("Unsupported type in format input in Python: " + toString(exprType));
+                            }
                         }
                     }
-                    if (((PrintValues)funcCall).end == null) {
+                    builder.deleteCharAt(builder.length() - 1);
+                    return builder.toString();
+                }
+
+                builder.append(String.format("%s(%s)", toString(PythonSpecificFeatures.getFunctionExpression(funcCall)), argumentsToString(funcCall.getArguments())));
+                if (funcCall instanceof PrintValues printValues) {
+                    builder.deleteCharAt(builder.length() - 1);
+                    if (printValues.valuesCount() > 1) {
+                        if (printValues.separator == null) {
+                            builder.append(", sep=\"\"");
+                        } else if (!(printValues.separator instanceof StringLiteral && ((StringLiteral) printValues.separator).getUnescapedValue().equals(" "))) {
+                            builder
+                                    .append(", sep=")
+                                    .append(toString(printValues.separator));
+                        }
+                    }
+                    if (printValues.end == null) {
                         builder.append(", end=\"\"");
-                    } else if (!((PrintValues)funcCall).addsNewLine()) {
+                    } else if (!printValues.addsNewLine()) {
                         builder
                                 .append(", end=")
-                                .append(toString(((PrintValues)funcCall).end));
+                                .append(toString(printValues.end));
                     }
                     builder.append(")");
                 }

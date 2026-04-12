@@ -33,6 +33,8 @@ import org.vstu.meaningtree.nodes.expressions.math.*;
 import org.vstu.meaningtree.nodes.expressions.other.*;
 import org.vstu.meaningtree.nodes.expressions.unary.UnaryMinusOp;
 import org.vstu.meaningtree.nodes.expressions.unary.UnaryPlusOp;
+import org.vstu.meaningtree.nodes.io.InputCommand;
+import org.vstu.meaningtree.nodes.io.InputValue;
 import org.vstu.meaningtree.nodes.io.PrintValues;
 import org.vstu.meaningtree.nodes.modules.*;
 import org.vstu.meaningtree.nodes.statements.*;
@@ -1321,6 +1323,45 @@ public class PythonParser extends LanguageParser {
             }
             Type rightType = ctx.inferType(rightExpr); // already uses scopeTable by default
 
+            TSNode rightTSNode = node.getChildByFieldName("right");
+            if (rightTSNode.getType().equals("call")) {
+                String codePiece = getCodePiece(rightTSNode.getChildByFieldName("function"));
+                if (codePiece.equals("input") ||
+                        ((codePiece.equals("int") || codePiece.equals("float") || codePiece.equals("str"))
+                                && rightTSNode.getChildByFieldName("arguments").getNamedChildCount() == 1)
+                                && rightTSNode.getChildByFieldName("arguments").getNamedChild(0).getType().equals("call")
+                                && getCodePiece(rightTSNode.getChildByFieldName("arguments").getNamedChild(0).getChildByFieldName("function")).equals("input")) {
+
+                    InputValue.InputValueBuilder inputBuilder = new InputValue.InputValueBuilder();
+                    Type varType = null;
+                    switch (codePiece) {
+                        case "int" -> varType = new IntType();
+                        case "float" -> varType = new FloatType();
+                        case "str", "input" -> {
+                            varType = new StringType();
+                            inputBuilder.readLine();
+                        }
+                    }
+                    scopeTable.scope().changeVariableType(variableName, varType);
+
+                    TSNode inputNode;
+                    Expression prompt = null;
+                    if (codePiece.equals("input")) {
+                        inputNode = rightTSNode;
+                    } else {
+                        inputNode = rightTSNode.getChildByFieldName("arguments").getNamedChild(0);
+                    }
+                    if (inputNode.getChildByFieldName("arguments").getNamedChildCount() > 0) {
+                        prompt = (Expression) parseTSNode(inputNode.getChildByFieldName("arguments").getNamedChild(0));
+                    }
+
+                    return inputBuilder
+                            .setValue(variableName)
+                            .setPromptMessage(prompt)
+                            .setVarType(varType)
+                            .build();
+                }
+            }
             if (declaredType != null && !(declaredType instanceof UnknownType)) {
                 scopeTable.changeVariableType(variableName, declaredType);
                 return new VariableDeclaration(declaredType, variableName, rightExpr);
