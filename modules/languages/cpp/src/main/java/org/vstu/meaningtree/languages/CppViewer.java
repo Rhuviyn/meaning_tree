@@ -371,53 +371,92 @@ public class CppViewer extends LanguageViewer {
     /* Перевод оператора ввода */
     private String toStringInput(InputCommand inputCommand) {
         StringBuilder builder = new StringBuilder();
-
         boolean preferC = getConfigFlag("preferC");
 
-        if (inputCommand instanceof InputValue inputValue) {
-            if (!inputValue.hasValue()) {
-                return builder.toString();
+        switch (inputCommand) {
+            case ReadInput readInput -> {
+                SimpleIdentifier tmpVariable = ctx.makeUniqueIdentifier("tmp");
+                VariableDeclaration tmpDeclaration = new VariableDeclaration(readInput.type, tmpVariable);
+                ctx.getVisibilityScope().scope().registerVariable(tmpDeclaration);
+                builder
+                        .append(indent(toStringVariableDeclaration(tmpDeclaration)))
+                        .append("\n")
+                        .append(indent(toStringReadInput(readInput, tmpVariable)))
+                        .append(";");
+                ctx.getNearestUnfilledViewerBody()
+                        .appendStringWithIndent(builder.toString());
+                return tmpVariable.getName();
             }
-
-            if (inputValue.hasMessage()) {
+            case AssignInput assignInput -> {
+                String value = toString(assignInput.getValue());
                 if (preferC) {
-                    // TODO вывод через printf()
+                    if (assignInput.hasLimitedLength()) {
+                        builder
+                                .append(String.format("fgets(%s, %s, stdin);\n", value, toString(assignInput.maxInputLength)))
+                                .append(indent(String.format("if (strlen(%s) > 0 && %s[strlen(%s) - 1] == '\\n') %s[strlen(%s) - 1] = '\\0'",
+                                        value, value, value, value, value)));
+                    } else {
+                        builder.append(String.format("gets(%s)", value));
+                    }
                 } else {
-                    builder
-                            .append(String.format(
-                                    "std::cout << %s;\n",
-                                    toString(inputValue.promptMessage)))
-                            .append(indent(""));
+                    builder.append(String.format("std::getline(std::cin, %s)", value));
+                    if (assignInput.hasLimitedLength()) {
+                        builder
+                                .append(";\n")
+                                .append(indent(String.format("if (%s.length() >= %s) %s = %s.substr(%s - 1)",
+                                        value, toString(assignInput.maxInputLength), value, value, toString(assignInput.maxInputLength))));
+                    }
+                }
+                List<java.lang.Class<? extends Node>> h = ctx.getTranslatingNodeTypeHierarchy();
+                if (h.size() > 1 && h.get(1) == ExpressionStatement.class) {
+                    return builder.toString();
+                } else {
+                    builder.insert(0, indent("")).append(";");
+                    ctx.getNearestUnfilledViewerBody().appendString(builder.toString());
+                    return value;
                 }
             }
-
-            Expression value = inputValue.getValue();
-            if (inputValue.readsLine) {
-                if (preferC || (inputValue.type instanceof ArrayType array && array.getItemType() instanceof CharacterType)) {
-                    // TODO определить размер буффера
-                    builder.append(String.format("std::cin.getline(%s, 100)", toString(value)));
-                } else if (inputValue.type instanceof StringType) {
-                    builder.append(String.format("std::getline(std::cin, %s)", toString(value)));
+            default -> {
+                if (preferC) {
+                    // TODO ввод через scanf()
                 } else {
-                    throw new IllegalStateException("Unsupported type in C/C++ input: " + toString(inputValue.type));
+                    builder.append("std::cin");
+                    for (var expr : inputCommand.getArguments()) {
+                        builder.append(" >> ").append(toString(expr));
+                    }
                 }
                 return builder.toString();
             }
+        }
+    }
 
+    private String toStringReadInput(ReadInput readInput, Expression value) {
+        StringBuilder builder = new StringBuilder();
+        boolean preferC = getConfigFlag("preferC");
+
+        if (readInput.hasPrompt()) {
+            if (preferC) {
+                // TODO вывод через printf()
+            } else {
+                builder
+                        .append(String.format(
+                                "std::cout << %s;\n",
+                                toString(readInput.getPrompt())))
+                        .append(indent(""));
+            }
+        }
+
+        if (readInput.readsLine) {
+            if (preferC) {
+                builder.append(String.format("gets(%s)", toString(value)));
+            } else {
+                builder.append(String.format("std::getline(std::cin, %s)", toString(value)));
+            }
+        } else {
             if (preferC) {
                 // TODO ввод через scanf()
             } else {
                 builder.append(String.format("std::cin >> %s", toString(value)));
-            }
-            return builder.toString();
-        }
-
-        if (preferC) {
-            // TODO ввод через scanf()
-        } else {
-            builder.append("std::cin");
-            for (var expr : inputCommand.getArguments()) {
-                builder.append(" >> ").append(toString(expr));
             }
         }
 
@@ -1801,7 +1840,7 @@ public class CppViewer extends LanguageViewer {
         }
 
         Expression rValue = variableDeclarator.getRValue();
-        if (rValue == null) {
+        if (rValue == null || rValue instanceof ReadInput) {
             return variableName.concat(arrayDeclarator);
         }
 
@@ -1840,8 +1879,15 @@ public class CppViewer extends LanguageViewer {
                 .append(type)
                 .append(" ");
 
+        StringBuilder inputBuilder = new StringBuilder();
         for (VariableDeclarator variableDeclarator : variableDeclaration.getDeclarators()) {
             builder.append(toStringVariableDeclarator(variableDeclarator, declarationType, useHeapArrayAllocation)).append(", ");
+            if (variableDeclarator.getRValue() instanceof ReadInput readInput) {
+                inputBuilder
+                        .append("\n")
+                        .append(indent(toStringReadInput(readInput, variableDeclarator.getIdentifier())))
+                        .append(";");
+            }
         }
         // Чтобы избежать лишней головной боли на проверки "а последняя ли это декларация",
         // я автоматически после каждой декларации добавляю запятую и пробел,
@@ -1851,6 +1897,7 @@ public class CppViewer extends LanguageViewer {
         builder.deleteCharAt(builder.length() - 1);
 
         builder.append(";");
+        builder.append(inputBuilder);
         return builder.toString();
     }
 
@@ -1969,6 +2016,10 @@ public class CppViewer extends LanguageViewer {
         Expression left = assign.getLValue();
         Expression right = assign.getRValue();
         AugmentedAssignmentOperator op = assign.getAugmentedOperator();
+
+        if (right instanceof ReadInput readInput) {
+            return toStringReadInput(readInput, left);
+        }
 
         // В С++ нет встроенного оператора возведения в степень, поэтому
         // используем функцию, необходимо убедится что подключен файл cmath: #include <cmath>

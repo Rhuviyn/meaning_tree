@@ -1398,6 +1398,18 @@ public class CppParser extends LanguageParser {
                     , scoped.getScopeResolution().getLast(), arguments);
         }
         if (functionName instanceof MemberAccess memAccess) {
+            if (memAccess.getMember().getName().equals("getline")) {
+                if (arguments.size() != 2) {
+                    throw new UnsupportedParsingException("cin.getline() requires two arguments");
+                }
+                return new AssignInput(arguments.getFirst(), arguments.get(1));
+            } else if (memAccess.getMember().getName().equals("get")) {
+                if (arguments.isEmpty()) {
+                    return new ReadInput(null, new CharacterType(), false);
+                } else if (arguments.size() == 2) {
+                    return new AssignInput(arguments.getFirst(), arguments.get(1));
+                }
+            }
             return new MethodCall(memAccess.getExpression(), memAccess.getMember(), arguments);
         }
 
@@ -1416,8 +1428,21 @@ public class CppParser extends LanguageParser {
                     .build();
         }
 
-        if (clearFunctionName.toString().equals("gets") || clearFunctionName.toString().equals("gets_s")) {
-            return new PointerInputCommand(arguments.getFirst(), arguments.subList(1, arguments.size()));
+        // Побочное поведение функций ввода строк усреднено.
+        // Считается, что все функции извлекают символ перевода строки из потока и не сохраняют его в строке.
+        // При ограниченной длине буффера в других языках обрезается итоговая строка, но остаток не сохраняется в потоке.
+        if (clearFunctionName.toString().equals("gets") || clearFunctionName.toString().equals("gets_s")
+            || clearFunctionName.toString().equals("fgets") && arguments.size() == 3 && arguments.get(2).equalsIdentifier("stdin")) {
+            return new AssignInput(arguments.getFirst(), arguments.size() > 1 ? arguments.get(1) : null);
+        }
+
+        if (clearFunctionName.toString().equals("getline") && arguments.size() == 2 && sanitizeFromStd(arguments.getFirst()).equalsIdentifier("cin")) {
+            return new AssignInput(arguments.get(1));
+        }
+
+        if (clearFunctionName.toString().equals("getchar")
+            || (clearFunctionName.toString().equals("getc") && arguments.size() == 1 && arguments.getFirst().equalsIdentifier("stdin"))) {
+            return new ReadInput(null, new CharacterType(), false);
         }
 
         String allocationFunction = clearFunctionName.toString();

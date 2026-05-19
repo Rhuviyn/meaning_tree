@@ -910,11 +910,6 @@ public class PythonViewer extends LanguageViewer {
     }
 
     private String variableDeclarationToString(VariableDeclaration varDecl) {
-
-        if (varDecl.getType() instanceof UserType userType && userType.getName().equalsIdentifier("Scanner")) {
-            return "";
-        }
-
         StringBuilder lValues = new StringBuilder();
         StringBuilder rValues = new StringBuilder();
         VariableDeclarator[] decls = varDecl.getDeclarators();
@@ -1287,71 +1282,74 @@ public class PythonViewer extends LanguageViewer {
                 StringBuilder builder = new StringBuilder();
                 funcCall = parenFiller.processForPython(funcCall);
                 if (funcCall instanceof InputCommand inputCommand) {
-
-                    if (inputCommand instanceof InputValue inputValue) {
-                        if (!inputValue.hasValue()) {
-                            return builder.toString();
-                        }
-
-                        builder.append("input(");
-                        if (inputValue.hasMessage()) {
-                            builder.append(toString(inputValue.promptMessage));
-                        }
-                        builder.append(")");
-
-                        if (!((inputValue.type instanceof StringType)
-                                || (inputValue.type instanceof ArrayType array && array.getItemType() instanceof CharacterType))) {
-                            switch (inputValue.type) {
-                                case IntType integerType -> {
-                                    builder
+                    switch (inputCommand) {
+                        case ReadInput readInput -> {
+                            builder.append("input(");
+                            if (readInput.hasPrompt()) {
+                                builder.append(toString(readInput.getPrompt()));
+                            }
+                            builder.append(")");
+                            if (!(readInput.type instanceof StringType)) {
+                                switch (readInput.type) {
+                                    case IntType ignored -> builder
                                             .insert(0, "int(")
                                             .append(")");
-                                }
-                                case FloatType floatType -> {
-                                    builder
+                                    case FloatType ignored -> builder
                                             .insert(0, "float(")
                                             .append(")");
+                                    case CharacterType ignored -> builder.append("[0]");
+                                    case null, default -> throw new IllegalStateException("Unsupported type in Python input: " + toString(readInput.type));
                                 }
-                                case null, default -> {
-                                    throw new IllegalStateException("Unsupported type in Python input: " + toString(inputValue.type));
-                                }
+                            }
+                            return builder.toString();
+                        }
+                        case AssignInput assignInput -> {
+                            String value = toString(assignInput.getValue());
+                            builder.append(value).append(" = input()");
+                            if (assignInput.hasLimitedLength()) {
+                                builder.append(String.format("[:%s-1]", toString(assignInput.maxInputLength)));
+                            }
+                            List<Class<? extends Node>> h = ctx.getTranslatingNodeTypeHierarchy();
+                            if (h.size() > 1 && h.get(1) == ExpressionStatement.class) {
+                                return builder.toString();
+                            } else {
+                                ctx.getNearestUnfilledViewerBody().appendStringWithIndent(builder.toString());
+                                return value;
                             }
                         }
-                        builder
-                                .insert(0, " = ")
-                                .insert(0, (toString(inputValue.getValue())));
-                        return builder.toString();
-                    } else if (inputCommand instanceof FormatInput formatInput) {
-                        // TODO
-                        return builder.toString();
-                    }
+                        case FormatInput formatInput -> {
+                            // TODO
+                            return builder.toString();
+                        }
+                        default -> {
+                            for (Expression variable : inputCommand.getArguments()) {
+                                builder
+                                        .append((toString(variable)))
+                                        .append(" = ");
 
-                    for (Expression variable : inputCommand.getArguments()) {
-                        builder
-                                .append((toString(variable)))
-                                .append(" = ");
-
-                        Type exprType = ctx.inferType(variable);
-                        switch (exprType) {
-                            case StringType ignored -> {
-                                builder.append("input()\n");
+                                Type exprType = ctx.inferType(variable);
+                                switch (exprType) {
+                                    case StringType ignored -> {
+                                        builder.append("input()\n");
+                                    }
+                                    case CharacterType ignored -> {
+                                        builder.append("input()[0]\n");
+                                    }
+                                    case IntType ignored -> {
+                                        builder.append("int(input())\n");
+                                    }
+                                    case FloatType ignored -> {
+                                        builder.append("float(input())\n");
+                                    }
+                                    default -> {
+                                        throw new IllegalStateException("Unsupported type in format input in Python: " + toString(exprType));
+                                    }
+                                }
                             }
-                            case CharacterType ignored -> {
-                                builder.append("input()\n");
-                            }
-                            case IntType ignored -> {
-                                builder.append("int(input())\n");
-                            }
-                            case FloatType ignored -> {
-                                builder.append("float(input())\n");
-                            }
-                            default -> {
-                                throw new IllegalStateException("Unsupported type in format input in Python: " + toString(exprType));
-                            }
+                            builder.deleteCharAt(builder.length() - 1);
+                            return builder.toString();
                         }
                     }
-                    builder.deleteCharAt(builder.length() - 1);
-                    return builder.toString();
                 }
 
                 builder.append(String.format("%s(%s)", toString(PythonSpecificFeatures.getFunctionExpression(funcCall)), argumentsToString(funcCall.getArguments())));

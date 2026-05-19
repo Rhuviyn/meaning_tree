@@ -67,6 +67,7 @@ import org.vstu.meaningtree.nodes.types.containers.components.Shape;
 import org.vstu.meaningtree.utils.analysis.imports.JavaLibraryImportRegistry;
 import org.vstu.meaningtree.utils.analysis.types.SimpleTypeInferrer;
 import org.vstu.meaningtree.utils.modules.ImportPathConverter;
+import org.vstu.meaningtree.nodes.types.user.Class;
 import org.vstu.meaningtree.utils.tokens.OperatorToken;
 
 import java.util.*;
@@ -350,78 +351,103 @@ public class JavaViewer extends LanguageViewer {
     }
 
     private String toStringInputCommand(InputCommand inputCommand) {
-        var builder = new StringBuilder();
+        StringBuilder builder = new StringBuilder();
 
-        if (inputCommand instanceof InputValue inputValue) {
-            if (!inputValue.hasValue()) {
+        List<SimpleIdentifier> scanners = ctx.getVisibilityScope().scope().getVariablesByType(new Class(new SimpleIdentifier("Scanner")));
+        SimpleIdentifier scannerName;
+
+        if (scanners.isEmpty()) {
+            scannerName = ctx.makeUniqueIdentifier("scanner");
+            ctx.getVisibilityScope().scope().registerVariable(new VariableDeclaration(new Class(new SimpleIdentifier("Scanner")), scannerName));
+            ctx.getNearestUnfilledViewerBody()
+                    .indent(_indentLevel, _indentation)
+                    .appendStringWithIndent(String.format("Scanner %s = new Scanner(System.in);", scannerName.getName()));
+            ctx.preserveImport(new ImportMembersFromModule(
+                    new SimpleIdentifier("java.util"), new SimpleIdentifier("Scanner")));
+        } else {
+            scannerName = scanners.getFirst();
+        }
+
+        switch (inputCommand) {
+            case ReadInput readInput -> {
+                if (readInput.hasPrompt()) {
+                    ctx.getNearestUnfilledViewerBody()
+                            .indent(_indentLevel, _indentation)
+                            .appendStringWithIndent(String.format(
+                                    "System.out.print(%s);",
+                                    toString(readInput.getPrompt())));
+                }
+
+                builder.append(scannerName.getName());
+
+                switch (readInput.type) {
+                    case IntType ignored -> builder.append(".nextInt()");
+                    case FloatType ignored -> builder.append(".nextFloat()");
+                    case StringType ignored -> {
+                        if (readInput.readsLine) {
+                            builder.append(".nextLine()");
+                        } else {
+                            builder.append(".next()");
+                        }
+                    }
+                    case CharacterType ignored -> builder.append(".next().charAt(0)");
+                    case null, default ->
+                            throw new IllegalStateException("Unsupported type in Java input: " + toString(readInput.type));
+                }
                 return builder.toString();
             }
-
-            StringBuilder promptBuilder = new StringBuilder();
-            if (inputValue.hasMessage()) {
-                promptBuilder
-                        .append(String.format(
-                        "System.out.print(%s);\n",
-                        toString(inputValue.promptMessage)))
-                        .append(indent(""));
-            }
-
-            if (inputValue.hasScanner()) {
-                builder.append(toString(inputValue.scannerName));
-            } else {
-                builder.append("new Scanner(System.in)");
-            }
-
-            if (inputValue.type instanceof IntType) {
-                builder.append(".nextInt()");
-            } else if (inputValue.type instanceof FloatType) {
-                builder.append(".nextFloat()");
-            } else if ((inputValue.type instanceof StringType)
-                    || (inputValue.type instanceof ArrayType array && array.getItemType() instanceof CharacterType)) {
-                if (inputValue.readsLine) {
-                    builder.append(".nextLine()");
+            case AssignInput assignInput -> {
+                String value = toString(assignInput.getValue());
+                builder
+                        .append(value)
+                        .append(" = ")
+                        .append(scannerName.getName())
+                        .append(".nextLine()");
+                if (assignInput.hasLimitedLength()) {
+                    builder
+                            .append(";\n")
+                            .append(indent(String.format("if (%s.size() >= %s) %s = %s.substring(%s - 1)",
+                                    value, toString(assignInput.maxInputLength), value, value, toString(assignInput.maxInputLength))));
+                }
+                List<java.lang.Class<? extends Node>> h = ctx.getTranslatingNodeTypeHierarchy();
+                if (h.size() > 1 && h.get(1) == ExpressionStatement.class) {
+                    return builder.toString();
                 } else {
-                    builder.append(".next()");
+                    builder.insert(0, indent("")).append(";");
+                    ctx.getNearestUnfilledViewerBody().appendString(builder.toString());
+                    return value;
                 }
-            } else {
-                throw new IllegalStateException("Unsupported type in Java input: " + toString(inputValue.type));
             }
-            builder
-                    .insert(0, " = ")
-                    .insert(0, toString(inputValue.getValue()));
-            return promptBuilder.append(builder).toString();
-        }
+            case FormatInput formatInput -> {
+                // TODO
+                return toStringFormatInput(formatInput);
+            }
+            default -> {
+                int i = 0;
+                for (Expression stringPart : inputCommand.getArguments()) {
+                    if (i > 0) {
+                        builder.append(indent(toString(inputCommand.getArguments().get(i))));
+                    }
+                    else {
+                        builder.append(toString(inputCommand.getArguments().getFirst()));
+                    }
 
-        int i = 0;
-        for (Expression stringPart : inputCommand.getArguments()) {
-            if (i > 0) {
-                builder.append(indent(toString(inputCommand.getArguments().get(i))));
+                    builder.append(scannerName.getName());
+                    Type exprType = ctx.inferType(stringPart);
+                    switch (exprType) {
+                        case StringType ignored -> builder.append(".next()");
+                        case IntType ignored -> builder.append(".nextInt()");
+                        case FloatType ignored -> builder.append(".nextDouble()");
+                        case CharacterType ignored -> builder.append(".next().charAt(0)");
+                        default -> throw new IllegalStateException("Unsupported type in Java input: " + toString(exprType));
+                    }
+                    builder.append(";\n");
+                    i += 1;
+                }
+                builder.delete(builder.length() - 2, builder.length());
+                return builder.toString();
             }
-            else {
-                builder.append(toString(inputCommand.getArguments().getFirst()));
-            }
-
-            builder.append(" = new Scanner(System.in).next");
-            Type exprType = ctx.inferType(stringPart);
-            switch (exprType) {
-                case StringType ignored -> {
-                    builder.append("()");
-                }
-                case IntType ignored -> {
-                    builder.append("Int()");
-                }
-                case FloatType ignored -> {
-                    builder.append("Double()");
-                }
-                default -> {
-                    throw new IllegalStateException("Unsupported type in Java input: " + toString(exprType));
-                }
-            }
-            builder.append(";\n");
-            i += 1;
         }
-        builder.delete(builder.length() - 2, builder.length());
-        return builder.toString();
     }
 
     private String toStringFormatInput(FormatInput formatInput) {
