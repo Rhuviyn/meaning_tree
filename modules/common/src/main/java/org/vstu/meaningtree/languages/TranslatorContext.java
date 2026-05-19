@@ -479,4 +479,13 @@ public class TranslatorContext {
         return res;
     }
 
+    public SimpleIdentifier makeUniqueIdentifier(String identifierName) {
+        SimpleIdentifier uniqueIdentifier = new SimpleIdentifier(identifierName);
+        int postfix = 1;
+        while (scope.hasVariable(uniqueIdentifier)) {
+            uniqueIdentifier = new SimpleIdentifier(identifierName + postfix++);
+        }
+        return uniqueIdentifier;
+    }
+
 }
