@@ -38,8 +38,7 @@ import org.vstu.meaningtree.nodes.expressions.unary.*;
 import org.vstu.meaningtree.nodes.interfaces.Generic;
 import org.vstu.meaningtree.nodes.interfaces.PrimitiveType;
 import org.vstu.meaningtree.nodes.interfaces.HasVariableDeclaration;
-import org.vstu.meaningtree.nodes.io.InputValue;
-import org.vstu.meaningtree.nodes.io.InputValue;
+import org.vstu.meaningtree.nodes.io.ReadInput;
 import org.vstu.meaningtree.nodes.io.PrintCommand;
 import org.vstu.meaningtree.nodes.io.PrintValues;
 import org.vstu.meaningtree.nodes.modules.*;
@@ -631,6 +630,16 @@ public class JavaParser extends LanguageParser {
         };
     }
 
+    private ReadInput makeInputCall(String scannerMethodName) {
+        return switch (scannerMethodName) {
+            case ("next") -> new ReadInput(null, new StringType(), false);
+            case ("nextInt") -> new ReadInput(null, new IntType(), false);
+            case ("nextFloat") -> new ReadInput(null, new FloatType(), false);
+            case ("nextLine") -> new ReadInput(null, new StringType(), true);
+            default -> throw new IllegalStateException("Unsupported java.util.Scanner method: " + scannerMethodName);
+        };
+    }
+
     @NotNull
     private Node fromMethodInvocation(@NotNull TSNode methodInvocation) {
         TSNode objectNode = methodInvocation.getChildByFieldName("object");
@@ -639,6 +648,16 @@ public class JavaParser extends LanguageParser {
 
         String objectMethodName = getCodePiece(nameNode);
         if (!objectNode.isNull()) {
+            if (objectNode.getType().equals("identifier")) {
+                Type objectType = ctx.getVisibilityScope().scope().getVariableType((SimpleIdentifier) fromIdentifierTSNode(objectNode));
+                if (objectType instanceof UserType userType
+                        && userType.getName().equalsIdentifier("Scanner")) {
+                    return makeInputCall(objectMethodName);
+                }
+            } else if (objectNode.getType().equals("object_creation_expression")
+                    && getCodePiece(objectNode.getChildByFieldName("type")).equals("Scanner")) {
+                return makeInputCall(objectMethodName);
+            }
             String objectName = getCodePiece(objectNode);
             if (objectName.equals("System.out")
                     && (objectMethodName.equals("println") || objectMethodName.equals("print"))) {
@@ -1257,61 +1276,12 @@ public class JavaParser extends LanguageParser {
         return new SimpleIdentifier(variableName);
     }
 
-    private InputValue makeInputCall(TSNode TSNodeScanner, TSNode TSNodeInputValue) {
-
-        InputValue.InputValueBuilder inputBuilder = new InputValue.InputValueBuilder();
-
-        inputBuilder.setValue((Expression) parseTSNode(TSNodeInputValue));
-
-        TSNode object = TSNodeScanner.getChildByFieldName("object");
-        if (object.getType().equals("identifier")) {
-            inputBuilder.setScannerName(fromIdentifierTSNode(object));
-        }
-
-        String scannerObjectMethodName = getCodePiece(TSNodeScanner.getChildByFieldName("name"));
-
-        return switch (scannerObjectMethodName) {
-            case ("next") -> inputBuilder
-                    .setVarType(new StringType())
-                    .build();
-            case ("nextInt") -> inputBuilder
-                    .setVarType(new IntType())
-                    .build();
-            case ("nextFloat") -> inputBuilder
-                    .setVarType(new FloatType())
-                    .build();
-            case ("nextLine") -> inputBuilder
-                    .setVarType(new StringType())
-                    .readLine()
-                    .build();
-            default -> throw new IllegalStateException("Unexpected value: " + scannerObjectMethodName);
-        };
-    }
-
-    private AssignmentExpression fromAssignmentExpressionTSNode(TSNode node) {
+    private Node fromAssignmentExpressionTSNode(TSNode node) {
         // Приёмник разбирается так же, как правая часть, а не берётся куском исходника:
         // им может быть доступ к члену, индексация или обращение через this, и текстом
         // всё это превращалось в один идентификатор с именем вида `this.v` или `a[i]`
         Expression target = (Expression) parseTSNode(node.getChildByFieldName("left"));
         Expression right = (Expression) parseTSNode(node.getChildByFieldName("right"));
-
-        TSNode rightNode = node.getChildByFieldName("right");
-
-        if (rightNode.getType().equals("method_invocation")) {
-            TSNode object = rightNode.getChildByFieldName("object");
-            if (!object.isNull()) {
-                if (object.getType().equals("identifier")) {
-                    Type objectType = ctx.getVisibilityScope().scope().getVariableType((SimpleIdentifier) fromIdentifierTSNode(object));
-                    if (objectType instanceof UserType userType
-                            && userType.getName().equalsIdentifier("Scanner")) {
-                        return makeInputCall(rightNode, node.getChildByFieldName("left"));
-                    }
-                } else if (object.getType().equals("object_creation_expression")
-                        && getCodePiece(object.getChildByFieldName("type")).equals("Scanner")) {
-                    return makeInputCall(rightNode, node.getChildByFieldName("left"));
-                }
-            }
-        }
 
         String operatorType = node.getChildByFieldName("operator").getType();
         AugmentedAssignmentOperator augmentedAssignmentOperator = switch (operatorType) {
