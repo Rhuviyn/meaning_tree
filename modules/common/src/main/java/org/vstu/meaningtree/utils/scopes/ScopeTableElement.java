@@ -239,6 +239,19 @@ public class ScopeTableElement implements Serializable {
         return target != this ? target.hasVariable(name) : variables.containsKey(name);
     }
 
+    public List<SimpleIdentifier> getVariablesByType(Type type) {
+        if (type == null || variables.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<SimpleIdentifier> variableNames = new ArrayList<>();
+        for (Map.Entry<SimpleIdentifier, Type> entry : variables.entrySet()) {
+            if (entry.getValue().equals(type)) {
+                variableNames.add(entry.getKey());
+            }
+        }
+        return variableNames;
+    }
+
     @Nullable
     public Type getVariableType(@NotNull SimpleIdentifier name) {
         ScopeTableElement target = resolveBinding(name);
