@@ -73,6 +73,7 @@ public class UniversalDeserializer implements Deserializer<AbstractSerializedNod
             case "PointerMemberAccess" -> deserializePointerMemberAccess(serialized);
             case "MemberAccess"-> deserializeMemberAccess(serialized);
             case "StringFormat" -> deserializeStringFormat(serialized);
+            case "FormatSpecifier" -> deserializeFormatSpecifier(serialized);
             case "Shape" -> deserializeShape(serialized);
             case "Range" -> deserializeRange(serialized);
             case "DefinitionArgument" -> deserializeDefArg(serialized);
@@ -99,6 +100,40 @@ public class UniversalDeserializer implements Deserializer<AbstractSerializedNod
     private Node deserializeStringFormat(SerializedNode serialized) {
         return new StringFormat((Expression) deserialize(serialized.fields.get("template")),
                 deserializeList((SerializedListNode) serialized.fields.get("substitutions")).toArray(Expression[]::new));
+    }
+
+    private Node deserializeFormatSpecifier(SerializedNode serialized) {
+        FormatSpecifier.FormatSpecifierBuilder builder =
+                new FormatSpecifier.FormatSpecifierBuilder();
+
+        if ((boolean) serialized.values.get("assignmentIsSuppressed")) {
+            builder.suppressAssignment();
+        }
+        if ((boolean) serialized.values.get("hasPlusFlag")) {
+            builder.setPlusFlag();
+        }
+        if ((boolean) serialized.values.get("hasZeroFlag")) {
+            builder.setZeroFlag();
+        }
+        int width = (int) serialized.values.get("width");
+        if (width != -1) {
+            builder.setWidth(width);
+        }
+        int precision = (int) serialized.values.get("precision");
+        if (precision != -1) {
+            builder.setPrecision(precision);
+        }
+        String scanSet = (String) serialized.values.get("scanSet");
+        if (!scanSet.isEmpty()) {
+            builder.setScanSet(scanSet);
+        }
+        if ((boolean) serialized.values.get("scanSetIsNegated")) {
+            builder.negateScanset();
+        }
+        FormatSpecifier.SpecifierType type =
+                FormatSpecifier.SpecifierType.valueOf((String) serialized.values.get("type"));
+        builder.setType(type);
+        return builder.build();
     }
 
     private Node deserializeRange(SerializedNode serialized) {
