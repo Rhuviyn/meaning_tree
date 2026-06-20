@@ -660,6 +660,7 @@ public class JsonSerializer implements Serializer<JsonObject> {
 
             case ProgramEntryPoint entryPoint -> serializeProgramEntryPoint(entryPoint);
             case Comment comment -> serializeComment(comment);
+            case FormatSpecifier specifier -> serializeFormatSpecifier(specifier);
 
             default -> throw new MeaningTreeSerializationException("Unexpected value: " + node);
         };
@@ -2261,6 +2262,21 @@ public class JsonSerializer implements Serializer<JsonObject> {
         JsonArray targets = new JsonArray();
         for (var t : expr.getArguments()) targets.add(serialize(t));
         json.add("arguments", targets);
+        return json;
+    }
+
+    @NotNull
+    private JsonObject serializeFormatSpecifier(@NotNull FormatSpecifier specifier) {
+        JsonObject json = new JsonObject();
+        json.addProperty("type", JsonNodeTypeClassMapper.getTypeForNode(specifier));
+        json.addProperty("assignment_is_suppressed", specifier.assignmentIsSuppressed);
+        json.addProperty("has_plus_flag", specifier.hasPlusFlag);
+        json.addProperty("has_zero_flag", specifier.hasZeroFlag);
+        json.addProperty("width", specifier.width);
+        json.addProperty("precision", specifier.precision);
+        json.addProperty("scan_set", specifier.scanSet);
+        json.addProperty("scan_set_is_negated", specifier.scanSetIsNegated);
+        json.addProperty("specifier_type", enumToValue(specifier.type));
         return json;
     }
 

@@ -1576,6 +1576,7 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
             case "comment" -> Comment.fromUnescaped(
                     json.get("content").getAsString()
             );
+            case "format_specifier" -> deserializeFormatSpecifier(json);
 
             default -> throw new MeaningTreeSerializationException("Unknown node type: " + type);
         };
@@ -1679,6 +1680,41 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
         Type varType = (Type) deserialize(json.getAsJsonObject("var_type"));
         List<VariableDeclarator> declarators = deserializeVariableDeclarators(json.getAsJsonArray("declarators"));
         return new VariableDeclaration(varType, declarators);
+    }
+
+    private FormatSpecifier deserializeFormatSpecifier(JsonObject json) {
+        FormatSpecifier.FormatSpecifierBuilder builder = new FormatSpecifier.FormatSpecifierBuilder();
+
+        if (json.get("assignment_is_suppressed").getAsBoolean()) {
+            builder.suppressAssignment();
+        }
+        if (json.get("has_plus_flag").getAsBoolean()) {
+            builder.setPlusFlag();
+        }
+        if (json.get("has_zero_flag").getAsBoolean()) {
+            builder.setZeroFlag();
+        }
+        int width = json.get("width").getAsInt();
+        if (width != -1) {
+            builder.setWidth(width);
+        }
+        int precision = json.get("precision").getAsInt();
+        if (precision != -1) {
+            builder.setPrecision(precision);
+        }
+        String scanSet = json.get("scan_set").getAsString();
+        if (!scanSet.isEmpty()) {
+            builder.setScanSet(scanSet);
+        }
+        if (json.get("scan_set_is_negated").getAsBoolean()) {
+            builder.negateScanset();
+        }
+        FormatSpecifier.SpecifierType type = parseEnum(
+                FormatSpecifier.SpecifierType.class,
+                json.get("specifier_type").getAsString()
+        );
+        builder.setType(type);
+        return builder.build();
     }
 
     private void applyLoopMetadata(Loop loop, JsonObject json) {

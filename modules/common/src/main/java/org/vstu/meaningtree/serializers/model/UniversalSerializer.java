@@ -68,6 +68,7 @@ public class UniversalSerializer implements Serializer<AbstractSerializedNode> {
             case ExpressionStatement stmt -> serialize(stmt);
             case MemberAccess member -> serialize(member);
             case StringFormat stringFormat -> serialize(stringFormat);
+            case FormatSpecifier specifier -> serialize(specifier);
             case NewExpression newExpr -> serialize(newExpr);
             case SizeofExpression sizeOf -> serialize(sizeOf);
             case Shape shape -> serialize(shape);
@@ -251,6 +252,19 @@ public class UniversalSerializer implements Serializer<AbstractSerializedNode> {
             put("substitutions", serialize(fmt.getSubstitutionList()));
             put("template", serialize(fmt.getTemplate()));
         }}, new HashMap<>() {{
+        }});
+    }
+
+    public SerializedNode serialize(FormatSpecifier specifier) {
+        return new SerializedNode("FormatSpecifier", new HashMap<>(), new HashMap<>() {{
+            put("assignmentIsSuppressed", specifier.assignmentIsSuppressed);
+            put("hasPlusFlag", specifier.hasPlusFlag);
+            put("hasZeroFlag", specifier.hasZeroFlag);
+            put("width", specifier.width);
+            put("precision", specifier.precision);
+            put("scanSet", specifier.scanSet);
+            put("scanSetIsNegated", specifier.scanSetIsNegated);
+            put("type", specifier.type.name());
         }});
     }
 

@@ -276,6 +276,9 @@ public class JsonNodeTypeClassMapper {
         register("include", Include.class);
         register("package_declaration", PackageDeclaration.class);
 
+        // Format string
+        register("format_specifier", FormatSpecifier.class);
+
         // Other
         register("program_entry_point", ProgramEntryPoint.class);
         register("comment", Comment.class);
