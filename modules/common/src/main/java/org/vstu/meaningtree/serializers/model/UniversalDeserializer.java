@@ -74,6 +74,7 @@ public class UniversalDeserializer implements Deserializer<AbstractSerializedNod
             case "MemberAccess"-> deserializeMemberAccess(serialized);
             case "StringFormat" -> deserializeStringFormat(serialized);
             case "FormatSpecifier" -> deserializeFormatSpecifier(serialized);
+            case "StringFormatTemplate" -> deserializeStringFormatTemplate(serialized);
             case "Shape" -> deserializeShape(serialized);
             case "Range" -> deserializeRange(serialized);
             case "DefinitionArgument" -> deserializeDefArg(serialized);
@@ -134,6 +135,13 @@ public class UniversalDeserializer implements Deserializer<AbstractSerializedNod
                 FormatSpecifier.SpecifierType.valueOf((String) serialized.values.get("type"));
         builder.setType(type);
         return builder.build();
+    }
+
+    private Node deserializeStringFormatTemplate(SerializedNode serialized) {
+        List<Expression> components = (List<Expression>) deserializeList(
+                        (SerializedListNode) serialized.fields.get("components"));
+        return new StringFormatTemplate(components.toArray(new Expression[0])
+        );
     }
 
     private Node deserializeRange(SerializedNode serialized) {
