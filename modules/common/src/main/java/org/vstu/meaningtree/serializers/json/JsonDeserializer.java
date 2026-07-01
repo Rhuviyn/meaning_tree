@@ -1662,6 +1662,8 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
             }
             case "comment" -> deserializeComment(json);
             case "format_specifier" -> deserializeFormatSpecifier(json);
+            case "string_format_template" -> new StringFormatTemplate(deserializeExpressionList(
+                    json.getAsJsonArray("components")).toArray(new Expression[0]));
 
             default -> throw new MeaningTreeSerializationException("Unknown node type: " + type);
         };
