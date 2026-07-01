@@ -282,6 +282,7 @@ public class JsonNodeTypeClassMapper {
 
         // Format string
         register("format_specifier", FormatSpecifier.class);
+        register("string_format_template", StringFormatTemplate.class);
 
         // Other
         register("program_entry_point", ProgramEntryPoint.class);
