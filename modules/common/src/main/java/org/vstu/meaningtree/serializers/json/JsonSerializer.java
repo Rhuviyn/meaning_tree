@@ -545,7 +545,6 @@ public class JsonSerializer implements Serializer<JsonObject> {
             case ListLiteral l -> serializeListLiteral(l);
             case SetLiteral l -> serializeSetLiteral(l);
             case UnmodifiableListLiteral l -> serializeUnmodifiableListLiteral(l);
-            case InterpolatedStringLiteral l -> serializeInterpolatedStringLiteral(l);
             case DictionaryLiteral l -> serializeDictionaryLiteral(l);
 
             case PointerMemberAccess memAcc -> serializePointerMemberAccess(memAcc);
@@ -1837,17 +1836,6 @@ public class JsonSerializer implements Serializer<JsonObject> {
     }
 
     @NotNull
-    private JsonObject serializeInterpolatedStringLiteral(@NotNull InterpolatedStringLiteral l) {
-        JsonObject json = new JsonObject();
-        json.addProperty("type", JsonNodeTypeClassMapper.getTypeForNode(l));
-        JsonArray parts = new JsonArray();
-        for (var part : l.components()) parts.add(serialize(part));
-        json.add("components", parts);
-        json.addProperty("type", enumToValue(l.getStringType()));
-        return json;
-    }
-
-    @NotNull
     private JsonObject serializePointerMemberAccess(@NotNull PointerMemberAccess expr) {
         JsonObject json = new JsonObject();
         json.addProperty("type", JsonNodeTypeClassMapper.getTypeForNode(expr));
@@ -2113,16 +2101,6 @@ public class JsonSerializer implements Serializer<JsonObject> {
         return json;
     }
 
-    private JsonObject serializeStringFormat(@NotNull StringFormat expr) {
-        JsonObject json = new JsonObject();
-        json.addProperty("type", JsonNodeTypeClassMapper.getTypeForNode(expr));
-        json.add("template", serialize(expr.getTemplate()));
-        JsonArray substitutions = new JsonArray();
-        for (var substitution : expr.getSubstitutions()) substitutions.add(serialize(substitution));
-        json.add("substitutions", substitutions);
-        return json;
-    }
-
     private JsonObject serializeDictionaryLiteral(@NotNull DictionaryLiteral literal) {
         JsonObject json = new JsonObject();
         json.addProperty("type", JsonNodeTypeClassMapper.getTypeForNode(literal));
@@ -2331,6 +2309,20 @@ public class JsonSerializer implements Serializer<JsonObject> {
             components.add(serialize(t));
         }
         json.add("components", components);
+        return json;
+    }
+
+    @NotNull
+    private JsonObject serializeStringFormat(@NotNull StringFormat stringFormat) {
+        JsonObject json = new JsonObject();
+        json.addProperty("type", JsonNodeTypeClassMapper.getTypeForNode(stringFormat));
+        json.addProperty("string_type", enumToValue(stringFormat.getStringType()));
+        json.add("template", serializeStringFormatTemplate(stringFormat.getTemplate()));
+        JsonArray substitutions = new JsonArray();
+        for (var t : stringFormat.getSubstitutions()) {
+            substitutions.add(serialize(t));
+        }
+        json.add("substitutions", substitutions);
         return json;
     }
 

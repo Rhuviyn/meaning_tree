@@ -63,7 +63,6 @@ public class SimpleTypeInferrer {
             case NumericLiteral numericLiteral -> inference(numericLiteral);
             case BoolLiteral boolLiteral -> new BooleanType();
             case StringLiteral stringLiteral -> new StringType();
-            case InterpolatedStringLiteral interpolatedStringLiteral -> new StringType();
             case NullLiteral nullLiteral -> new UnknownType();
             case ArrayLiteral arrayLiteral -> inference(arrayLiteral);
             case ListLiteral listLiteral -> inference(listLiteral);
