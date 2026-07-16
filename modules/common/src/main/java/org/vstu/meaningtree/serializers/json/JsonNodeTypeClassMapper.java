@@ -126,7 +126,6 @@ public class JsonNodeTypeClassMapper {
         register("list_literal", ListLiteral.class);
         register("set_literal", SetLiteral.class);
         register("unmodifiable_list_literal", UnmodifiableListLiteral.class);
-        register("interpolated_string_literal", InterpolatedStringLiteral.class);
         register("dictionary_literal", DictionaryLiteral.class);
 
         // Expressions
@@ -279,6 +278,7 @@ public class JsonNodeTypeClassMapper {
         // Format string
         register("format_specifier", FormatSpecifier.class);
         register("string_format_template", StringFormatTemplate.class);
+        register("string_format", StringFormat.class);
 
         // Other
         register("program_entry_point", ProgramEntryPoint.class);

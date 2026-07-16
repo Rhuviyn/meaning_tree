@@ -161,6 +161,7 @@ public class PythonViewer extends LanguageViewer {
         registerTabRenderer(CastTypeExpression.class, (node, tab) -> callsToString(node));
         registerTabRenderer(Comprehension.class, (node, tab) -> comprehensionToString(node));
         registerTabRenderer(EmptyStatement.class, (node, tab) -> emptyStatementToString(node));
+        registerTabRenderer(StringFormat.class, (node, tab) -> stringFormatToString(node));
 
         registerPreRenderPreparation(UnaryExpression.class, parenFiller::process);
         registerPreRenderPreparation(BinaryExpression.class, parenFiller::process);
@@ -1084,6 +1085,29 @@ public class PythonViewer extends LanguageViewer {
         }
     }
 
+    private String stringFormatToString(StringFormat stringFormat) {
+        StringBuilder componentsBuilder = new StringBuilder();
+        int substitutionCounter = 0;
+        for (Expression component : stringFormat.getTemplate().getComponents()) {
+            switch (component) {
+                case StringLiteral literal -> {
+                    if (literal.getStringType().equals(StringLiteral.Type.RAW)) {
+                        componentsBuilder.append(literal.getUnescapedValue().replaceAll("([{}])", "$1$1"));
+                    } else {
+                        componentsBuilder.append(literal.getEscapedValue().replaceAll("([{}])", "$1$1"));
+                    }
+                }
+                case FormatSpecifier specifier -> componentsBuilder.append(String.format("{%s%s}",
+                        toString(stringFormat.getSubstitutions()[substitutionCounter++]),
+                        specifier.isEmptyExpression() ? "" : (":" + specifier.asString())));
+                default -> throw new IllegalStateException(String.format("Unexpected node in format string: %s. Only StringLiteral and FormatSpecifier are allowed.", component.getNodeUniqueName()));
+            }
+        }
+        return String.format("f%s\"%s\"",
+                stringFormat.getStringType().equals(StringLiteral.Type.RAW) ? "r" : "",
+                componentsBuilder);
+    }
+
     private String literalToString(Literal literal) {
         if (literal instanceof NumericLiteral numLiteral) {
             return numLiteral.getStringValue(false);
@@ -1100,25 +1124,6 @@ public class PythonViewer extends LanguageViewer {
                 value = strLiteral.getEscapedValue();
             }
             return String.format("%s\"%s\"", prefix, value);
-        } else if (literal instanceof InterpolatedStringLiteral interpolation) {
-            String prefix = "f";
-            switch (interpolation.getStringType()) {
-                case RAW ->  prefix += "r";
-                default -> prefix += "";
-            }
-            StringBuilder builder = new StringBuilder();
-            for (Expression expr : interpolation.components()) {
-                if (expr instanceof StringLiteral simpleString) {
-                    if (interpolation.getStringType().equals(StringLiteral.Type.RAW)) {
-                        builder.append(simpleString.getUnescapedValue());
-                    } else {
-                        builder.append(simpleString.getEscapedValue());
-                    }
-                } else {
-                    builder.append(String.format("{%s}", toString(expr)));
-                }
-            }
-            return String.format("%s\"%s\"", prefix, builder);
         } else if (literal instanceof BoolLiteral bool) {
            if (bool.getValue()) {
                return "True";

@@ -99,8 +99,12 @@ public class UniversalDeserializer implements Deserializer<AbstractSerializedNod
     }
 
     private Node deserializeStringFormat(SerializedNode serialized) {
-        return new StringFormat((Expression) deserialize(serialized.fields.get("template")),
-                deserializeList((SerializedListNode) serialized.fields.get("substitutions")).toArray(Expression[]::new));
+        List<Expression> substitutions = (List<Expression>) deserializeList((SerializedListNode) serialized.fields.get("substitutions"));
+        return new StringFormat(
+                StringLiteral.Type.valueOf((String) serialized.values.get("stringType")),
+                (StringFormatTemplate) deserialize(serialized.fields.get("template")),
+                substitutions.toArray(new Expression[0])
+        );
     }
 
     private Node deserializeFormatSpecifier(SerializedNode serialized) {
@@ -362,10 +366,6 @@ public class UniversalDeserializer implements Deserializer<AbstractSerializedNod
                 if (serialized.fields.containsKey("type")) lit.setTypeHint((Type) deserialize(serialized.fields.get("type")));
                 yield lit;
             }
-            case "InterpolatedString" -> new InterpolatedStringLiteral(
-                    StringLiteral.Type.valueOf((String) serialized.values.get("type")),
-                    (List<Expression>) deserializeList((SerializedListNode) serialized.fields.get("components"))
-            );
             case "Null" -> new NullLiteral();
             default -> throw new MeaningTreeSerializationException("Unsupported literal in universal deserializer");
         };

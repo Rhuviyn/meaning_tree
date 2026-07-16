@@ -688,6 +688,22 @@ public class JavaParser extends LanguageParser {
             return new FunctionCall(methodName, arguments);
         }
 
+        if (objectMethodName.equals("formatted")) {
+            if (!objectNode.getType().equals("string_literal")) {
+                throw new UnsupportedParsingException("formatted() method in Java is only supported for plain strings.");
+            }
+            return new StringFormat(StringLiteral.Type.NONE,
+                    StringFormatTemplate.fromFormatString(((StringLiteral) parseTSNode(objectNode)).getUnescapedValue()),
+                    arguments.toArray(new Expression[0]));
+        }
+        if (getCodePiece(objectNode).equals("String") && objectMethodName.equals("format")
+                && argumentsNode.getNamedChild(0).getType().equals("string_literal")) {
+            String formatString = ((StringLiteral) arguments.removeFirst()).getUnescapedValue();
+            return new StringFormat(StringLiteral.Type.NONE,
+                    StringFormatTemplate.fromFormatString(formatString),
+                    arguments.toArray(new Expression[0]));
+        }
+
         Expression object = (Expression) parseTSNode(objectNode);
         return new MethodCall(object, (SimpleIdentifier) methodName, arguments);
     }

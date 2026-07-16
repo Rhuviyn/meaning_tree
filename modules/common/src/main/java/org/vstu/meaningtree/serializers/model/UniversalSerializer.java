@@ -250,9 +250,10 @@ public class UniversalSerializer implements Serializer<AbstractSerializedNode> {
 
     public SerializedNode serialize(StringFormat fmt) {
         return new SerializedNode("StringFormat", new HashMap<>() {{
-            put("substitutions", serialize(fmt.getSubstitutionList()));
             put("template", serialize(fmt.getTemplate()));
+            put("substitutions", serialize(fmt.getSubstitutions()));
         }}, new HashMap<>() {{
+            put("stringType", fmt.getStringType().name());
         }});
     }
 
@@ -374,11 +375,6 @@ public class UniversalSerializer implements Serializer<AbstractSerializedNode> {
             case FloatLiteral number -> new SerializedNode("Float", new HashMap<>(), new HashMap<>() {{
                 put("text", number.getStringValue(true));
                 put("value", number.getDoubleValue());
-            }});
-            case InterpolatedStringLiteral istr -> new SerializedNode("InterpolatedString", new HashMap<>() {{
-                put("components", serialize(istr.components()));
-            }}, new HashMap<>() {{
-                put("type", istr.getStringType().name());
             }});
             case StringLiteral str -> new SerializedNode("String", new HashMap<>(), new HashMap<>() {{
                 put("text", str.getEscapedValue());

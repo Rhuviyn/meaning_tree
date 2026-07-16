@@ -1413,6 +1413,14 @@ public class CppParser extends LanguageParser {
             return new MethodCall(memAccess.getExpression(), memAccess.getMember(), arguments);
         }
 
+        if (clearFunctionName.toString().equals("format")
+                && tsArguments.getNamedChild(0).getType().equals("string_literal")) {
+            String formatString = ((StringLiteral) arguments.removeFirst()).getUnescapedValue();
+            return new StringFormat(StringLiteral.Type.NONE,
+                    StringFormatTemplate.fromBracedFormatString(formatString),
+                    arguments.toArray(new Expression[0]));
+        }
+
         if (clearFunctionName.toString().equals("printf")) {
             return new FormatPrint(arguments.getFirst(), arguments.subList(1, arguments.size()).toArray(new Expression[0]));
         }

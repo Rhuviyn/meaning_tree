@@ -430,6 +430,15 @@ public class PythonParser extends LanguageParser {
             }
         }
 
+        if (tsNode.getType().equals("attribute") && getCodePiece(tsNode.getChildByFieldName("attribute")).equals("format")) {
+            if (!tsNode.getChildByFieldName("object").getType().equals("string")) {
+                throw new UnsupportedParsingException("format() method in Python is only supported for plain strings.");
+            }
+            String formatString = ((StringLiteral) parseTSNode(tsNode.getChildByFieldName("object"))).getUnescapedValue();
+            return new StringFormat(StringLiteral.Type.NONE,
+                    StringFormatTemplate.fromBracedFormatString(formatString), exprs.toArray(new Expression[0]));
+        }
+
         if (codePiece.equals("print")) {
             return new PrintValues.PrintValuesBuilder()
                     .endWith(printEnd)
@@ -1028,18 +1037,7 @@ public class PythonParser extends LanguageParser {
 
         if (Stream.of("fr", "f", "rf")
                 .anyMatch((String prefix) -> getCodePiece(node.getChild(0)).startsWith(prefix))) {
-            TSNode contentNode = node.getNamedChild(1);
-            List<Expression> interpolation = new ArrayList<>();
-
-            while (!contentNode.getType().equals("string_end")) {
-                if (contentNode.getType().equals("string_content")) {
-                    interpolation.add(StringLiteral.fromEscaped(getCodePiece(contentNode), type));
-                } else {
-                    interpolation.add((Expression) parseTSNode(contentNode));
-                }
-                contentNode = contentNode.getNextNamedSibling();
-            }
-            return new InterpolatedStringLiteral(type, interpolation);
+            return fromInterpolatedString(node, type);
         }
 
         if (type == StringLiteral.Type.RAW) {
@@ -1047,6 +1045,33 @@ public class PythonParser extends LanguageParser {
         } else {
             return StringLiteral.fromEscaped(getCodePiece(content), type);
         }
+    }
+
+    private StringFormat fromInterpolatedString(TSNode interpolatedString, StringLiteral.Type type) {
+        List<Expression> components = new ArrayList<>();
+        List<Expression> substitutions = new ArrayList<>();
+        TSNode contentNode = interpolatedString.getNamedChild(1);
+
+        while (!contentNode.getType().equals("string_end")) {
+            if (contentNode.getType().equals("string_content")) {
+                String content = getCodePiece(contentNode).replace("{{", "{").replace("}}", "}");
+                if (type.equals(StringLiteral.Type.RAW)) {
+                    components.add(StringLiteral.fromUnescaped(content, type));
+                } else {
+                    components.add(StringLiteral.fromEscaped(content, type));
+                }
+            } else if (contentNode.getType().equals("interpolation")) {
+                substitutions.add((Expression) parseTSNode(contentNode.getChildByFieldName("expression")));
+                TSNode specifierNode = contentNode.getChildByFieldName("format_specifier");
+                components.add(!specifierNode.isNull()
+                        ? FormatSpecifier.fromFormatString(getCodePiece(specifierNode))
+                        : FormatSpecifier.emptyExpressionSpecifier());
+            } else {
+                throw new UnsupportedParsingException(String.format("Node of type \"%s\" is not supported in f-string", contentNode.getType()));
+            }
+            contentNode = contentNode.getNextNamedSibling();
+        }
+        return new StringFormat(type, new StringFormatTemplate(components.toArray(new Expression[0])), substitutions.toArray(new Expression[0]));
     }
 
     private Comment fromComment(TSNode node) {
@@ -1712,7 +1737,7 @@ public class PythonParser extends LanguageParser {
         return null;
     }
 
-    private BinaryExpression fromBinaryExpressionTSNode(TSNode node) {
+    private Expression fromBinaryExpressionTSNode(TSNode node) {
         Expression left = (Expression) parseTSNode(node.getChildByFieldName("left"));
         Expression right = (Expression) parseTSNode(node.getChildByFieldName("right"));
         TSNode operator = node.getChildByFieldName("operator");
@@ -1725,7 +1750,13 @@ public class PythonParser extends LanguageParser {
             case "**" -> new PowOp(left, right);
             case "/" -> new DivOp(left, right);
             case "//" -> new FloorDivOp(left, right);
-            case "%" -> new ModOp(left, right);
+            case "%" -> {
+                if (node.getChildByFieldName("left").getType().equals("string")) {
+                    yield parseModuloFormatting((StringLiteral) left, right);
+                } else {
+                    yield new ModOp(left, right);
+                }
+            }
             case "<<" -> new LeftShiftOp(left, right);
             case ">>" -> new RightShiftOp(left, right);
             case "&" -> new BitwiseAndOp(left, right);
@@ -1740,5 +1771,18 @@ public class PythonParser extends LanguageParser {
     @Override
     protected ImportResolver getImportResolver() {
         return importResolver;
+    }
+
+    private StringFormat parseModuloFormatting(StringLiteral formatString, Expression arguments) {
+        Expression[] substitutions;
+
+        if (arguments instanceof UnmodifiableListLiteral list) {
+            substitutions = list.getList().toArray(new Expression[0]);
+        } else {
+            substitutions = new Expression[]{arguments};
+        }
+
+        return new StringFormat(StringLiteral.Type.NONE,
+                StringFormatTemplate.fromFormatString(formatString.getUnescapedValue()), substitutions);
     }
 }

@@ -197,7 +197,7 @@ public class CppViewer extends LanguageViewer {
         registerRenderer(CompoundComparison.class, this::toStringCompoundComparison);
         registerRenderer(DefinitionArgument.class, n -> toString(n.getInitialExpression()));
         registerRenderer(Comment.class, this::toStringComment);
-        registerRenderer(InterpolatedStringLiteral.class, this::fromInterpolatedString);
+        registerRenderer(StringFormat.class, this::fromStringFormat);
         registerRenderer(MultipleAssignmentStatement.class, this::fromMultipleAssignmentStatement);
         registerRenderer(ChainedAssignmentStatement.class, this::toStringChainedAssignmentStatement);
         registerRenderer(IfStatement.class, this::toStringIfStatement);
@@ -377,7 +377,7 @@ public class CppViewer extends LanguageViewer {
             case ReadInput readInput -> {
                 SimpleIdentifier tmpVariable = ctx.makeUniqueIdentifier("tmp");
                 VariableDeclaration tmpDeclaration = new VariableDeclaration(readInput.type, tmpVariable);
-                ctx.getVisibilityScope().scope().registerVariable(tmpDeclaration);
+                ctx.scope.registerVariable(tmpDeclaration);
                 builder
                         .append(indent(toStringVariableDeclaration(tmpDeclaration)))
                         .append("\n")
@@ -407,8 +407,7 @@ public class CppViewer extends LanguageViewer {
                                         value, toString(assignInput.maxInputLength), value, value, toString(assignInput.maxInputLength))));
                     }
                 }
-                List<java.lang.Class<? extends Node>> h = ctx.getTranslatingNodeTypeHierarchy();
-                if (h.size() > 1 && h.get(1) == ExpressionStatement.class) {
+                if (ctx.isDirectlyInNode(ExpressionStatement.class)) {
                     return builder.toString();
                 } else {
                     builder.insert(0, indent("")).append(";");
@@ -1452,24 +1451,31 @@ public class CppViewer extends LanguageViewer {
                 .orElse(false);
     }
 
-    private String fromInterpolatedString(InterpolatedStringLiteral interpolatedStringLiteral) {
+    private String fromStringFormat(StringFormat stringFormat) {
+        if (getConfigFlag("preferC")) {
+            throw new IllegalArgumentException("For C language StringFormat is not supported outside IO expressions.");
+        }
+
+        String args = Arrays.stream(stringFormat.getSubstitutions())
+                .map(this::toString)
+                .collect(Collectors.joining(", "));
+
+        if (!args.isEmpty()) {
+            args = ", " + args;
+        }
         StringBuilder builder = new StringBuilder("std::format(\"");
-        List<Expression> dynamicExprs = new ArrayList<>();
-        for (Expression expr : interpolatedStringLiteral.components()) {
-            if (expr instanceof StringLiteral str) {
-                builder.append(str.getEscapedValue());
-            } else {
-                builder.append("{}");
-                dynamicExprs.add(expr);
+        for (Expression component : stringFormat.getTemplate().getComponents()) {
+            switch (component) {
+                case StringLiteral literal -> builder.append(literal.getEscapedValue().replaceAll("([{}])", "$1$1"));
+                case FormatSpecifier specifier -> builder.append(String.format("{%s}",
+                        specifier.isEmptyExpression() ? "" : (":" + specifier.asString())));
+                default -> throw new IllegalArgumentException(String.format("Unexpected node in format string: %s. Only StringLiteral and FormatSpecifier are allowed.", component.getNodeUniqueName()));
             }
         }
-        builder.append('\"');
-        if (!dynamicExprs.isEmpty()) {
-            builder.append(", ");
-            builder.append(toStringArguments(dynamicExprs));
-        }
-        builder.append(")");
-        return builder.toString();
+        ctx.preserveImport(new Include(
+                StringLiteral.fromEscaped("format", StringLiteral.Type.NONE), Include.IncludeType.POINTY_BRACKETS_FORM)
+        );
+        return builder.append("\"").append(args).append(")").toString();
     }
 
     private String toStringDelete(DeleteExpression del) {

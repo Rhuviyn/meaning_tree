@@ -786,11 +786,6 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
             case "unmodifiable_list_literal" -> withTypeHint(new UnmodifiableListLiteral(
                     deserializeExpressionList(json.getAsJsonArray("elements"))
             ), json);
-            case "interpolated_string_literal" -> {
-                StringLiteral.Type stringType = parseEnum(StringLiteral.Type.class, json.get("type").getAsString());
-                List<Expression> components = deserializeExpressionList(json.getAsJsonArray("components"));
-                yield new InterpolatedStringLiteral(stringType, components);
-            }
 
             // Identifiers
             case "identifier" -> new SimpleIdentifier(
@@ -1378,11 +1373,6 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
                         : null;
                 yield restoreStackAllocation(new ArrayNewExpression(targetType, shape, initializer), json);
             }
-            case "string_format" -> {
-                Expression template = deserializeExpression(json.getAsJsonObject("template"));
-                List<Expression> substitutions = deserializeExpressionList(json.getAsJsonArray("substitutions"));
-                yield new StringFormat(template, substitutions.toArray(new Expression[0]));
-            }
             case "dictionary_literal" -> {
                 SequencedMap<Expression, Expression> content = new LinkedHashMap<>();
                 for (JsonElement elem : json.getAsJsonArray("entries")) {
@@ -1579,6 +1569,11 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
             case "format_specifier" -> deserializeFormatSpecifier(json);
             case "string_format_template" -> new StringFormatTemplate(deserializeExpressionList(
                     json.getAsJsonArray("components")).toArray(new Expression[0]));
+            case "string_format" -> new StringFormat(
+                    parseEnum(StringLiteral.Type.class, json.get("string_type").getAsString()),
+                    (StringFormatTemplate) deserialize(json.getAsJsonObject("template")),
+                    deserializeExpressionList(json.getAsJsonArray("substitutions")).toArray(new Expression[0])
+            );
 
             default -> throw new MeaningTreeSerializationException("Unknown node type: " + type);
         };

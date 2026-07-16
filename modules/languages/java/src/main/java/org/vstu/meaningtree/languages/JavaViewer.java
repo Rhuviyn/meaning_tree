@@ -161,7 +161,7 @@ public class JavaViewer extends LanguageViewer {
         registerRenderer(MultipleAssignmentStatement.class, this::toStringMultipleAssignmentStatement);
         registerRenderer(ChainedAssignmentStatement.class, this::toStringChainedAssignmentStatement);
         registerRenderer(PlainCollectionLiteral.class, this::toStringPlainCollectionLiteral);
-        registerRenderer(InterpolatedStringLiteral.class, this::toStringInterpolatedStringLiteral);
+        registerRenderer(StringFormat.class, this::toStringStringFormat);
         registerRenderer(FloatLiteral.class, this::toStringFloatLiteral);
         registerRenderer(IntegerLiteral.class, this::toStringIntegerLiteral);
         registerRenderer(QualifiedIdentifier.class, this::toStringQualifiedIdentifier);
@@ -577,45 +577,40 @@ public class JavaViewer extends LanguageViewer {
         return builder.toString();
     }
 
-    public String toStringInterpolatedStringLiteral(InterpolatedStringLiteral interpolatedStringLiteral) {
-        var builder = new StringBuilder();
-        var argumentsBuilder = new StringBuilder();
+    public String toStringStringFormat(StringFormat stringFormat) {
+        String args = Arrays.stream(stringFormat.getSubstitutions())
+                .map(this::toString)
+                .collect(Collectors.joining(", "));
 
-        builder.append("String.format(\"");
-        for (Expression stringPart : interpolatedStringLiteral.components()) {
-            Type exprType = ctx.inferType(stringPart);
-            switch (exprType) {
-                case StringType stringType -> {
-                    var string = toString(stringPart);
-                    builder.append(string, 1, string.length() - 1);
-                }
-                case IntType integerType -> {
-                    builder.append("%d");
-                    argumentsBuilder.append(toString(stringPart)).append(", ");
-                }
-                case FloatType floatType -> {
-                    builder.append("%f");
-                    argumentsBuilder.append(toString(stringPart)).append(", ");
-                }
-                default -> {
-                    builder.append("%s");
-                    argumentsBuilder.append(toString(stringPart)).append(", ");
+        if (!args.isEmpty()) {
+            args = ", " + args;
+        }
+
+        if (stringFormat.getTemplate().getComponentsList().stream().anyMatch(
+                comp -> comp instanceof FormatSpecifier specifier
+                        && specifier.isExpression())) {
+            StringBuilder format = new StringBuilder();
+            int substitutionCounter = 0;
+            Expression[] substitutions = stringFormat.getSubstitutions();
+            Expression[] components = stringFormat.getTemplate().getComponents();
+
+            for (Expression component : components) {
+                switch (component) {
+                    case StringLiteral literal -> format.append(literal.getEscapedValue().replace("%", "%%"));
+                    case FormatSpecifier specifier -> {
+                        format.append("%").append(specifier.asString());
+                        if (specifier.isExpression()) {
+                            Type exprType = ctx.inferType(substitutions[substitutionCounter]);
+                            format.append(FormatSpecifier.getSpecifierTypeForDataType(exprType).getSymbol());
+                        }
+                        substitutionCounter++;
+                    }
+                    default -> throw new IllegalArgumentException(String.format("Unexpected node in format string: %s. Only StringLiteral and FormatSpecifier are allowed.", component.getNodeUniqueName()));
                 }
             }
+            return "String.format(\"" + format + "\"" + args + ")";
         }
-        builder.append("\"");
-
-        if (argumentsBuilder.length() > 2) {
-            argumentsBuilder.deleteCharAt(argumentsBuilder.length() - 1);
-            argumentsBuilder.deleteCharAt(argumentsBuilder.length() - 1);
-
-            builder
-                    .append(", ")
-                    .append(argumentsBuilder.toString());
-        }
-
-        builder.append(")");
-        return builder.toString();
+        return "String.format(" + stringFormat.getFormatString() + args + ")";
     }
 
     public String toStringPrintValues(PrintValues printValues) {
