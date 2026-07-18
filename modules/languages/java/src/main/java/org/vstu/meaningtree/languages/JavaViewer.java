@@ -526,7 +526,7 @@ public class JavaViewer extends LanguageViewer {
         return String.format(
                 "System.out.printf(%s, %s)",
                 formatPrint.getFormatString(),
-                toStringExprList(formatPrint.getArguments())
+                toStringExprList(List.of(formatPrint.getValues()))
         );
     }
 

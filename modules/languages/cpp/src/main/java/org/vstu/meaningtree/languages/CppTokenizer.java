@@ -20,6 +20,7 @@ import org.vstu.meaningtree.nodes.expressions.identifiers.ScopedIdentifier;
 import org.vstu.meaningtree.nodes.expressions.identifiers.SimpleIdentifier;
 import org.vstu.meaningtree.nodes.expressions.literals.DictionaryLiteral;
 import org.vstu.meaningtree.nodes.expressions.literals.PlainCollectionLiteral;
+import org.vstu.meaningtree.nodes.expressions.literals.StringLiteral;
 import org.vstu.meaningtree.nodes.expressions.logical.NotOp;
 import org.vstu.meaningtree.nodes.expressions.logical.ShortCircuitAndOp;
 import org.vstu.meaningtree.nodes.expressions.logical.ShortCircuitOrOp;
@@ -647,12 +648,12 @@ public class CppTokenizer extends LanguageTokenizer {
 
     private Expression detectIOCommand(FunctionCall call) {
         if (call instanceof FormatPrint fmt) {
-            if (fmt.getArguments().isEmpty()) {
-                return new FunctionCall(new SimpleIdentifier("printf"), fmt.getFormatString());
+            if (fmt.getValues().length == 0) {
+                return new FunctionCall(new SimpleIdentifier("printf"), StringLiteral.fromUnescaped(fmt.getFormatString(), StringLiteral.Type.NONE));
             }
             var list = new ArrayList<Expression>();
-            list.add(fmt.getFormatString());
-            list.addAll(fmt.getArguments());
+            list.add(StringLiteral.fromUnescaped(fmt.getFormatString(), StringLiteral.Type.NONE));
+            list.addAll(List.of(fmt.getValues()));
             return new FunctionCall(new SimpleIdentifier("printf"), list.toArray(new Expression[0]));
         } else if (call instanceof FormatInput fmt) {
             if (fmt.getArguments().isEmpty()) {
