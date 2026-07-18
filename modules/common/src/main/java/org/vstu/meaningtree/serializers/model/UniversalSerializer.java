@@ -326,7 +326,7 @@ public class UniversalSerializer implements Serializer<AbstractSerializedNode> {
                 if (p.end != null) put("end", serialize(p.end));
             }
             if (call instanceof FormatPrint p) {
-                put("formatString", serialize(p.getFormatString()));
+                put("stringFormat", serialize(p.getFormat()));
             }
             if (call instanceof FormatInput i) {
                 put("formatString", serialize(i.getFormatString()));

@@ -103,7 +103,7 @@ public class PythonViewer extends LanguageViewer {
         registerTabRenderer(CompoundStatement.class, this::blockToString);
         registerTabRenderer(CompoundComparison.class, (node, tab) -> compoundComparisonToString(node));
         registerTabRenderer(Type.class, (node, tab) -> typeToString(node));
-        registerTabRenderer(FormatPrint.class, (node, tab) -> callsToString(node));
+        registerTabRenderer(FormatPrint.class, (node, tab) -> formatPrintToString(node));
         registerTabRenderer(FormatInput.class, (node, tab) -> callsToString(node));
         registerTabRenderer(Identifier.class, (node, tab) -> identifierToString(node));
         registerTabRenderer(IndexExpression.class, (indexExpr, tab) ->
@@ -1386,6 +1386,10 @@ public class PythonViewer extends LanguageViewer {
             }
             case null, default -> throw new UnsupportedViewingException("Not a callable object");
         }
+    }
+
+    private String formatPrintToString(FormatPrint formatPrint) {
+        return String.format("print(%s, end=\"\")", stringFormatToString(formatPrint.getFormat()));
     }
 
     private String arrayAllocationToString(Type itemType, Shape shape) {

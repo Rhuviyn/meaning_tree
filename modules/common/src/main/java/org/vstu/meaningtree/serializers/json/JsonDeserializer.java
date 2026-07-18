@@ -961,11 +961,9 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
                     deserializeExpression(json.getAsJsonObject("format_string")),
                     deserializeExpressionList(json.getAsJsonArray("arguments"))
             );
-            case "format_print" -> {
-                Expression formatString = deserializeExpression(json.getAsJsonObject("format_string"));
-                List<Expression> args = deserializeExpressionList(json.getAsJsonArray("arguments"));
-                yield new FormatPrint(formatString, args);
-            }
+            case "format_print" -> new FormatPrint(
+                    (StringFormat) deserializeNodeByType("string_format", json.getAsJsonObject("string_format"))
+            );
             case "input_command" -> new InputCommand(
                     deserializeExpressionList(json.getAsJsonArray("arguments"))
             );

@@ -434,13 +434,17 @@ public class CppViewer extends LanguageViewer {
         boolean preferC = getConfigFlag("preferC");
 
         if (readInput.hasPrompt()) {
+            Expression prompt = readInput.getPrompt();
             if (preferC) {
-                // TODO вывод через printf()
+                if (prompt instanceof StringLiteral str) {
+                    builder.append(String.format("printf(%s);\n", toStringStringLiteral(str)));
+                }
+                builder.append(String.format("printf(\"%%%s\", %s);\n", ctx.inferType(prompt), toString(prompt)));
             } else {
                 builder
                         .append(String.format(
                                 "std::cout << %s;\n",
-                                toString(readInput.getPrompt())))
+                                toString(prompt)))
                         .append(indent(""));
             }
         }
@@ -1362,19 +1366,93 @@ public class CppViewer extends LanguageViewer {
     }
 
     private String toStringPrint(PrintCommand print) {
-        if (print instanceof FormatPrint fmt) {
-            if (fmt.getArguments().isEmpty()) {
-                return String.format("printf(%s)", toString(fmt.getFormatString()));
-            }
-            return String.format("printf(%s, %s)", toString(fmt.getFormatString()), toStringFunctionCallArgumentsList(fmt.getArguments()));
-        } else if (print instanceof PrintValues pVal) {
-            List<Expression> complete = pVal.getCompleteValues();
-            if (pVal.addsNewLine() || (pVal.end != null && toString(pVal.end).equals("\"\""))) {
-                complete.removeLast();
-            }
-            return String.format("std::cout << %s", complete.stream().map(this::toString).collect(Collectors.joining(" << "))) + (pVal.addsNewLine() ? " << std::endl" : "");
+        if (getConfigFlag("preferC")) {
+            return toPrintf(print);
         } else {
-            return String.format("std::cout << %s", print.getArguments().stream().map(this::toString).collect(Collectors.joining(" << ")));
+            return switch (print) {
+                case FormatPrint fmt -> String.format("std::cout << %s", fromStringFormat(fmt.getFormat()));
+                case PrintValues pv -> {
+                    List<Expression> complete = pv.getCompleteValues();
+                    if (pv.addsNewLine() || (pv.end != null && toString(pv.end).equals("\"\""))) {
+                        complete.removeLast();
+                    }
+                    yield String.format("std::cout << %s", complete.stream().map(this::toString).collect(Collectors.joining(" << "))) + (pv.addsNewLine() ? " << std::endl" : "");
+                }
+                default ->
+                        String.format("std::cout << %s", print.getArguments().stream().map(this::toString).collect(Collectors.joining(" << ")));
+            };
+        }
+    }
+
+    private String toPrintf(PrintCommand print) {
+        switch (print) {
+            case FormatPrint fmt -> {
+                if (fmt.getValues().length == 0) {
+                    return String.format("printf(%s)", fmt.getFormatString());
+                }
+                return String.format("printf(%s, %s)", fmt.getFormatString(), toStringFunctionCallArgumentsList(List.of(fmt.getValues())));
+            }
+            case PrintValues pv -> {
+                if (!pv.hasAnyValues()) {
+                    if (pv.end == null) {
+                        return "printf(\"\")";
+                    } else if (pv.end instanceof StringLiteral end) {
+                        return String.format("printf(%s)", toStringStringLiteral(end));
+                    } else {
+                        return String.format("printf(\"%%%s\", %s)",
+                                FormatSpecifier.getSpecifierTypeForDataType(ctx.inferType(pv.end)),
+                                toString(pv.end));
+                    }
+                }
+                StringBuilder formatString = new StringBuilder("\"");
+                List<Expression> completeArguments = new ArrayList<>();
+                if (pv.separator instanceof StringLiteral || pv.end instanceof StringLiteral) {
+                    List<Expression> arguments = pv.getArguments();
+                    Expression separatorExpression = pv.separator;
+                    String separatorString = "";
+                    boolean separatorIsExpression = separatorExpression != null && !(separatorExpression instanceof StringLiteral);
+
+                    if (separatorExpression instanceof StringLiteral sep) {
+                        separatorString = sep.getEscapedValue().replace("%", "%%");
+                    } else if (separatorIsExpression) {
+                        separatorString = "%" + FormatSpecifier.getSpecifierTypeForDataType(ctx.inferType(separatorExpression));
+                    }
+
+                    for (int i = 0; i < arguments.size(); i++) {
+                        Expression currentArgument = arguments.get(i);
+                        if (i > 0 && separatorExpression != null) {
+                            formatString.append(separatorString);
+                            if (separatorIsExpression) {
+                                completeArguments.add(separatorExpression);
+                            }
+                        }
+                        formatString.append("%").append(FormatSpecifier.getSpecifierTypeForDataType(ctx.inferType(currentArgument)));
+                        completeArguments.add(currentArgument);
+                    }
+                    if (pv.end != null) {
+                        if (pv.end instanceof StringLiteral end) {
+                            formatString.append(end.getEscapedValue().replace("%", "%%"));
+                        } else {
+                            formatString.append("%").append(FormatSpecifier.getSpecifierTypeForDataType(ctx.inferType(pv.end)));
+                            completeArguments.add(pv.end);
+                        }
+                    }
+                } else {
+                    completeArguments = pv.getCompleteValues();
+                    for (Expression expression : completeArguments) {
+                        formatString.append("%").append(FormatSpecifier.getSpecifierTypeForDataType(ctx.inferType(expression)));
+                    }
+                }
+                formatString.append("\"");
+                return String.format("printf(%s, %s)", formatString, toStringFunctionCallArgumentsList(completeArguments));
+            }
+            default -> {
+                StringBuilder formatString = new StringBuilder("\"");
+                for (Expression expression : print.getArguments()) {
+                    formatString.append("%").append(FormatSpecifier.getSpecifierTypeForDataType(ctx.inferType(expression)));
+                }
+                return String.format("printf(%s, %s)", formatString.append("\""), toStringFunctionCallArgumentsList(print.getArguments()));
+            }
         }
     }
 
