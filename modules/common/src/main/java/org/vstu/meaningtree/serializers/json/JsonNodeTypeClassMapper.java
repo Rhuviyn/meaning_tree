@@ -176,6 +176,8 @@ public class JsonNodeTypeClassMapper {
         // IO
         register("format_input", FormatInput.class);
         register("format_print", FormatPrint.class);
+        register("assign_input", AssignInput.class);
+        register("read_input", ReadInput.class);
         register("pointer_input_command", PointerInputCommand.class);
         register("input_command", InputCommand.class);
         register("print_values", PrintValues.class);
