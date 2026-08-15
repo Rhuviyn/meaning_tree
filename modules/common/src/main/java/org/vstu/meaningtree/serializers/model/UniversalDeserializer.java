@@ -394,9 +394,7 @@ public class UniversalDeserializer implements Deserializer<AbstractSerializedNod
                     return new FormatPrint((StringFormat) deserialize(serialized.fields.get("stringFormat")));
                 }
                 case "FormatInput" -> {
-                    List<Expression> exprs = (List<Expression>) deserializeList((SerializedListNode) serialized.fields.get("args"));
-                    return new FormatInput((Expression) deserialize(serialized.fields.get("formatString")),
-                            exprs);
+                    return new FormatInput((StringFormat) deserialize(serialized.fields.get("stringFormat")));
                 }
                 case "InputCommand" -> {
                     return new InputCommand((List<Expression>) deserializeList((SerializedListNode) serialized.fields.get("args")));

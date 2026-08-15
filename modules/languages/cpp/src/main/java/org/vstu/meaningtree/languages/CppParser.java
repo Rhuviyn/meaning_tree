@@ -1429,8 +1429,12 @@ public class CppParser extends LanguageParser {
                     arguments.toArray(new Expression[0])));
         }
 
-        if (functionName.toString().equals("scanf") || clearFunctionName.toString().equals("scanf_s")) {
-            return new FormatInput(arguments.getFirst(), arguments.subList(1, arguments.size()).toArray(new Expression[0]));
+        if (clearFunctionName.toString().equals("scanf")
+                && tsArguments.getNamedChild(0).getType().equals("string_literal")) {
+            String formatString = ((StringLiteral) arguments.removeFirst()).getUnescapedValue();
+            return new FormatInput(new StringFormat(StringLiteral.Type.NONE,
+                    StringFormatTemplate.fromFormatString(formatString),
+                    arguments.toArray(new Expression[0])));
         }
 
         if ((clearFunctionName.toString().equals("puts") || clearFunctionName.toString().equals("puts_s")) && arguments.size() == 1) {

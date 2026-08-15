@@ -213,7 +213,6 @@ public class JavaViewer extends LanguageViewer {
         registerRenderer(MethodCall.class, this::toStringMethodCall);
         registerRenderer(FormatPrint.class, this::toStringFormatPrint);
         registerRenderer(PrintValues.class, this::toStringPrintValues);
-        registerRenderer(FormatInput.class, this::toStringFormatInput);
         registerRenderer(InputCommand.class, this::toStringInputCommand);
         registerRenderer(FunctionCall.class, this::toStringFunctionCall);
         registerRenderer(ConstructorCall.class, this::toStringConstructorCall);
@@ -419,8 +418,7 @@ public class JavaViewer extends LanguageViewer {
                 }
             }
             case FormatInput formatInput -> {
-                // TODO
-                return toStringFormatInput(formatInput);
+                return toStringFormatInput(formatInput, scannerName.getName());
             }
             default -> {
                 int i = 0;
@@ -431,8 +429,7 @@ public class JavaViewer extends LanguageViewer {
                     else {
                         builder.append(toString(inputCommand.getArguments().getFirst()));
                     }
-
-                    builder.append(scannerName.getName());
+                    builder.append(" = ").append(scannerName.getName());
                     Type exprType = ctx.inferType(stringPart);
                     switch (exprType) {
                         case StringType ignored -> builder.append(".next()");
@@ -450,32 +447,287 @@ public class JavaViewer extends LanguageViewer {
         }
     }
 
-    private String toStringFormatInput(FormatInput formatInput) {
+    private String toStringFormatInput(FormatInput formatInput, String scannerName) {
         var builder = new StringBuilder();
 
-        builder.append("new Scanner(System.in).");
-        if (formatInput.getArguments().size() > 1) {
-            throw new IllegalStateException("Multiple input values are not supported in Java");
-        }
+        Expression[] components = formatInput.getFormat().getTemplate().getComponents();
+        Expression[] substitutions = formatInput.getValues();
 
-        for (Expression stringPart : formatInput.getArguments()) {
-            Type exprType = ctx.inferType(stringPart);
-            switch (exprType) {
-                case StringType stringType -> {
-                    builder.append("next()");
+        if (components.length == 1 && components[0] instanceof FormatSpecifier specifier && !specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET)) {
+
+            Expression inputVariable;
+
+            if (specifier.assignmentIsSuppressed) {
+                Optional<Type> type = specifier.getCorrespondingDataType();
+                if (type.isEmpty()) {
+                    throw new UnsupportedViewingException("Data type in scanf() is not simple and cannot be converted.");
                 }
-                case IntType integerType -> {
-                    builder.append("nextInt()");
+                SimpleIdentifier tmpVariable = ctx.makeUniqueIdentifier("tmp");
+                VariableDeclaration tmpDeclaration = new VariableDeclaration(type.get(), tmpVariable);
+                ctx.getVisibilityScope().scope().registerVariable(tmpDeclaration);
+                ctx.getNearestUnfilledViewerBody().appendStringWithIndent(toStringVariableDeclaration(tmpDeclaration));
+                inputVariable = tmpVariable;
+            } else {
+                inputVariable = substitutions[0];
+                if (inputVariable instanceof PointerPackOp pointer) {
+                    inputVariable = pointer.getArgument();
                 }
-                case FloatType floatType -> {
-                    builder.append("nextDouble()");
+            }
+
+            builder.append(toString(inputVariable));
+
+            builder.append(" = ");
+
+            if (specifier.hasWidth() ||
+                    specifier.type.equals(FormatSpecifier.SpecifierType.OCTAL) ||
+                    specifier.type.equals(FormatSpecifier.SpecifierType.HEXADECIMAL_UPPERCASE) ||
+                    specifier.type.equals(FormatSpecifier.SpecifierType.HEXADECIMAL_LOWERCASE)) {
+                if (specifier.isInteger()) {
+                    builder.append("Integer.parseInt(");
+                } else if (specifier.isFloating()) {
+                    builder.append("Float.parseFloat()");
                 }
-                default -> {
-                    throw new IllegalStateException("Unsupported type in format input in Java: " + exprType);
+
+                builder.append(scannerName).append(".next()");
+
+                if (specifier.hasWidth()) {
+                    builder.append(".substring(0, ").append(specifier.width).append(")");
+                }
+
+                if (specifier.type.equals(FormatSpecifier.SpecifierType.OCTAL)) {
+                    builder.append(", 8)");
+                } else if (specifier.type.equals(FormatSpecifier.SpecifierType.HEXADECIMAL_LOWERCASE)
+                        || specifier.type.equals(FormatSpecifier.SpecifierType.HEXADECIMAL_UPPERCASE)) {
+                    builder.append(", 16)");
+                } else if (!specifier.type.equals(FormatSpecifier.SpecifierType.STRING)) {
+                    builder.append(")");
+                }
+            } else {
+                builder.append(scannerName);
+                Type exprType = ctx.inferType(inputVariable);
+                switch (exprType) {
+                    case StringType ignored -> builder.append(".next()");
+                    case IntType ignored -> builder.append(".nextInt()");
+                    case FloatType ignored -> builder.append(".nextDouble()");
+                    case CharacterType ignored -> builder.append(".next().charAt(0)");
+                    default -> throw new IllegalStateException("Unsupported type in Java input: " + toString(exprType));
+                }
+            }
+        } else {
+            int substitutionCounter = 0;
+            boolean needsTmpInput = false;
+
+            String  dataTypeVarName = "dataType",
+                    iVarName = "i",
+                    userInputVarName = "userInput",
+                    tmpInputVarName = "tmpInput";
+
+            SimpleIdentifier  dataTypeVarIdentifier = null,
+                    iVarIdentifier,
+                    userInputVarIdentifier,
+                    tmpInputVarIdentifier;
+
+            userInputVarIdentifier = ctx.makeUniqueIdentifier(userInputVarName);
+            userInputVarName = userInputVarIdentifier.getName();
+            VariableDeclaration userInputVarDeclaration = new VariableDeclaration(new StringType(), userInputVarIdentifier);
+            ctx.getVisibilityScope().scope().registerVariable(userInputVarDeclaration);
+            ctx.getNearestUnfilledViewerBody().appendStringWithIndent(toStringVariableDeclaration(userInputVarDeclaration));
+
+            for (Expression component : components) {
+                if (component instanceof FormatSpecifier specifier && !specifier.hasWidth() && !specifier.assignmentIsSuppressed
+                        && !specifier.type.equals(FormatSpecifier.SpecifierType.CHARACTER)
+                        && component != components[components.length - 1]) {
+                    needsTmpInput = true;
+                }
+            }
+
+            if (needsTmpInput) {
+                tmpInputVarIdentifier = ctx.makeUniqueIdentifier(tmpInputVarName);
+                tmpInputVarName = tmpInputVarIdentifier.getName();
+                VariableDeclaration tmpInputVarDeclaration = new VariableDeclaration(new StringType(), tmpInputVarIdentifier);
+                ctx.getVisibilityScope().scope().registerVariable(tmpInputVarDeclaration);
+                ctx.getNearestUnfilledViewerBody().appendStringWithIndent(toStringVariableDeclaration(tmpInputVarDeclaration));
+            }
+
+            builder.append(userInputVarName).append(" = ").append(scannerName).append(".nextLine();");
+
+            iVarIdentifier = ctx.makeUniqueIdentifier(iVarName);
+            iVarName = iVarIdentifier.getName();
+            VariableDeclaration iVarDeclaration = new VariableDeclaration(new IntType(), iVarIdentifier);
+            ctx.getVisibilityScope().scope().registerVariable(iVarDeclaration);
+            ctx.getNearestUnfilledViewerBody().appendStringWithIndent(toStringVariableDeclaration(iVarDeclaration));
+            builder.append("\n").append(indent(iVarName)).append(" = 0;");
+
+            for (Expression component : components) {
+                boolean isLastComponent = component == components[components.length - 1];
+                if (component instanceof FormatSpecifier specifier) {
+                    String inputVarName = "";
+                    if (!specifier.assignmentIsSuppressed) {
+                        Expression inputVariable = substitutions[substitutionCounter++];
+                        if (inputVariable instanceof PointerPackOp pointer) {
+                            inputVariable = pointer.getArgument();
+                        }
+                        inputVarName = toString(inputVariable);
+                    }
+
+                    if (specifier.type.equals(FormatSpecifier.SpecifierType.CHARACTER)) {
+                        if (specifier.assignmentIsSuppressed) {
+                            if (!isLastComponent) {
+                                builder.append(String.format("\n%s++;", indent(iVarName)));
+                            }
+                        } else {
+                            builder.append(String.format("\n%s = %s.charAt(%s", indent(inputVarName), userInputVarName, iVarName))
+                                    .append(isLastComponent ? ");" : "++);");
+                        }
+                    } else {
+                        if (specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET) || (!isLastComponent && !specifier.hasWidth())) {
+                            if (!specifier.assignmentIsSuppressed) {
+                                builder.append(String.format("\n%s = \"\";", indent(tmpInputVarName)));
+                            }
+
+                            if (dataTypeVarIdentifier == null) {
+                                dataTypeVarIdentifier = ctx.makeUniqueIdentifier(dataTypeVarName);
+                                dataTypeVarName = dataTypeVarIdentifier.getName();
+                                VariableDeclaration dataTypeVarDeclaration = new VariableDeclaration(new StringType(), dataTypeVarIdentifier);
+                                ctx.getVisibilityScope().scope().registerVariable(dataTypeVarDeclaration);
+                                ctx.getNearestUnfilledViewerBody().appendStringWithIndent(toStringVariableDeclaration(dataTypeVarDeclaration));
+                            }
+
+                            builder.append(String.format("\n%s = %s;", indent(dataTypeVarName),
+                                    specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET) ? "\"" + specifier.scanSet + "\"" : specifier.getCorrespondingCharacterSet()));
+
+                            if (specifier.isFloating()) {
+                                builder.append(String.format("""
+
+                                                    %sif (%s.charAt(%s) == 'e' || %s.charAt(%s) == 'E') {
+                                                    \t%s = "";
+                                                    %s}""",
+                                        indent(""), userInputVarName, iVarName, userInputVarName, iVarName,
+                                        indent(dataTypeVarName),
+                                        indent("")));
+                            }
+
+                            if (!specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET)
+                                    && !specifier.type.equals(FormatSpecifier.SpecifierType.STRING)) {
+                                builder.append(String.format("""
+
+                                                            %sif (%s.charAt(%s) == '-' || %s.charAt(%s) == '+') {
+                                                            \t%s;
+                                                            %s}""",
+                                        indent(""), userInputVarName, iVarName, userInputVarName, iVarName,
+                                        indent(specifier.assignmentIsSuppressed ? (iVarName + "++") :
+                                                (tmpInputVarName + " += " + userInputVarName + ".charAt(" + iVarName + "++)")),
+                                        indent("")));
+                            }
+
+                            builder.append(String.format("""
+
+                                                        %swhile (%s < %s.length() && %s.indexOf(%s.charAt(%s)) %s= -1) {
+                                                        %s\t%s;""",
+                                    indent(""), iVarName, userInputVarName, dataTypeVarName, userInputVarName, iVarName,
+                                    (specifier.scanSetIsNegated || specifier.type.equals(FormatSpecifier.SpecifierType.STRING)) ? "=" : "!",
+                                    indent(""), specifier.assignmentIsSuppressed ? (iVarName + "++") :
+                                            (tmpInputVarName + " += " + userInputVarName + ".charAt(" + iVarName +(specifier.isFloating() ? ")" : "++)"))));
+
+                            if (specifier.isFloating()) {
+                                builder.append(String.format("""
+
+                                                            %s\tif (%s.charAt(%s) == '.') {
+                                                            %s\t\t%s.replace(".", "");
+                                                            %s\t} else if (%s.charAt(%s) == 'e' || %s.charAt(%s) == 'E') {
+                                                            %s\t\t%s.replace(".", "");
+                                                            %s\t\t%s.replace("e", "");
+                                                            %s\t\t%s.replace("E", "");
+                                                            %s\t} else if (%s.charAt(%s) == '+' || %s.charAt(%s) == '-') {
+                                                            %s\t\tif (%s.charAt(%s - 1) == 'e' || %s.charAt(%s - 1) == 'E') {
+                                                            %s\t\t\t%s.replace("+", "");
+                                                            %s\t\t\t%s.replace("-", "");
+                                                            %s\t\t} else {
+                                                            %s\t\t\t%s = %s.substring(0, %s--);
+                                                            %s\t\t\t%s = "";
+                                                            %s\t\t}
+                                                            %s\t}
+                                                            %s\t%s++;""",
+                                        indent(""), userInputVarName, iVarName,
+                                        indent(""), dataTypeVarName,
+                                        indent(""), userInputVarName, iVarName, userInputVarName, iVarName,
+                                        indent(""), dataTypeVarName,
+                                        indent(""), dataTypeVarName,
+                                        indent(""), dataTypeVarName,
+                                        indent(""), userInputVarName, iVarName, userInputVarName, iVarName,
+                                        indent(""), userInputVarName, iVarName, userInputVarName, iVarName,
+                                        indent(""), dataTypeVarName,
+                                        indent(""), dataTypeVarName,
+                                        indent(""),
+                                        indent(""), tmpInputVarName, tmpInputVarName, iVarName,
+                                        indent(""), dataTypeVarName,
+                                        indent(""),
+                                        indent(""),
+                                        indent(""), iVarName
+                                ));
+                            }
+                            builder.append("\n").append(indent("}"));
+                        }
+
+                        if (!specifier.assignmentIsSuppressed) {
+                            builder.append(String.format("\n%s", indent(inputVarName)));
+
+                            if (specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET)) {
+                                builder.append(String.format(" = %s%s;",
+                                        tmpInputVarName,
+                                        specifier.hasWidth() ? (".substring(0, " + specifier.width + ")") : ""));
+                            }
+                            else {
+                                String result = (isLastComponent || specifier.hasWidth()) ?
+                                        (userInputVarName + ".substring(" + (components.length == 1 ? "0" : iVarName) +
+                                                (specifier.hasWidth() ? (", " + iVarName + " + " + specifier.width) : "") + ")") :
+                                        tmpInputVarName;
+                                if (specifier.type.equals(FormatSpecifier.SpecifierType.STRING)) {
+                                    builder.append(String.format(" = %s", result));
+                                }
+                                else if (specifier.isInteger()) {
+                                    builder.append(String.format(" = Integer.parseInt(%s", result));
+                                }
+                                else if (specifier.isFloating()) {
+                                    builder.append(String.format(" = Float.parseFloat(%s", result));
+                                }
+                                if (specifier.type.equals(FormatSpecifier.SpecifierType.OCTAL)) {
+                                    builder.append(", 8)");
+                                } else if (specifier.type.equals(FormatSpecifier.SpecifierType.HEXADECIMAL_LOWERCASE) ||
+                                        specifier.type.equals(FormatSpecifier.SpecifierType.HEXADECIMAL_UPPERCASE)) {
+                                    builder.append(", 16)");
+                                } else if (!specifier.type.equals(FormatSpecifier.SpecifierType.STRING)) {
+                                    builder.append(")");
+                                }
+                                builder.append(";");
+                            }
+                        }
+                        if (!isLastComponent && specifier.hasWidth()) {
+                            builder.append(String.format("\n%s += %d;",
+                                    indent(iVarName), specifier.width));
+                        }
+                    }
+                } else {
+                    String skipStr = toString(component);
+                    builder.append(String.format("""
+
+                                        %sif (%s.substring(%s, %s + %s.length()) == %s) {
+                                        \t%s += %s.length();
+                                        %s} else {
+                                        %s\treturn;
+                                        %s}""",
+                            indent(""), userInputVarName, iVarName, iVarName, skipStr, skipStr,
+                            indent(iVarName), skipStr,
+                            indent(""),
+                            indent(""),
+                            indent("")
+                    ));
                 }
             }
         }
-
+        if (builder.charAt(builder.length() - 1) == ';') {
+            builder.deleteCharAt(builder.length() - 1);
+        }
         return builder.toString();
     }
 

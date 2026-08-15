@@ -329,7 +329,7 @@ public class UniversalSerializer implements Serializer<AbstractSerializedNode> {
                 put("stringFormat", serialize(p.getFormat()));
             }
             if (call instanceof FormatInput i) {
-                put("formatString", serialize(i.getFormatString()));
+                put("stringFormat", serialize(i.getFormat()));
             }
         }}, new HashMap<>() {{
             if (call instanceof PrintCommand || call instanceof InputCommand

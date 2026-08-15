@@ -454,8 +454,8 @@ public class PythonParser extends LanguageParser {
                     && exprs.size() == 1 && arguments.getNamedChild(0).getType().equals("call")
                     && getCodePiece(arguments.getNamedChild(0).getChildByFieldName("function")).equals("input")) {
             return switch (codePiece) {
-                case "int" -> ((ReadInput) exprs.getFirst()).setType(new IntType());
-                case "float" -> ((ReadInput) exprs.getFirst()).setType(new FloatType());
+                case "int" -> ((ReadInput) exprs.getFirst()).setType(new IntType()).setReadsLine(false);
+                case "float" -> ((ReadInput) exprs.getFirst()).setType(new FloatType()).setReadsLine(false);
                 default -> exprs.getFirst();
             };
         }

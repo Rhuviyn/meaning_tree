@@ -2191,10 +2191,7 @@ public class JsonSerializer implements Serializer<JsonObject> {
     private JsonObject serializeFormatInput(@NotNull FormatInput expr) {
         JsonObject json = new JsonObject();
         json.addProperty("type", JsonNodeTypeClassMapper.getTypeForNode(expr));
-        json.add("format_string", serialize(expr.getFormatString()));
-        JsonArray targets = new JsonArray();
-        for (var t : expr.getArguments()) targets.add(serialize(t));
-        json.add("arguments", targets);
+        json.add("string_format", serialize(expr.getFormat()));
         return json;
     }
 

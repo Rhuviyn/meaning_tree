@@ -67,10 +67,7 @@ import org.vstu.meaningtree.utils.modules.ImportBuffer;
 import org.vstu.meaningtree.utils.modules.ImportPathConverter;
 import org.vstu.meaningtree.utils.tokens.OperatorToken;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 
@@ -104,7 +101,7 @@ public class PythonViewer extends LanguageViewer {
         registerTabRenderer(CompoundComparison.class, (node, tab) -> compoundComparisonToString(node));
         registerTabRenderer(Type.class, (node, tab) -> typeToString(node));
         registerTabRenderer(FormatPrint.class, (node, tab) -> formatPrintToString(node));
-        registerTabRenderer(FormatInput.class, (node, tab) -> callsToString(node));
+        registerTabRenderer(FormatInput.class, (node, tab) -> formatInputToString(node, tab));
         registerTabRenderer(Identifier.class, (node, tab) -> identifierToString(node));
         registerTabRenderer(IndexExpression.class, (indexExpr, tab) ->
                 String.format("%s[%s]", toString(indexExpr.getExpression()), toString(indexExpr.getIndex())));
@@ -147,7 +144,7 @@ public class PythonViewer extends LanguageViewer {
         registerTabRenderer(StructureDefinition.class, this::structToString);
         registerTabRenderer(FunctionDeclaration.class, this::functionDeclarationToString);
         registerTabRenderer(Import.class, (node, tab) -> importToString(node));
-        registerTabRenderer(ExpressionStatement.class, (node, tab) -> toString(node));
+        registerTabRenderer(ExpressionStatement.class, (node, tab) -> toString(node, tab));
         registerTabRenderer(ReturnStatement.class, (node, tab) -> returnToString(node));
         registerTabRenderer(ArrayInitializer.class, (node, tab) -> arrayInitializerToString(node));
         registerTabRenderer(DefinitionArgument.class, (node, tab) -> definitionArgumentToString(node));
@@ -260,14 +257,14 @@ public class PythonViewer extends LanguageViewer {
         return toString(ptr.getArgument());
     }
 
-    private String toString(ExpressionStatement stmt) {
+    private String toString(ExpressionStatement stmt, Tab tab) {
         if (stmt.getExpression() == null) {
             return "\n";
         }
         if (stmt.getExpression() instanceof AssignmentExpression assignment) {
             return toString(assignment.toStatement());
         }
-        return toString(stmt.getExpression());
+        return toString(stmt.getExpression(), tab);
     }
 
     private String comprehensionToString(Comprehension compr) {
@@ -1314,17 +1311,12 @@ public class PythonViewer extends LanguageViewer {
                             if (assignInput.hasLimitedLength()) {
                                 builder.append(String.format("[:%s-1]", toString(assignInput.maxInputLength)));
                             }
-                            List<Class<? extends Node>> h = ctx.getTranslatingNodeTypeHierarchy();
-                            if (h.size() > 1 && h.get(1) == ExpressionStatement.class) {
+                            if (ctx.isDirectlyInNode(ExpressionStatement.class)) {
                                 return builder.toString();
                             } else {
                                 ctx.getNearestUnfilledViewerBody().appendStringWithIndent(builder.toString());
                                 return value;
                             }
-                        }
-                        case FormatInput formatInput -> {
-                            // TODO
-                            return builder.toString();
                         }
                         default -> {
                             for (Expression variable : inputCommand.getArguments()) {
@@ -1390,6 +1382,260 @@ public class PythonViewer extends LanguageViewer {
 
     private String formatPrintToString(FormatPrint formatPrint) {
         return String.format("print(%s, end=\"\")", stringFormatToString(formatPrint.getFormat()));
+    }
+
+    private String formatInputToString(FormatInput formatInput, Tab tab) {
+        StringBuilder builder = new StringBuilder();
+
+        Expression[] components = formatInput.getFormat().getTemplate().getComponents();
+        Expression[] substitutions = formatInput.getValues();
+
+        if (components.length == 1 && components[0] instanceof FormatSpecifier specifier && !specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET)) {
+            if (specifier.assignmentIsSuppressed) {
+                Optional<Type> type = specifier.getCorrespondingDataType();
+                if (type.isEmpty()) {
+                    throw new UnsupportedViewingException("Data type in scanf() is not simple and cannot be converted.");
+                }
+                SimpleIdentifier tmpVariable = ctx.makeUniqueIdentifier("tmp");
+                VariableDeclaration tmpDeclaration = new VariableDeclaration(type.get(), tmpVariable);
+                ctx.scope.registerVariable(tmpDeclaration);
+                builder.append(tmpVariable.getName());
+            } else {
+                Expression inputVariable = substitutions[0];
+                if (inputVariable instanceof PointerPackOp pointer) {
+                    inputVariable = pointer.getArgument();
+                }
+                builder.append(toString(inputVariable));
+            }
+
+            builder.append(" = ");
+
+            if (specifier.isInteger()) {
+                builder.append("int(");
+            } else if (specifier.isFloating()) {
+                builder.append("float(");
+            }
+
+            builder.append("input()");
+
+            if (specifier.type.equals(FormatSpecifier.SpecifierType.CHARACTER)) {
+                builder.append("[0]");
+            } else if (specifier.hasWidth()) {
+                builder.append(String.format("[:%d]", specifier.width));
+            }
+
+            if (specifier.type.equals(FormatSpecifier.SpecifierType.OCTAL)) {
+                builder.append(", 8");
+            } else if (specifier.type.equals(FormatSpecifier.SpecifierType.HEXADECIMAL_UPPERCASE) ||
+                    specifier.type.equals(FormatSpecifier.SpecifierType.HEXADECIMAL_LOWERCASE)) {
+                builder.append(", 16");
+            }
+
+            if (!specifier.type.equals(FormatSpecifier.SpecifierType.STRING) &&
+                    !specifier.type.equals(FormatSpecifier.SpecifierType.CHARACTER)) {
+                builder.append(")");
+            }
+        } else {
+            int substitutionCounter = 0;
+            boolean needsTmpInput = false;
+
+            String  dataTypeVarName = "data_type",
+                    iVarName = "i",
+                    userInputVarName = "user_input",
+                    tmpInputVarName = "tmp_input";
+
+            SimpleIdentifier  dataTypeVarIdentifier = null,
+                    iVarIdentifier,
+                    userInputVarIdentifier,
+                    tmpInputVarIdentifier;
+
+            userInputVarIdentifier = ctx.makeUniqueIdentifier(userInputVarName);
+            userInputVarName = userInputVarIdentifier.getName();
+            VariableDeclaration userInputVarDeclaration = new VariableDeclaration(new StringType(), userInputVarIdentifier);
+            ctx.scope.registerVariable(userInputVarDeclaration);
+
+            builder.append(String.format("%s = input()", userInputVarName));
+
+            iVarIdentifier = ctx.makeUniqueIdentifier(iVarName);
+            iVarName = iVarIdentifier.getName();
+            VariableDeclaration iVarDeclaration = new VariableDeclaration(new IntType(), iVarIdentifier);
+            ctx.scope.registerVariable(iVarDeclaration);
+            builder.append("\n").append(tab.toString()).append(iVarName).append(" = 0");
+
+            for (Expression component : components) {
+                if (component instanceof FormatSpecifier specifier && !specifier.hasWidth() && !specifier.assignmentIsSuppressed
+                        && !specifier.type.equals(FormatSpecifier.SpecifierType.CHARACTER)
+                        && component != components[components.length - 1]) {
+                    needsTmpInput = true;
+                }
+            }
+
+            if (needsTmpInput) {
+                tmpInputVarIdentifier = ctx.makeUniqueIdentifier(tmpInputVarName);
+                tmpInputVarName = tmpInputVarIdentifier.getName();
+                VariableDeclaration tmpInputVarDeclaration = new VariableDeclaration(new StringType(), tmpInputVarIdentifier);
+                ctx.scope.registerVariable(tmpInputVarDeclaration);
+            }
+
+            for (Expression component : components) {
+                boolean isLastComponent = component == components[components.length - 1];
+                if (component instanceof FormatSpecifier specifier) {
+                    String inputVarName = "";
+                    if (!specifier.assignmentIsSuppressed) {
+                        Expression inputVariable = substitutions[substitutionCounter++];
+                        if (inputVariable instanceof PointerPackOp pointer) {
+                            inputVariable = pointer.getArgument();
+                        }
+                        inputVarName = toString(inputVariable);
+                    }
+
+                    if (specifier.type.equals(FormatSpecifier.SpecifierType.CHARACTER)) {
+                        if (!specifier.assignmentIsSuppressed) {
+                            builder.append(String.format("\n%s%s = %s[%s]", tab, inputVarName, userInputVarName, iVarName));
+                        }
+                        if (!isLastComponent) {
+                            builder.append(String.format("\n%s%s += 1", tab, iVarName));
+                        }
+                    } else {
+                        if (specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET) || (!isLastComponent && !specifier.hasWidth())) {
+                            if (!specifier.assignmentIsSuppressed) {
+                                builder.append(String.format("\n%s%s = \"\"", tab, tmpInputVarName));
+                            }
+
+                            if (dataTypeVarIdentifier == null) {
+                                dataTypeVarIdentifier = ctx.makeUniqueIdentifier(dataTypeVarName);
+                                dataTypeVarName = dataTypeVarIdentifier.getName();
+                                VariableDeclaration dataTypeVarDeclaration = new VariableDeclaration(new StringType(), dataTypeVarIdentifier);
+                                ctx.scope.registerVariable(dataTypeVarDeclaration);
+                            }
+
+                            builder.append(String.format("\n%s%s = %s", tab, dataTypeVarName,
+                                    specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET) ? "\"" + specifier.scanSet + "\"" : specifier.getCorrespondingCharacterSet()));
+
+                            if (specifier.isFloating()) {
+                                builder.append(String.format("""
+
+                                                    %sif %s[%s] == 'e' or %s[%s] == 'E':
+                                                    \t%s%s = ""\s""",
+                                        tab, userInputVarName, iVarName, userInputVarName, iVarName,
+                                        tab, dataTypeVarName));
+                            }
+
+                            if (!specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET)
+                                    && !specifier.type.equals(FormatSpecifier.SpecifierType.STRING)) {
+                                builder.append(String.format("\n%sif %s[%s] == '-' or %s[%s] == '+':",
+                                        tab, userInputVarName, iVarName, userInputVarName, iVarName));
+                                if (!specifier.assignmentIsSuppressed) {
+                                    builder.append(String.format("\n\t%s%s += %s[%s]",
+                                            tab, tmpInputVarName, userInputVarName, iVarName));
+                                }
+                                builder.append(String.format("\n\t%s%s += 1", tab, iVarName));
+                            }
+
+                            builder.append(String.format("\n%swhile %s < len(%s) and %s[%s]%s in %s:",
+                                    tab, iVarName, userInputVarName, userInputVarName, iVarName,
+                                    (specifier.scanSetIsNegated || specifier.type.equals(FormatSpecifier.SpecifierType.STRING)) ? " not" : "",
+                                    dataTypeVarName));
+                            if (!specifier.assignmentIsSuppressed) {
+                                builder.append(String.format("\n\t%s%s += %s[%s]",
+                                        tab, tmpInputVarName, userInputVarName, iVarName));
+                            }
+                            if (!specifier.isFloating()) {
+                                builder.append(String.format("\n\t%s%s += 1", tab, iVarName));
+                            } else {
+                                builder.append(String.format("""
+
+                                                            %s\tif %s[%s] == '.':
+                                                            %s\t\t%s = %s.replace(".", "")
+                                                            %s\telif %s[%s] == 'e' or %s[%s] == 'E':
+                                                            %s\t\t%s = %s.replace(".", "")
+                                                            %s\t\t%s = %s.replace("e", "")
+                                                            %s\t\t%s = %s.replace("E", "")
+                                                            %s\telif %s[%s] == '+' or %s[%s] == '-':
+                                                            %s\t\tif %s[%s - 1] == 'e' or %s[%s - 1] == 'E':
+                                                            %s\t\t\t%s = %s.replace("+", "")
+                                                            %s\t\t\t%s = %s.replace("-", "")
+                                                            %s\t\telse:
+                                                            %s\t\t\t%s = %s[:%s]
+                                                            %s\t\t\t%s -= 1
+                                                            %s\t\t\t%s = ""
+                                                            %s\t%s += 1""",
+                                        tab, userInputVarName, iVarName,
+                                        tab, dataTypeVarName, dataTypeVarName,
+                                        tab, userInputVarName, iVarName, userInputVarName, iVarName,
+                                        tab, dataTypeVarName, dataTypeVarName,
+                                        tab, dataTypeVarName, dataTypeVarName,
+                                        tab, dataTypeVarName, dataTypeVarName,
+                                        tab, userInputVarName, iVarName, userInputVarName, iVarName,
+                                        tab, userInputVarName, iVarName, userInputVarName, iVarName,
+                                        tab, dataTypeVarName, dataTypeVarName,
+                                        tab, dataTypeVarName, dataTypeVarName,
+                                        tab,
+                                        tab, tmpInputVarName, tmpInputVarName, iVarName,
+                                        tab, iVarName,
+                                        tab, dataTypeVarName,
+                                        tab, iVarName
+                                ));
+                            }
+                        }
+
+                        if (!specifier.assignmentIsSuppressed) {
+                            builder.append(String.format("\n%s%s", tab, inputVarName));
+
+                            if (specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET)) {
+                                builder.append(String.format(" = %s%s;",
+                                        tmpInputVarName,
+                                        specifier.hasWidth() ? ("[0: " + specifier.width + "]") : ""));
+                            }
+                            else {
+                                String result = (isLastComponent || specifier.hasWidth())
+                                        ? (userInputVarName + "[" + (components.length == 1 ? "" : iVarName) + ":" + (specifier.hasWidth()
+                                            ? iVarName + " + " + specifier.width : "") + "]")
+                                        : tmpInputVarName;
+                                if (specifier.type.equals(FormatSpecifier.SpecifierType.STRING)) {
+                                    builder.append(String.format(" = %s", result));
+                                }
+                                else if (specifier.isInteger()) {
+                                    builder.append(String.format(" = int(%s", result));
+                                }
+                                else if (specifier.isFloating()) {
+                                    builder.append(String.format(" = float(%s", result));
+                                }
+                                if (specifier.type.equals(FormatSpecifier.SpecifierType.OCTAL)) {
+                                    builder.append(", 8)");
+                                } else if (specifier.type.equals(FormatSpecifier.SpecifierType.HEXADECIMAL_LOWERCASE) ||
+                                        specifier.type.equals(FormatSpecifier.SpecifierType.HEXADECIMAL_UPPERCASE)) {
+                                    builder.append(", 16)");
+                                } else if (!specifier.type.equals(FormatSpecifier.SpecifierType.STRING)) {
+                                    builder.append(")");
+                                }
+                            }
+                        }
+                        if (!isLastComponent && specifier.hasWidth()) {
+                            builder.append(String.format("\n%s%s += %d",
+                                    tab, iVarName, specifier.width));
+                        }
+                    }
+                } else {
+                    String skipStr = toString(component);
+                    builder.append(String.format("""
+
+                                        %sif %s[%s:%s + len(%s)] == %s:
+                                        %s\t%s += len(%s)
+                                        %selse:
+                                        %s\treturn""",
+                            tab, userInputVarName, iVarName, iVarName, skipStr, skipStr,
+                            tab, iVarName, skipStr,
+                            tab,
+                            tab
+                    ));
+                }
+            }
+        }
+        if (builder.charAt(builder.length() - 1) == ';') {
+            builder.deleteCharAt(builder.length() - 1);
+        }
+        return builder.toString();
     }
 
     private String arrayAllocationToString(Type itemType, Shape shape) {

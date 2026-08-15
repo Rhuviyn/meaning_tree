@@ -656,12 +656,12 @@ public class CppTokenizer extends LanguageTokenizer {
             list.addAll(List.of(fmt.getValues()));
             return new FunctionCall(new SimpleIdentifier("printf"), list.toArray(new Expression[0]));
         } else if (call instanceof FormatInput fmt) {
-            if (fmt.getArguments().isEmpty()) {
-                return new FunctionCall(new SimpleIdentifier("scanf"), fmt.getFormatString());
+            if (fmt.getValues().length == 0) {
+                return new FunctionCall(new SimpleIdentifier("scanf"), StringLiteral.fromUnescaped(fmt.getFormatString(), StringLiteral.Type.NONE));
             }
             var list = new ArrayList<Expression>();
-            list.add(fmt.getFormatString());
-            list.addAll(fmt.getArguments());
+            list.add(StringLiteral.fromUnescaped(fmt.getFormatString(), StringLiteral.Type.NONE));
+            list.addAll(List.of(fmt.getValues()));
             return new FunctionCall(new SimpleIdentifier("scanf"), list.toArray(new Expression[0]));
         } else if (call instanceof PrintCommand || call instanceof InputCommand) {
             ArrayList<Expression> args = new ArrayList<>();
