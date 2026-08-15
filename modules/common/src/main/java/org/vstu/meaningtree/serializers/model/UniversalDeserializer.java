@@ -23,10 +23,7 @@ import org.vstu.meaningtree.nodes.expressions.newexpr.ObjectNewExpression;
 import org.vstu.meaningtree.nodes.expressions.newexpr.PlacementNewExpression;
 import org.vstu.meaningtree.nodes.expressions.other.*;
 import org.vstu.meaningtree.nodes.expressions.pointers.PointerMemberAccess;
-import org.vstu.meaningtree.nodes.io.FormatInput;
-import org.vstu.meaningtree.nodes.io.FormatPrint;
-import org.vstu.meaningtree.nodes.io.InputCommand;
-import org.vstu.meaningtree.nodes.io.PrintValues;
+import org.vstu.meaningtree.nodes.io.*;
 import org.vstu.meaningtree.nodes.memory.MemoryAllocationCall;
 import org.vstu.meaningtree.nodes.memory.MemoryFreeCall;
 import org.vstu.meaningtree.nodes.statements.ExpressionStatement;
@@ -386,8 +383,8 @@ public class UniversalDeserializer implements Deserializer<AbstractSerializedNod
                 case "PrintValues" -> {
                     return new PrintValues(
                             (List<Expression>) deserializeList((SerializedListNode) serialized.fields.get("args")),
-                            serialized.fields.containsKey("separator") ? (StringLiteral) deserialize(serialized.fields.get("separator")) : null,
-                            serialized.fields.containsKey("end") ? (StringLiteral) deserialize(serialized.fields.get("end")) : null
+                            serialized.fields.containsKey("separator") ? (Expression) deserialize(serialized.fields.get("separator")) : null,
+                            serialized.fields.containsKey("end") ? (Expression) deserialize(serialized.fields.get("end")) : null
                     );
                 }
                 case "FormatPrint" -> {
@@ -395,6 +392,18 @@ public class UniversalDeserializer implements Deserializer<AbstractSerializedNod
                 }
                 case "FormatInput" -> {
                     return new FormatInput((StringFormat) deserialize(serialized.fields.get("stringFormat")));
+                }
+                case "AssignInput" -> {
+                    List<Expression> args = (List<Expression>) deserializeList((SerializedListNode) serialized.fields.get("args"));
+                    return new AssignInput(args.getFirst(),
+                            serialized.fields.containsKey("maxInputLength") ? (Expression) deserialize(serialized.fields.get("maxInputLength")) : null);
+                }
+                case "ReadInput" -> {
+                    List<Expression> args = (List<Expression>) deserializeList((SerializedListNode) serialized.fields.get("args"));
+                    return new ReadInput(
+                            args.isEmpty() ? null : args.getFirst(),
+                            (Type) deserialize(serialized.fields.get("type")),
+                            (boolean) serialized.values.get("readsLine"));
                 }
                 case "InputCommand" -> {
                     return new InputCommand((List<Expression>) deserializeList((SerializedListNode) serialized.fields.get("args")));

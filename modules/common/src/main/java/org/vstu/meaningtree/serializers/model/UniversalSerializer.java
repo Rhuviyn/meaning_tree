@@ -331,6 +331,12 @@ public class UniversalSerializer implements Serializer<AbstractSerializedNode> {
             if (call instanceof FormatInput i) {
                 put("stringFormat", serialize(i.getFormat()));
             }
+            if (call instanceof AssignInput a && a.hasLimitedLength()) {
+                put("maxInputLength", serialize(a.maxInputLength));
+            }
+            if (call instanceof ReadInput r) {
+                put("type", serialize(r.type));
+            }
         }}, new HashMap<>() {{
             if (call instanceof PrintCommand || call instanceof InputCommand
                     || call instanceof MemoryAllocationCall || call instanceof MemoryFreeCall) {
@@ -338,6 +344,9 @@ public class UniversalSerializer implements Serializer<AbstractSerializedNode> {
             }
             if (call instanceof MemoryAllocationCall m) {
                 put("clearAlloc", m.isClearAllocation());
+            }
+            if (call instanceof ReadInput r) {
+                put("readsLine", r.readsLine);
             }
         }});
     }

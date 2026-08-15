@@ -588,6 +588,8 @@ public class JsonSerializer implements Serializer<JsonObject> {
             case DeleteStatement del -> serializeDeleteStatement(del);
             case FormatInput input -> serializeFormatInput(input);
             case FormatPrint print -> serializeFormatPrint(print);
+            case AssignInput input -> serializeAssignInput(input);
+            case ReadInput input -> serializeReadInput(input);
             case PointerInputCommand command -> serializePointerInputCommand(command);
             case InputCommand command -> serializeInputCommand(command);
             case PrintValues printValues -> serializePrintValues(printValues);
@@ -2200,6 +2202,29 @@ public class JsonSerializer implements Serializer<JsonObject> {
         JsonObject json = new JsonObject();
         json.addProperty("type", JsonNodeTypeClassMapper.getTypeForNode(expr));
         json.add("string_format", serialize(expr.getFormat()));
+        return json;
+    }
+
+    @NotNull
+    private JsonObject serializeAssignInput(@NotNull AssignInput expr) {
+        JsonObject json = new JsonObject();
+        json.addProperty("type", JsonNodeTypeClassMapper.getTypeForNode(expr));
+        json.add("value", serialize(expr.getValue()));
+        if (expr.hasLimitedLength()) {
+            json.add("max_input_length", serialize(expr.maxInputLength));
+        }
+        return json;
+    }
+
+    @NotNull
+    private JsonObject serializeReadInput(@NotNull ReadInput expr) {
+        JsonObject json = new JsonObject();
+        json.addProperty("type", JsonNodeTypeClassMapper.getTypeForNode(expr));
+        if (expr.hasPrompt()) {
+            json.add("prompt", serialize(expr.getPrompt()));
+        }
+        json.add("data_type", serialize(expr.type));
+        json.addProperty("reads_line", expr.readsLine);
         return json;
     }
 

@@ -963,6 +963,19 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
             case "format_print" -> new FormatPrint(
                     (StringFormat) deserializeNodeByType("string_format", json.getAsJsonObject("string_format"))
             );
+            case "assign_input" -> new AssignInput(
+                    deserializeExpression(json.getAsJsonObject("value")),
+                    json.has("max_input_length") && !json.get("max_input_length").isJsonNull()
+                            ? deserializeExpression(json.getAsJsonObject("max_input_length"))
+                            : null
+            );
+            case "read_input" -> new ReadInput(
+                    json.has("prompt") && !json.get("prompt").isJsonNull()
+                            ? deserializeExpression(json.getAsJsonObject("prompt"))
+                            : null,
+                    (Type) deserialize(json.getAsJsonObject("data_type")),
+                    json.get("reads_line").getAsBoolean()
+            );
             case "input_command" -> new InputCommand(
                     deserializeExpressionList(json.getAsJsonArray("arguments"))
             );
@@ -972,10 +985,10 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
             );
             case "print_values" -> {
                 List<Expression> values = deserializeExpressionList(json.getAsJsonArray("arguments"));
-                StringLiteral separator = json.has("separator") && !json.get("separator").isJsonNull()
-                        ? (StringLiteral) deserialize(json.getAsJsonObject("separator")) : null;
-                StringLiteral end = json.has("end") && !json.get("end").isJsonNull()
-                        ? (StringLiteral) deserialize(json.getAsJsonObject("end")) : null;
+                Expression separator = json.has("separator") && !json.get("separator").isJsonNull()
+                        ? (Expression) deserialize(json.getAsJsonObject("separator")) : null;
+                Expression end = json.has("end") && !json.get("end").isJsonNull()
+                        ? (Expression) deserialize(json.getAsJsonObject("end")) : null;
                 yield new PrintValues(values, separator, end);
             }
 
