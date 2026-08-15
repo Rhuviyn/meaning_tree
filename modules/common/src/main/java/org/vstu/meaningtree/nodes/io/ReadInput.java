@@ -9,7 +9,7 @@ import java.util.Objects;
 
 public class ReadInput extends InputCommand {
     public Type type;
-    public final boolean readsLine;
+    public boolean readsLine;
 
     public ReadInput(@Nullable Expression prompt, Type type, boolean readsLine) {
         super(prompt != null ? List.of(prompt) : List.of());
@@ -21,6 +21,11 @@ public class ReadInput extends InputCommand {
         if (type != null) {
             this.type = type;
         }
+        return this;
+    }
+
+    public ReadInput setReadsLine(boolean value) {
+        readsLine = value;
         return this;
     }
 

@@ -2,38 +2,55 @@ package org.vstu.meaningtree.nodes.io;
 
 import org.vstu.meaningtree.iterators.utils.TreeNode;
 import org.vstu.meaningtree.nodes.Expression;
+import org.vstu.meaningtree.nodes.expressions.literals.StringLiteral;
+import org.vstu.meaningtree.nodes.expressions.other.StringFormat;
+import org.vstu.meaningtree.nodes.expressions.other.StringFormatTemplate;
 
 import java.util.List;
 import java.util.Objects;
 
 public class FormatInput extends InputCommand {
-    @TreeNode private Expression formatString;
+    @TreeNode private StringFormat format;
 
-    public FormatInput(Expression formatString, Expression... values) {
-        super(List.of(values));
-        this.formatString = formatString;
+    public FormatInput(StringFormat format) {
+        super(List.of());
+        this.format = format;
     }
 
-    public FormatInput(Expression formatString, List<Expression> values) {
-        super(List.copyOf(values));
-        this.formatString = formatString;
+    public FormatInput(String formatString, Expression ... values) {
+        this(new StringFormat(StringLiteral.Type.NONE, StringFormatTemplate.fromFormatString(formatString), values));
     }
 
-    public Expression getFormatString() {
-        return formatString;
+    public StringFormat getFormat() {
+        return format;
+    }
+
+    public String getFormatString() {
+        return format.getFormatString();
+    }
+
+    public Expression[] getValues() {
+        return format.getSubstitutions();
     }
 
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         if (!super.equals(o)) return false;
-        FormatInput that = (FormatInput) o;
-        return Objects.equals(formatString, that.formatString);
+        FormatInput nodeInfos = (FormatInput) o;
+        return Objects.equals(format, nodeInfos.format);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), formatString);
+        return Objects.hash(super.hashCode(), format);
+    }
+
+    @Override
+    public FormatInput clone() {
+        FormatInput obj = (FormatInput) super.clone();
+        obj.format = format.clone();
+        return obj;
     }
 }
 
