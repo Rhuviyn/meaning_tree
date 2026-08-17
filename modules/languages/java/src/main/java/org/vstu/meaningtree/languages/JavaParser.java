@@ -643,7 +643,7 @@ public class JavaParser extends LanguageParser {
         String objectMethodName = getCodePiece(nameNode);
         if (!objectNode.isNull()) {
             if (objectNode.getType().equals("identifier")) {
-                Type objectType = ctx.getVisibilityScope().scope().getVariableType((SimpleIdentifier) fromIdentifierTSNode(objectNode));
+                Type objectType = ctx.scope.getVariableType((SimpleIdentifier) fromIdentifierTSNode(objectNode));
                 if (objectType instanceof UserType userType
                         && userType.getName().equalsIdentifier("Scanner")) {
                     return makeInputCall(objectMethodName);
