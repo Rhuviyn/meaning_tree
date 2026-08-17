@@ -506,7 +506,7 @@ public class CppViewer extends LanguageViewer {
                                 }
                                 SimpleIdentifier tmpVariable = ctx.makeUniqueIdentifier("tmp");
                                 VariableDeclaration tmpDeclaration = new VariableDeclaration(type.get(), tmpVariable);
-                                ctx.getVisibilityScope().scope().registerVariable(tmpDeclaration);
+                                ctx.scope.registerVariable(tmpDeclaration);
                                 ctx.getNearestUnfilledViewerBody().appendStringWithIndent(indent(toStringVariableDeclaration(tmpDeclaration)));
                                 builder.append(tmpVariable.getName());
                             } else {
@@ -538,14 +538,14 @@ public class CppViewer extends LanguageViewer {
                         userInputVarIdentifier = ctx.makeUniqueIdentifier(userInputVarName);
                         userInputVarName = userInputVarIdentifier.getName();
                         VariableDeclaration userInputVarDeclaration = new VariableDeclaration(new StringType(), userInputVarIdentifier);
-                        ctx.getVisibilityScope().scope().registerVariable(userInputVarDeclaration);
+                        ctx.scope.registerVariable(userInputVarDeclaration);
                         ctx.getNearestUnfilledViewerBody().appendStringWithIndent(indent(toStringVariableDeclaration(userInputVarDeclaration)));
 
                         if (needsTmpInput) {
                             tmpInputVarIdentifier = ctx.makeUniqueIdentifier(tmpInputVarName);
                             tmpInputVarName = tmpInputVarIdentifier.getName();
                             VariableDeclaration tmpInputVarDeclaration = new VariableDeclaration(new StringType(), tmpInputVarIdentifier);
-                            ctx.getVisibilityScope().scope().registerVariable(tmpInputVarDeclaration);
+                            ctx.scope.registerVariable(tmpInputVarDeclaration);
                             ctx.getNearestUnfilledViewerBody().appendStringWithIndent(indent(toStringVariableDeclaration(tmpInputVarDeclaration)));
                         }
 
@@ -559,7 +559,7 @@ public class CppViewer extends LanguageViewer {
                             iVarIdentifier = ctx.makeUniqueIdentifier(iVarName);
                             iVarName = iVarIdentifier.getName();
                             VariableDeclaration iVarDeclaration = new VariableDeclaration(new IntType(), iVarIdentifier);
-                            ctx.getVisibilityScope().scope().registerVariable(iVarDeclaration);
+                            ctx.scope.registerVariable(iVarDeclaration);
                             ctx.getNearestUnfilledViewerBody().appendStringWithIndent(indent(toStringVariableDeclaration(iVarDeclaration)));
                             builder.append("\n").append(indent(iVarName)).append(" = 0;");
                         }
@@ -595,7 +595,7 @@ public class CppViewer extends LanguageViewer {
                                             dataTypeVarIdentifier = ctx.makeUniqueIdentifier(dataTypeVarName);
                                             dataTypeVarName = dataTypeVarIdentifier.getName();
                                             VariableDeclaration dataTypeVarDeclaration = new VariableDeclaration(new StringType(), dataTypeVarIdentifier);
-                                            ctx.getVisibilityScope().scope().registerVariable(dataTypeVarDeclaration);
+                                            ctx.scope.registerVariable(dataTypeVarDeclaration);
                                             ctx.getNearestUnfilledViewerBody().appendStringWithIndent(indent(toStringVariableDeclaration(dataTypeVarDeclaration)));
                                         }
 
