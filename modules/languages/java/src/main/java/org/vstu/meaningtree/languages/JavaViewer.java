@@ -399,12 +399,12 @@ public class JavaViewer extends LanguageViewer {
     private String toStringInputCommand(InputCommand inputCommand) {
         StringBuilder builder = new StringBuilder();
 
-        List<SimpleIdentifier> scanners = ctx.getVisibilityScope().scope().getVariablesByType(new Class(new SimpleIdentifier("Scanner")));
+        List<SimpleIdentifier> scanners = ctx.scope.scope().getVariablesByType(new Class(new SimpleIdentifier("Scanner")));
         SimpleIdentifier scannerName;
 
         if (scanners.isEmpty()) {
             scannerName = ctx.makeUniqueIdentifier("scanner");
-            ctx.getVisibilityScope().scope().registerVariable(new VariableDeclaration(new Class(new SimpleIdentifier("Scanner")), scannerName));
+            ctx.scope.registerVariable(new VariableDeclaration(new Class(new SimpleIdentifier("Scanner")), scannerName));
             ctx.getNearestUnfilledViewerBody()
                     .indent(_indentLevel, _indentation)
                     .appendStringWithIndent(String.format("Scanner %s = new Scanner(System.in);", scannerName.getName()));
@@ -455,8 +455,7 @@ public class JavaViewer extends LanguageViewer {
                             .append(indent(String.format("if (%s.size() >= %s) %s = %s.substring(%s - 1)",
                                     value, toString(assignInput.maxInputLength), value, value, toString(assignInput.maxInputLength))));
                 }
-                List<java.lang.Class<? extends Node>> h = ctx.getTranslatingNodeTypeHierarchy();
-                if (h.size() > 1 && h.get(1) == ExpressionStatement.class) {
+                if (ctx.isDirectlyInNode(ExpressionStatement.class)) {
                     return builder.toString();
                 } else {
                     builder.insert(0, indent("")).append(";");
@@ -511,7 +510,7 @@ public class JavaViewer extends LanguageViewer {
                 }
                 SimpleIdentifier tmpVariable = ctx.makeUniqueIdentifier("tmp");
                 VariableDeclaration tmpDeclaration = new VariableDeclaration(type.get(), tmpVariable);
-                ctx.getVisibilityScope().scope().registerVariable(tmpDeclaration);
+                ctx.scope.registerVariable(tmpDeclaration);
                 ctx.getNearestUnfilledViewerBody().appendStringWithIndent(toStringVariableDeclaration(tmpDeclaration));
                 inputVariable = tmpVariable;
             } else {
@@ -577,7 +576,7 @@ public class JavaViewer extends LanguageViewer {
             userInputVarIdentifier = ctx.makeUniqueIdentifier(userInputVarName);
             userInputVarName = userInputVarIdentifier.getName();
             VariableDeclaration userInputVarDeclaration = new VariableDeclaration(new StringType(), userInputVarIdentifier);
-            ctx.getVisibilityScope().scope().registerVariable(userInputVarDeclaration);
+            ctx.scope.registerVariable(userInputVarDeclaration);
             ctx.getNearestUnfilledViewerBody().appendStringWithIndent(toStringVariableDeclaration(userInputVarDeclaration));
 
             for (Expression component : components) {
@@ -592,7 +591,7 @@ public class JavaViewer extends LanguageViewer {
                 tmpInputVarIdentifier = ctx.makeUniqueIdentifier(tmpInputVarName);
                 tmpInputVarName = tmpInputVarIdentifier.getName();
                 VariableDeclaration tmpInputVarDeclaration = new VariableDeclaration(new StringType(), tmpInputVarIdentifier);
-                ctx.getVisibilityScope().scope().registerVariable(tmpInputVarDeclaration);
+                ctx.scope.registerVariable(tmpInputVarDeclaration);
                 ctx.getNearestUnfilledViewerBody().appendStringWithIndent(toStringVariableDeclaration(tmpInputVarDeclaration));
             }
 
@@ -601,7 +600,7 @@ public class JavaViewer extends LanguageViewer {
             iVarIdentifier = ctx.makeUniqueIdentifier(iVarName);
             iVarName = iVarIdentifier.getName();
             VariableDeclaration iVarDeclaration = new VariableDeclaration(new IntType(), iVarIdentifier);
-            ctx.getVisibilityScope().scope().registerVariable(iVarDeclaration);
+            ctx.scope.registerVariable(iVarDeclaration);
             ctx.getNearestUnfilledViewerBody().appendStringWithIndent(toStringVariableDeclaration(iVarDeclaration));
             builder.append("\n").append(indent(iVarName)).append(" = 0;");
 
@@ -636,7 +635,7 @@ public class JavaViewer extends LanguageViewer {
                                 dataTypeVarIdentifier = ctx.makeUniqueIdentifier(dataTypeVarName);
                                 dataTypeVarName = dataTypeVarIdentifier.getName();
                                 VariableDeclaration dataTypeVarDeclaration = new VariableDeclaration(new StringType(), dataTypeVarIdentifier);
-                                ctx.getVisibilityScope().scope().registerVariable(dataTypeVarDeclaration);
+                                ctx.scope.registerVariable(dataTypeVarDeclaration);
                                 ctx.getNearestUnfilledViewerBody().appendStringWithIndent(toStringVariableDeclaration(dataTypeVarDeclaration));
                             }
 
