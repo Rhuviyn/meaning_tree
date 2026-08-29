@@ -205,6 +205,10 @@ public class SimpleTypeInferrer {
                 return new FloatType(Math.max(fn.getBitsize(), sn.getBitsize()));
             }
 
+            if (first instanceof CharacterType && second instanceof CharacterType) {
+                return new CharacterType(Math.max(fn.getBitsize(), sn.getBitsize()));
+            }
+
             return new IntType(Math.max(fn.getBitsize(), sn.getBitsize()));
         }
         else if (first instanceof StringType || second instanceof StringType) {
