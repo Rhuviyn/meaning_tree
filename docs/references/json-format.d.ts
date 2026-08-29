@@ -1222,24 +1222,47 @@ export interface FunctionDeclarationNode extends NodeBase<"function_declaration"
  * Модули и импорты
  * ========================================================================== */
 
+/** `ImportResolverMetadata.ImportKind`. */
+export type ImportResolverKind =
+    | "local_resolved_exact"
+    | "local_resolved_fallback"
+    | "local_unresolved"
+    | "library";
+
+/**
+ * Результат резолвинга импорта (`ImportResolverMetadata`).
+ *
+ * Присутствует только когда у транслятора был задан контекст проекта — иначе
+ * `resolver_metadata` в узле импорта отсутствует вовсе, а не содержит выдуманных данных.
+ */
+export interface ImportResolverMetadataRef {
+    kind: ImportResolverKind;
+    /** Путь к резолвнутому файлу; отсутствует для `library` и `local_unresolved`. */
+    resolved_file: string | null;
+}
+
 export interface ImportModuleNode
     extends NodeBase<"import_module" | "import_all_from_module" | "static_import_all"> {
     module_name: AnyNode;
+    resolver_metadata?: ImportResolverMetadataRef;
 }
 
 export interface ImportMembersNode
     extends NodeBase<"import_members_from_module" | "static_import_members_from_module"> {
     module_name: AnyNode;
     members: AnyNode[];
+    resolver_metadata?: ImportResolverMetadataRef;
 }
 
 export interface ImportModulesNode extends NodeBase<"import_modules"> {
     modules: AnyNode[];
+    resolver_metadata?: ImportResolverMetadataRef;
 }
 
 export interface IncludeNode extends NodeBase<"include"> {
     file_name: StringLiteralNode;
     include_type: IncludeType;
+    resolver_metadata?: ImportResolverMetadataRef;
 }
 
 export interface PackageDeclarationNode extends NodeBase<"package_declaration"> {
