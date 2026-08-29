@@ -2514,9 +2514,9 @@ group: Other
             (a + b * c) + 6 * (a = 3);
 
 
-    case[translationUnitMode="full"]: StandardEntryPoint
 
-        python:
+    case[translationUnitMode="full"]: StandardEntryPointFromPython
+        main python:
             from funcs import func
             a: int = 1
 
@@ -2528,6 +2528,44 @@ group: Other
                 run()
 
         c++:
+            #include "funcs/func.h"
+            int a = 1;
+
+            auto run()
+            {
+                func(a);
+                return 0;
+            }
+
+            int main()
+            {
+                run();
+                return 0;
+            }
+
+        java:
+            package main;
+
+            import funcs.func;
+
+            public class Main {
+
+                public static int a = 1;
+
+                public static void main(String[] args) {
+                    run();
+                }
+                public static Object run() {
+                    func(a);
+                    return 0;
+                }
+
+            }
+
+
+    case[translationUnitMode="full"]: StandardEntryPointFromCpp
+
+        main c++:
             #include "funcs/func.h"
             int a = 1;
 
@@ -2543,7 +2581,41 @@ group: Other
                 return 0;
             }
 
+        python:
+            import funcs.func
+            a: int = 1
+
+            def run() -> int:
+                func(a)
+                return 0
+
+            if __name__ == "__main__":
+                run()
+
         java:
+            package main;
+
+            import funcs.func;
+
+            public class Main {
+
+                public static int a = 1;
+
+                public static void main(String[] args) {
+                    run();
+                    return;
+                }
+                public static int run() {
+                    func(a);
+                    return 0;
+                }
+
+            }
+
+
+    case[translationUnitMode="full"]: StandardEntryPointFromJava
+
+        main java:
             class Main {
                 public static int a = 1;
 
@@ -2556,3 +2628,35 @@ group: Other
                     run();
                 }
             }
+
+        python:
+            class Main:
+                a: int = 1
+                @staticmethod
+                def run() -> int:
+                    func(a)
+                    return 0
+
+                @staticmethod
+                def main(args: list[str]) -> None:
+                    run()
+
+            if __name__ == "__main__":
+                Main.main(None)
+
+        c++:
+            #include <array>
+            class Main
+            {
+                public:
+                    static int a = 1;
+                    static int run()
+                {
+                    func(a);
+                    return 0;
+                }
+                    static void main(std::array<std::string> args)
+                {
+                    run();
+                }
+            };

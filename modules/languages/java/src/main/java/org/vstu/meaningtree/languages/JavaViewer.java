@@ -2235,7 +2235,8 @@ public class JavaViewer extends LanguageViewer {
                 new SimpleIdentifier(SIMPLE_PROGRAM_CLASS_NAME));
     }
 
-    private String makeSimpleProgram(List<Node> nodes) {
+    private String makeSimpleProgram(ProgramEntryPoint entryPoint) {
+        List<Node> nodes = entryPoint.getBody();
         StringBuilder builder = new StringBuilder();
 
         builder.append("public class %s {\n\n".formatted(SIMPLE_PROGRAM_CLASS_NAME));
@@ -2243,17 +2244,28 @@ public class JavaViewer extends LanguageViewer {
 
         var mainMethod = getMainMethod(nodes);
         var otherMethods = getOtherMethods(nodes);
-        var notMethods = getNotMethods(nodes);
+        var fields = getFieldDeclarations(nodes);
+        // Операторы верхнего уровня, которые не являются ни функцией, ни объявлением переменной
+        // (сами по себе — редкость: почти всегда это либо декларации, либо код внутри main)
+        var looseStatements = getLooseStatements(nodes);
+
+        if (!fields.isEmpty()) {
+            var fieldsConstructor = ctx.viewingIterateBody(fields);
+            for (Node field : fields) {
+                fieldsConstructor.appendString(indent(toString(field)));
+            }
+            builder.append(String.join("\n", fieldsConstructor.stringBuffer())).append("\n\n");
+        }
 
         if (mainMethod != null) {
-            // Добавляем все не-методы в body main
+            // У main уже есть содержательное тело (например, C++ int main() { ...; return 0; }):
+            // глобальные переменные ушли в поля класса выше, здесь их дописывать не нужно —
+            // раньше их добавляли в конец тела main, из-за чего они попадали после return
             var mainBody = mainMethod.getBody();
-            for (Node node : notMethods) {
-                mainBody.insert(mainBody.getLength(), node);
+            for (int i = looseStatements.size() - 1; i >= 0; i--) {
+                mainBody.insert(0, looseStatements.get(i));
             }
 
-            // Вставляем mainMethod (с уже добавленными не-методами)
-            // Вставляем фиксированный main
             builder.append(indent("public static void main(String[] args) {\n"));
             ctx.set(SYNTHETIC_VOID_MAIN, true);
             increaseIndentLevel();
@@ -2272,13 +2284,29 @@ public class JavaViewer extends LanguageViewer {
         }
         else {
             builder.append(indent("public static void main(String[] args) {\n"));
+            ctx.set(SYNTHETIC_VOID_MAIN, true);
             increaseIndentLevel();
+            try {
+                List<Node> mainBodyNodes = new ArrayList<>(looseStatements);
+                // Нет буквальной функции main — настоящая точка входа осталась одной из
+                // otherMethods (например, python def run(): ... под if __name__), и её нужно
+                // явно вызвать, иначе синтетический main ничего не делает
+                if (entryPoint.hasEntryPoint()
+                        && entryPoint.getEntryPoint() instanceof FunctionDefinition entryFunction
+                        && !entryFunction.getName().toString().equals("main")
+                        && entryFunction.getDeclaration().getArguments().isEmpty()) {
+                    FunctionCall entryCall = new FunctionCall(entryFunction.getName().clone()).remap(entryFunction);
+                    mainBodyNodes.add(new ExpressionStatement(entryCall).remap(entryFunction));
+                }
 
-            var constructor = ctx.viewingIterateBody(notMethods);
-            for (var node : constructor) {
-                constructor.appendString(indent(toString(node)));
+                var constructor = ctx.viewingIterateBody(mainBodyNodes);
+                for (var node : constructor) {
+                    constructor.appendString(indent(toString(node)));
+                }
+                builder.append(String.join("\n", constructor.stringBuffer())).append("\n");
+            } finally {
+                ctx.remove(SYNTHETIC_VOID_MAIN);
             }
-            builder.append(String.join("\n", constructor.stringBuffer())).append("\n");
 
             decreaseIndentLevel();
             builder.append(indent("}\n"));
@@ -2357,7 +2385,9 @@ public class JavaViewer extends LanguageViewer {
                 methods.add(remapSynthesizedMethod(
                         functionDefinition.makeMethod(
                                 simpleProgramOwner(),
-                                List.of(DeclarationModifier.PUBLIC)
+                                // STATIC обязателен: у синтетического класса нет и не будет
+                                // экземпляра, через который можно было бы вызвать метод
+                                List.of(DeclarationModifier.PUBLIC, DeclarationModifier.STATIC)
                         ),
                         functionDefinition
                 ));
@@ -2367,12 +2397,32 @@ public class JavaViewer extends LanguageViewer {
         return methods;
     }
 
-    private List<Node> getNotMethods(List<Node> nodes) {
+    /**
+     * Глобальные переменные исходной программы (C++/Python) — единственный их естественный
+     * аналог в синтетическом классе — статическое поле, а не локальная переменная внутри main:
+     * иначе другие перенесённые в методы функции не смогут до них дотянуться.
+     */
+    private List<Node> getFieldDeclarations(List<Node> nodes) {
+        var fields = new ArrayList<Node>();
+        for (var node : nodes) {
+            if (node instanceof VariableDeclaration variableDeclaration && !(node instanceof FieldDeclaration)) {
+                fields.add(variableDeclaration.makeField(
+                        List.of(DeclarationModifier.PUBLIC, DeclarationModifier.STATIC)
+                ).remap(variableDeclaration));
+            }
+        }
+        return fields;
+    }
+
+    private List<Node> getLooseStatements(List<Node> nodes) {
         var notMethods = new ArrayList<Node>();
         for (var node : nodes) {
             // Объявление пакета отбрасывается: синтетический класс живёт в package main,
-            // который makeSimpleProgram печатает сам
-            if (!(node instanceof FunctionDefinition) && !isProgramHeaderNode(node)) {
+            // который makeSimpleProgram печатает сам. Функции и переменные тоже отбрасываются —
+            // они уже стали методами и полями класса (см. getOtherMethods/getFieldDeclarations)
+            if (!(node instanceof FunctionDefinition)
+                    && !(node instanceof VariableDeclaration)
+                    && !isProgramHeaderNode(node)) {
                 notMethods.add(node);
             }
         }
@@ -2401,7 +2451,7 @@ public class JavaViewer extends LanguageViewer {
         List<Node> nodes = entryPoint.getBody();
 
         if (getConfigParameter("translationUnitMode").equalsValue("full") && !entryPoint.hasMainClass()) {
-            return makeSimpleProgram(nodes);
+            return makeSimpleProgram(entryPoint);
         }
 
         var constructor = ctx.viewingIterateBody(entryPoint);

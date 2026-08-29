@@ -557,6 +557,7 @@ public class PythonViewer extends LanguageViewer {
         IfStatement entryPointIf = null;
         boolean omitEntryPointInNonFullMode = false;
         FunctionDefinition entryPointFunction = null;
+        FunctionDefinition collapsedDelegateWrapper = null;
         if (programEntryPoint.hasEntryPoint()) {
             Node entryPointNode = programEntryPoint.getEntryPoint();
             if (entryPointNode instanceof FunctionDefinition func) {
@@ -564,13 +565,23 @@ public class PythonViewer extends LanguageViewer {
                 if (!getConfigParameter("translationUnitMode").equalsValue("full")) {
                     omitEntryPointInNonFullMode = true;
                 } else {
+                    // Точка входа чужого языка (C++ int main() { ...; return 0; }, аналогично
+                    // Java) часто является тривиальной обёрткой, которая ничего не делает, кроме
+                    // вызова другой функции: в питоне такой посредник не нужен — вызываем целевую
+                    // функцию прямо под if __name__, как это делает сам PythonParser для своих же
+                    // программ (см. findEntryPointFunction)
+                    FunctionDefinition delegateTarget = !(func.getDeclaration() instanceof MethodDeclaration)
+                            ? resolveTrivialDelegateTarget(func, programEntryPoint.getBody())
+                            : null;
+                    FunctionDefinition callTarget = delegateTarget != null ? delegateTarget : func;
+
                     Identifier ident;
-                    FunctionDeclaration funcDecl = func.getDeclaration();
+                    FunctionDeclaration funcDecl = callTarget.getDeclaration();
                     if (funcDecl instanceof MethodDeclaration method) {
                         ident = new ScopedIdentifier(method.getOwner().getName(), method.getName())
                                 .remap(method.getName());
                     } else {
-                        ident = func.getName();
+                        ident = callTarget.getName();
                     }
                     //NOTE: default behaviour - ignore arguments in call main function
                     List<Expression> nulls = new ArrayList<>();
@@ -581,12 +592,21 @@ public class PythonViewer extends LanguageViewer {
                     }
                     FunctionCall funcCall = new FunctionCall(ident, nulls.toArray(new Expression[0])).remap(func);
                     entryPointIf = makeEntryPointCondition(new CompoundStatement(funcCall).remap(func), func);
+                    if (delegateTarget != null) {
+                        // Саму обёртку-делегат (main) из вывода исключаем — иначе останется
+                        // бесполезная функция, которую никто не вызывает
+                        collapsedDelegateWrapper = func;
+                    }
                 }
             } else if (entryPointNode instanceof CompoundStatement compound) {
                 entryPointIf = makeEntryPointCondition(compound, compound);
             }
         }
         List<Node> nodes = new ArrayList<>(programEntryPoint.getBody());
+        if (collapsedDelegateWrapper != null) {
+            long wrapperId = collapsedDelegateWrapper.getId();
+            nodes.removeIf(node -> node.getId() == wrapperId);
+        }
         if (omitEntryPointInNonFullMode && entryPointFunction != null && canFlattenEntryPointFunction(entryPointFunction)) {
             long entryPointId = entryPointFunction.getId();
             boolean entryPointWasInBody = nodes.removeIf(node -> node.getId() == entryPointId);
@@ -628,6 +648,56 @@ public class PythonViewer extends LanguageViewer {
             }
         }
         return true;
+    }
+
+    /**
+     * Находит функцию, которую {@code wrapper} тривиально вызывает и больше ничего не делает
+     * (например, C++ {@code int main() { run(); return 0; }}). В этом случае {@code wrapper} —
+     * не самостоятельная логика, а технический мост к настоящей точке входа, и его не нужно
+     * печатать отдельной функцией: в Python ближе прямой вызов цели под if __name__.
+     */
+    private FunctionDefinition resolveTrivialDelegateTarget(FunctionDefinition wrapper, List<Node> body) {
+        List<Node> statements = wrapper.getBody().getNodeList();
+        if (statements.isEmpty() || statements.size() > 2) {
+            return null;
+        }
+        if (statements.size() == 2 && !isTrivialTerminalReturn(statements.get(1))) {
+            return null;
+        }
+
+        Expression callExpression = switch (statements.getFirst()) {
+            case ExpressionStatement exprStmt -> exprStmt.getExpression();
+            case Expression expr -> expr;
+            default -> null;
+        };
+        if (!(callExpression instanceof FunctionCall call)
+                || !call.getArguments().isEmpty()
+                || !(call.getFunction() instanceof SimpleIdentifier identifier)) {
+            return null;
+        }
+
+        for (Node node : body) {
+            if (node instanceof FunctionDefinition candidate
+                    && candidate.getId() != wrapper.getId()
+                    && candidate.getName().toString().equals(identifier.getName())
+                    && candidate.getDeclaration().getArguments().isEmpty()) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * {@code return 0;} или пустой {@code return;} — стандартная заглушка C-подобного main,
+     * не несущая смысла. Любой другой return означает, что обёртка возвращает содержательное
+     * значение и не является чистым делегатом.
+     */
+    private boolean isTrivialTerminalReturn(Node statement) {
+        if (!(statement instanceof ReturnStatement returnStatement)) {
+            return false;
+        }
+        Expression value = returnStatement.getExpression();
+        return value == null || (value instanceof IntegerLiteral literal && literal.getLongValue() == 0);
     }
 
     private String loopToString(Statement stmt, Tab tab) {

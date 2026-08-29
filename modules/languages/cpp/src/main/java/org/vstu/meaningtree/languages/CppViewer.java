@@ -1488,8 +1488,6 @@ public class CppViewer extends LanguageViewer {
     }
 
     private String toStringEntryPoint(ProgramEntryPoint entryPoint) {
-        // TODO: required main function creation or expression mode
-
         String prefix = isCMode() && requiresCStandardLibrary(entryPoint) ? "#include <stdlib.h>\n" : "";
         List<Node> nodes = entryPoint.getBody();
         if (getConfigParameter("translationUnitMode").equalsValue("full") && !entryPoint.hasEntryPoint()) {
@@ -1500,7 +1498,50 @@ public class CppViewer extends LanguageViewer {
         for (Node node : constructor) {
             constructor.appendString(toString(node));
         }
-        return prefix + withPreservedIncludes(String.join("\n", constructor.stringBuffer()), nodes) + "\n";
+        String body = String.join("\n", constructor.stringBuffer());
+
+        // Точка входа чужого языка (например, python def run(): ... под if __name__) не
+        // содержит функции/метода буквально с именем main, поэтому её вызов никуда не попадает
+        // при простом выводе body — C++ такую программу не запустить без настоящего main.
+        if (getConfigParameter("translationUnitMode").equalsValue("full")
+                && entryPoint.hasEntryPoint()
+                && !hasOwnMainFunction(entryPoint.getEntryPoint())) {
+            body = (body.isEmpty() ? "" : body + "\n") + synthesizeMainCallingEntryPoint(entryPoint.getEntryPoint());
+        }
+
+        return prefix + withPreservedIncludes(body, nodes) + "\n";
+    }
+
+    private boolean hasOwnMainFunction(Node entryPointNode) {
+        return entryPointNode instanceof FunctionDefinition fd && fd.getName().toString().equals("main");
+    }
+
+    /**
+     * Строит {@code int main() { ... return 0; }}, вызывающий чужую точку входа: свободную
+     * функцию без аргументов либо составной оператор (как тело {@code if __name__ == "__main__":}).
+     */
+    private String synthesizeMainCallingEntryPoint(Node entryPointNode) {
+        StringBuilder builder = new StringBuilder();
+        builder.append(isCMode() ? "int main(void)\n{\n" : "int main()\n{\n");
+        increaseIndentLevel();
+
+        if (entryPointNode instanceof FunctionDefinition functionDefinition) {
+            FunctionCall call = new FunctionCall(functionDefinition.getName().clone()).remap(functionDefinition);
+            builder.append(indent(toString(new ExpressionStatement(call).remap(functionDefinition)))).append("\n");
+        } else if (entryPointNode instanceof CompoundStatement compound) {
+            var constructor = ctx.viewingIterateBody(compound);
+            for (var node : constructor) {
+                constructor.appendString(indent(toString(node)));
+            }
+            builder.append(String.join("\n", constructor.stringBuffer())).append("\n");
+        } else {
+            builder.append(indent(toString(entryPointNode))).append("\n");
+        }
+
+        builder.append(indent("return 0;")).append("\n");
+        decreaseIndentLevel();
+        builder.append("}\n");
+        return builder.toString();
     }
 
     /**
