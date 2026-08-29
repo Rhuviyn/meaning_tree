@@ -1983,7 +1983,9 @@ public class CppViewer extends LanguageViewer {
             case UnmodifiableListType array -> cCollectionType(String.format("std::array<%s>", toStringType(array.getItemType())), array);
             case SetType set -> cCollectionType(String.format("std::set<%s>", toStringType(set.getItemType())), set);
             case PlainCollectionType lst -> cCollectionType(String.format("std::vector<%s>", toStringType(lst.getItemType())), lst);
-            case StringType str -> isCMode() ? "%schar *".formatted(str.isConst() ? "const " : "") : "std::string";
+            case StringType str -> isCMode()
+                    ? "%schar *".formatted(str.isConst() ? "const " : "")
+                    : cCollectionType("std::string", str);
             case GenericUserType gusr -> String.format("%s<%s>", toString(gusr.getQualifiedName()), toStringArguments(List.of(gusr.getTypeParameters())));
             case UserType usr -> toString(usr.getQualifiedName());
             default -> throw new IllegalStateException("Unexpected value: " + type);
@@ -1996,14 +1998,14 @@ public class CppViewer extends LanguageViewer {
     }
 
     /**
-     * Коллекция C++ печатается только вместе с заголовком, который её объявляет, поэтому
-     * заголовок откладывается здесь — в единственной точке, где {@code std::}-форма типа
-     * действительно возникает. Массив с декларатором ({@code int a[3]}) сюда не попадает, и
-     * лишнего {@code <array>} у него не появится.
+     * Тип из std (коллекция или строка) печатается только вместе с заголовком, который его
+     * объявляет, поэтому заголовок откладывается здесь — в единственной точке, где
+     * {@code std::}-форма типа действительно возникает. Массив с декларатором ({@code int a[3]})
+     * сюда не попадает, и лишнего {@code <array>} у него не появится.
      */
     private String cCollectionType(String cppType, Type type) {
         if (isCMode()) {
-            throw new UnsupportedViewingException("C mode supports arrays but not C++ collection types");
+            throw new UnsupportedViewingException("C mode supports arrays and char * but not std types");
         }
         CppLibraryImportRegistry.headerForType(type)
                 .ifPresent(header -> preserveSystemInclude(header, type));

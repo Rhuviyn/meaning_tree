@@ -183,6 +183,7 @@ group: LiteralsTest
             java.util.TreeMap<String, Object> x = new java.util.TreeMap<>() {{put("a", b);put("x", y);}};
 
         c++:
+            #include <string>
             #include <map>
             std::map<std::string, auto> x = {{"a", b}, {"x", y}};
 
@@ -1810,6 +1811,7 @@ group: Functions
             }
 
         c++:
+            #include <string>
             std::string concat(std::string a, std::string b)
             {
                 return a + b;
@@ -2117,6 +2119,7 @@ group: StructuresOOP
                     super().__init__(a, b)
 
         c++:
+            #include <string>
             class A : public B
             {
             public:
@@ -2645,6 +2648,7 @@ group: Other
                 Main.main(None)
 
         c++:
+            #include <string>
             #include <array>
             class Main
             {

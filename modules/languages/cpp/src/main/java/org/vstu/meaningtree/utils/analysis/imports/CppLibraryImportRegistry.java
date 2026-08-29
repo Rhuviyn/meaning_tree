@@ -1,6 +1,7 @@
 package org.vstu.meaningtree.utils.analysis.imports;
 
 import org.vstu.meaningtree.nodes.Type;
+import org.vstu.meaningtree.nodes.types.builtin.StringType;
 import org.vstu.meaningtree.nodes.types.containers.*;
 
 import java.util.Map;
@@ -94,6 +95,7 @@ public final class CppLibraryImportRegistry {
             case OrderedDictionaryType ignored -> "map";
             case UnorderedDictionaryType ignored -> "unordered_map";
             case PlainCollectionType ignored -> "vector";
+            case StringType ignored -> "string";
             default -> null;
         });
     }
