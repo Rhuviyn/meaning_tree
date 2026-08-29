@@ -13,6 +13,6 @@ public class ImportAllFromModule extends ImportModule {
     }
 
     public ImportAllFromModule clone() {
-        return new ImportAllFromModule(moduleName.clone());
+        return withResolverMetadataOf(new ImportAllFromModule(moduleName.clone()));
     }
 }

@@ -31,7 +31,7 @@ public class Include extends Import {
     }
 
     public Include clone() {
-        return new Include((StringLiteral) filename.clone(), includeType);
+        return withResolverMetadataOf(new Include((StringLiteral) filename.clone(), includeType));
     }
 
     @Override

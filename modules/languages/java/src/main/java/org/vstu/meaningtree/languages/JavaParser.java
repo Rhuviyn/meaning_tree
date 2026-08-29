@@ -62,6 +62,8 @@ import org.vstu.meaningtree.nodes.types.containers.*;
 import org.vstu.meaningtree.nodes.types.containers.components.Shape;
 import org.vstu.meaningtree.nodes.types.user.Class;
 import org.vstu.meaningtree.nodes.types.user.GenericClass;
+import org.vstu.meaningtree.utils.analysis.imports.ImportResolver;
+import org.vstu.meaningtree.utils.analysis.imports.JavaImportResolver;
 
 import java.util.*;
 
@@ -1228,10 +1230,14 @@ public class JavaParser extends LanguageParser {
                 if (subType instanceof ListType) {
                     parsedType = new ListType(!subTypes.isEmpty() ? subTypes.getFirst() : new UnknownType());
                 } else if (subType instanceof DictionaryType) {
-                    parsedType = new UnorderedDictionaryType(
-                            !subTypes.isEmpty() ? subTypes.getFirst() : new UnknownType(),
-                            subTypes.size() > 1 ? subTypes.get(1) : new UnknownType()
-                    );
+                    // Вид словаря уже определён базовым типом (TreeMap упорядочен, HashMap —
+                    // нет): раньше он здесь терялся, и любой параметризованный словарь
+                    // становился неупорядоченным
+                    Type keyType = !subTypes.isEmpty() ? subTypes.getFirst() : new UnknownType();
+                    Type valueType = subTypes.size() > 1 ? subTypes.get(1) : new UnknownType();
+                    parsedType = subType instanceof OrderedDictionaryType
+                            ? new OrderedDictionaryType(keyType, valueType)
+                            : new UnorderedDictionaryType(keyType, valueType);
                 } else if (subType instanceof SetType) {
                     parsedType = new SetType(!subTypes.isEmpty() ? subTypes.getFirst() : new UnknownType());
                 } else if (subType instanceof Class cls) {
@@ -1497,4 +1503,10 @@ public class JavaParser extends LanguageParser {
         };
     }
 
+    private final JavaImportResolver importResolver = new JavaImportResolver();
+
+    @Override
+    protected ImportResolver getImportResolver() {
+        return importResolver;
+    }
 }

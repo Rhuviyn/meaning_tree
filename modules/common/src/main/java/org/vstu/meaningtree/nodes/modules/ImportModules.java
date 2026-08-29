@@ -23,7 +23,7 @@ public class ImportModules extends Import {
     }
 
     public ImportModules clone() {
-        return new ImportModules(modulesNames.stream().map(Identifier::clone).toList());
+        return withResolverMetadataOf(new ImportModules(modulesNames.stream().map(Identifier::clone).toList()));
     }
 
     @Override

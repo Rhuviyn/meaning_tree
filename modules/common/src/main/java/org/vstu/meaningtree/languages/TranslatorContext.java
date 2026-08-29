@@ -5,10 +5,7 @@ import org.vstu.meaningtree.nodes.*;
 import org.vstu.meaningtree.nodes.declarations.VariableDeclaration;
 import org.vstu.meaningtree.nodes.expressions.Identifier;
 import org.vstu.meaningtree.nodes.expressions.identifiers.SimpleIdentifier;
-import org.vstu.meaningtree.nodes.modules.Import;
-import org.vstu.meaningtree.nodes.modules.ImportAllFromModule;
-import org.vstu.meaningtree.nodes.modules.ImportMembersFromModule;
-import org.vstu.meaningtree.nodes.modules.ImportModule;
+import org.vstu.meaningtree.nodes.modules.*;
 import org.vstu.meaningtree.nodes.statements.CompoundStatement;
 import org.vstu.meaningtree.utils.Label;
 import org.vstu.meaningtree.utils.analysis.types.SimpleTypeInferrer;
@@ -399,6 +396,13 @@ public class TranslatorContext {
      * одинаковые по смыслу импорты равными не окажутся.
      */
     public static boolean coversImport(Import existing, Import required) {
+        // #include стоит особняком: он не именует модуль, а подключает файл, поэтому
+        // покрывает только точно такое же подключение того же файла в той же форме
+        if (existing instanceof Include || required instanceof Include) {
+            return existing instanceof Include a && required instanceof Include b
+                    && a.getIncludeType() == b.getIncludeType()
+                    && a.getFileName().getUnescapedValue().equals(b.getFileName().getUnescapedValue());
+        }
         if (!(existing instanceof ImportModule from) || !(required instanceof ImportModule needed)) {
             return false;
         }

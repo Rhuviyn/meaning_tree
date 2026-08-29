@@ -183,6 +183,7 @@ group: LiteralsTest
             java.util.TreeMap<String, Object> x = new java.util.TreeMap<>() {{put("a", b);put("x", y);}};
 
         c++:
+            #include <map>
             std::map<std::string, auto> x = {{"a", b}, {"x", y}};
 
 
@@ -322,6 +323,7 @@ group: SimpleExpressionsTest
             boolean a = list.contains(x);
 
         c++:
+            #include <vector>
             std::vector<int> list = {};
             int x = 0;
             bool a = list.contains(x);
@@ -338,6 +340,7 @@ group: SimpleExpressionsTest
             boolean a = !list.contains(x);
 
         c++:
+            #include <vector>
             std::vector<int> list = {};
             int x = 0;
             bool a = !list.contains(x);
@@ -443,6 +446,7 @@ group: SimpleExpressionsTest
             int a = Math.pow(x, y);
 
         c++:
+            #include <cmath>
             int x = 0;
             int y = 0;
             int a = pow(x, y);
@@ -952,6 +956,7 @@ group: SimpleStatements
 
     case: ListDeclaration
         c++:
+            #include <vector>
             std::vector<int> a = {1, 2, 3};
 
         java:
@@ -2284,36 +2289,47 @@ group: Enums
 
 group: Other
     case: Import
-        python:
-            from a.b import c
+        main python:
+            import a.b.c
 
         java:
             import a.b.c;
 
         c++:
-            #include "a.b.c"
+            #include "a/b/c.h"
 
 
     case: ImportFrom
-        python:
+        main python:
             from a.b import c
 
         java:
             import a.b.c;
 
         c++:
-            #include "a.b.c"
+            #include "a/b/c.h"
+
+
+    case: ImportInclude
+        main c++:
+            #include "a/b/c.h"
+
+        python:
+            import a.b.c
+
+        java:
+            import a.b.c;
 
 
     case: ImportFromAs
-        python:
+        main python:
             from a.b import c as t
 
         java:
             import a.b.c;
 
         c++:
-            #include "a.b.c"
+            #include "a/b/c.h"
 
     case: MultilineComment
         python:
@@ -2396,6 +2412,7 @@ group: Other
             }
 
         c++:
+            #include <vector>
             for (int x = 0; x < m; x++)
             {
                 std::vector<object> _tmp_compreh_1;
@@ -2432,6 +2449,7 @@ group: Other
             }
 
         c++:
+            #include <vector>
             for (int x = 0; x < m; x++)
             {
                 std::vector<object> _tmp_compreh_1;
@@ -2510,7 +2528,7 @@ group: Other
                 run()
 
         c++:
-            #include "funcs.func"
+            #include "funcs/func.h"
             int a = 1;
 
             int run()

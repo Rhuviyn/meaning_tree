@@ -1,6 +1,9 @@
 package org.vstu.meaningtree.languages;
 
 import org.vstu.meaningtree.languages.configs.Config;
+import org.vstu.meaningtree.languages.configs.ConfigParameters;
+import org.vstu.meaningtree.languages.configs.ConfigScope;
+import org.vstu.meaningtree.languages.configs.ConfigValue;
 import org.vstu.meaningtree.utils.tokens.Token;
 import org.vstu.meaningtree.utils.tokens.TokenList;
 import org.vstu.meaningtree.utils.tokens.TokenType;
@@ -35,9 +38,22 @@ public class JavaTranslator extends LanguageTranslator {
         return "java";
     }
 
+    /**
+     * Печатать ли классы стандартной библиотеки полным именем ({@code java.util.ArrayList})
+     * вместо простого с {@code import}.
+     * <p>
+     * По умолчанию {@code true}: полное имя ни с чем не конфликтует и не требует шапки, что
+     * важно для фрагмента кода, который вставляют куда-то ещё. При {@code false} вывод ближе к
+     * тому, как Java пишут вручную, но тогда он обязан идти вместе со своими импортами — и
+     * потому осмыслен только для целой единицы трансляции.
+     */
+    public static final String PREFER_QUALIFIED_REFERENCES = "preferQualifiedReferences";
+
     @Override
     protected Config extendConfigParameters() {
-        return null;
+        var preferQualifiedReferences = ConfigParameters.registerIfNotExists(
+                this, PREFER_QUALIFIED_REFERENCES, new ConfigValue(true), ConfigScope.VIEWER);
+        return new Config(preferQualifiedReferences);
     }
 
     @Override

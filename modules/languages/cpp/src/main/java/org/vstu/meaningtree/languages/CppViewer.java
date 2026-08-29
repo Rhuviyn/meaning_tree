@@ -50,6 +50,7 @@ import org.vstu.meaningtree.nodes.io.PrintCommand;
 import org.vstu.meaningtree.nodes.io.PrintValues;
 import org.vstu.meaningtree.nodes.memory.MemoryAllocationCall;
 import org.vstu.meaningtree.nodes.memory.MemoryFreeCall;
+import org.vstu.meaningtree.nodes.modules.*;
 import org.vstu.meaningtree.nodes.statements.*;
 import org.vstu.meaningtree.nodes.statements.assignments.AssignmentStatement;
 import org.vstu.meaningtree.nodes.statements.assignments.ChainedAssignmentStatement;
@@ -69,12 +70,11 @@ import org.vstu.meaningtree.nodes.types.UserType;
 import org.vstu.meaningtree.nodes.types.builtin.*;
 import org.vstu.meaningtree.nodes.types.containers.*;
 import org.vstu.meaningtree.nodes.types.containers.components.Shape;
+import org.vstu.meaningtree.utils.analysis.imports.CppLibraryImportRegistry;
+import org.vstu.meaningtree.utils.modules.ImportPathConverter;
 import org.vstu.meaningtree.utils.tokens.OperatorToken;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.vstu.meaningtree.nodes.enums.AugmentedAssignmentOperator.POW;
@@ -228,6 +228,8 @@ public class CppViewer extends LanguageViewer {
                 (node) -> toString(node.toVariableDeclaration()));
         registerRenderer(ListUnpackingAssignmentStatement.class,
                 (node) -> toString(node.toMultipleAssignmentStstement()));
+        registerRenderer(Import.class, this::toStringImport);
+        registerRenderer(PackageDeclaration.class, this::toStringPackageDeclaration);
 
         registerPostRenderPreparation(Statement.class, (node, code) -> {
             if (node.getJumpLabel() != null) {
@@ -249,6 +251,7 @@ public class CppViewer extends LanguageViewer {
         registerUnsupportedFeature(new NonDirectionalRangeForFeature());
         registerUnsupportedFeature(new PointerToMemberOperatorFeature());
         registerUnsupportedFeature(new UninferableVariableTypeFeature());
+        registerUnsupportedFeature(MatMulOp.class);
     }
 
     private final String _indentation;
@@ -1416,7 +1419,9 @@ public class CppViewer extends LanguageViewer {
         var notMethods = new ArrayList<Node>();
 
         for (var node : nodes) {
-            if (!(node instanceof FunctionDefinition functionDefinition)) {
+            // Подключения и объявление пакета уже выведены в шапке makeSimpleProgram: внутри
+            // main они не только бессмысленны, но и продублировались бы
+            if (!(node instanceof FunctionDefinition) && !isProgramHeaderNode(node)) {
                 notMethods.add(node);
             }
         }
@@ -1424,8 +1429,22 @@ public class CppViewer extends LanguageViewer {
         return notMethods;
     }
 
+    private boolean isProgramHeaderNode(Node node) {
+        return node instanceof Import || node instanceof PackageDeclaration;
+    }
+
     private String makeSimpleProgram(List<Node> nodes) {
         StringBuilder builder = new StringBuilder();
+
+        // #include — директива препроцессора: внутри тела функции она бессмысленна, поэтому
+        // подключения выносятся в шапку, а не идут в общий список тела
+        var includes = ctx.viewingIterateBody(nodes.stream().filter(this::isProgramHeaderNode).toList());
+        for (Node includeNode : includes) {
+            includes.appendString(toString(includeNode));
+        }
+        if (!includes.stringBuffer().isEmpty()) {
+            builder.append(String.join("\n", includes.stringBuffer())).append("\n");
+        }
 
         // Определения функций не попадают ни в main, ни в notMethods, поэтому выводим их
         // отдельно перед сгенерированной точкой входа: иначе они бы просто потерялись
@@ -1472,15 +1491,24 @@ public class CppViewer extends LanguageViewer {
         // TODO: required main function creation or expression mode
 
         String prefix = isCMode() && requiresCStandardLibrary(entryPoint) ? "#include <stdlib.h>\n" : "";
+        List<Node> nodes = entryPoint.getBody();
         if (getConfigParameter("translationUnitMode").equalsValue("full") && !entryPoint.hasEntryPoint()) {
-            return prefix + makeSimpleProgram(entryPoint.getBody());
+            return prefix + withPreservedIncludes(makeSimpleProgram(nodes), nodes);
         }
 
         var constructor = ctx.viewingIterateBody(entryPoint);
         for (Node node : constructor) {
             constructor.appendString(toString(node));
         }
-        return prefix + String.join("\n", constructor.stringBuffer()) + "\n";
+        return prefix + withPreservedIncludes(String.join("\n", constructor.stringBuffer()), nodes) + "\n";
+    }
+
+    /**
+     * Дописывает шапку из подключений, о которых стало известно только по ходу отрисовки тела
+     * (см. {@link #preserveSystemInclude}), — и только тех, которых в программе ещё нет.
+     */
+    private String withPreservedIncludes(String body, List<Node> nodes) {
+        return ctx.prependPreservedImports(body, nodes, "", this::toString);
     }
 
     private boolean requiresCStandardLibrary(ProgramEntryPoint entryPoint) {
@@ -1652,7 +1680,22 @@ public class CppViewer extends LanguageViewer {
     @NotNull
     private String toStringFunctionCall(@NotNull FunctionCall functionCall) {
         String functionName = toString(functionCall.getFunction());
+        preserveStandardFunctionHeader(functionName, functionCall);
         return functionName + "(" + toStringFunctionCallArgumentsList(functionCall.getArguments()) + ")";
+    }
+
+    /**
+     * Функции стандартной библиотеки узнаются по имени в точке вызова: отдельного узла под
+     * каждую из них в дереве нет, а заводить его ради подключения заголовка — цена, которой
+     * задача не стоит. Имя берётся уже отрисованное, поэтому квалифицированный вызов
+     * ({@code std::sqrt}) сюда не попадёт — у него заголовок уже подключён вручную.
+     */
+    private void preserveStandardFunctionHeader(String functionName, Node origin) {
+        if (isCMode()) {
+            return;
+        }
+        CppLibraryImportRegistry.headerForFunction(functionName)
+                .ifPresent(header -> preserveSystemInclude(header, origin));
     }
 
     @NotNull
@@ -1711,6 +1754,109 @@ public class CppViewer extends LanguageViewer {
     }
 
     @NotNull
+    /**
+     * В C++ нет ни модулей в смысле Java/Python, ни импорта отдельных членов: единственная
+     * доступная форма — подключение файла. Поэтому любой {@code Import} сводится к
+     * {@code #include}, а всё, что богаче файла (список членов, алиас, static-семантика),
+     * теряется — это ожидаемая деградация, а не ошибка.
+     */
+    private String toStringImport(Import importNode) {
+        // Библиотечный импорт указывает не на файл проекта, а на стандартную библиотеку: путь
+        // вида "math.h" был бы выдумкой. Если для модуля известен заголовок C++ — берём его,
+        // иначе подключение исчезает: пусто честнее, чем ссылка на несуществующий файл
+        if (isLibraryImport(importNode)) {
+            return libraryHeadersOf(importNode);
+        }
+        return switch (importNode) {
+            case Include include -> toStringInclude(include);
+            // Импорт члена именует не модуль, а сущность в нём: путь к файлу собирается из
+            // обоих имён, иначе подключился бы пакет, а не файл с этим членом
+            case ImportMembersFromModule members -> members.getMembers().stream()
+                    .map(member -> toStringLocalInclude(
+                            dottedImportName(members.getModuleName()) + "." + dottedImportName(member)))
+                    .collect(Collectors.joining("\n"));
+            case ImportModules modules -> modules.getModulesNames().stream()
+                    .map(module -> toStringLocalInclude(dottedImportName(module)))
+                    .collect(Collectors.joining("\n"));
+            case ImportModule module -> toStringLocalInclude(dottedImportName(module.getModuleName()));
+            default -> throw new UnsupportedViewingException("Unexpected import type: " + importNode);
+        };
+    }
+
+    /**
+     * Импорт признан библиотечным резолвером. Без контекста проекта резолвер не запускался,
+     * метаданных нет, и импорт остаётся наивным — см. {@code ImportResolver}.
+     */
+    private boolean isLibraryImport(Import importNode) {
+        return !(importNode instanceof Include)
+                && importNode.getResolverMetadata().map(ImportResolverMetadata::isLibrary).orElse(false);
+    }
+
+    private String libraryHeadersOf(Import importNode) {
+        return candidateModuleNames(importNode).stream()
+                .map(CppLibraryImportRegistry::headerForLibraryModule)
+                .flatMap(Optional::stream)
+                .distinct()
+                .map("#include <%s>"::formatted)
+                .collect(Collectors.joining("\n"));
+    }
+
+    private List<String> candidateModuleNames(Import importNode) {
+        return switch (importNode) {
+            case ImportMembersFromModule members -> {
+                String module = dottedImportName(members.getModuleName());
+                yield members.getMembers().stream()
+                        .map(member -> module + "." + dottedImportName(member))
+                        .toList();
+            }
+            case ImportModules modules -> modules.getModulesNames().stream().map(this::dottedImportName).toList();
+            case ImportModule module -> List.of(dottedImportName(module.getModuleName()));
+            default -> List.of();
+        };
+    }
+
+    private String toStringInclude(Include include) {
+        String fileName = include.getFileName().getUnescapedValue();
+        return include.getIncludeType() == Include.IncludeType.POINTY_BRACKETS_FORM
+                ? "#include <%s>".formatted(fileName)
+                : "#include \"%s\"".formatted(fileName);
+    }
+
+    /**
+     * Откладывает {@code #include <...>} из стандартной библиотеки: о том, что он нужен,
+     * становится известно только по ходу отрисовки — когда встретился тип или вызов, которому
+     * он требуется. Шапку допишет точка входа.
+     */
+    private void preserveSystemInclude(String header, Node origin) {
+        ctx.preserveImport(new Include(
+                (StringLiteral) StringLiteral.fromUnescaped(header, StringLiteral.Type.NONE).remap(origin),
+                Include.IncludeType.POINTY_BRACKETS_FORM
+        ).remap(origin));
+    }
+
+    private String toStringLocalInclude(String dottedName) {
+        return "#include \"%s\"".formatted(ImportPathConverter.dottedNameToHeaderPath(dottedName));
+    }
+
+    /**
+     * Пакета в C++ нет, поэтому объявление пакета просто исчезает: бросать исключение здесь
+     * значило бы, что любой Java-файл с {@code package} нельзя перевести в C++.
+     */
+    private String toStringPackageDeclaration(PackageDeclaration declaration) {
+        return "";
+    }
+
+    /**
+     * Алиас импорта ({@code import x as y}) в C++ невыразим — берётся настоящее имя.
+     */
+    private Identifier unwrapAlias(Identifier identifier) {
+        return identifier instanceof Alias alias ? alias.getRealName() : identifier;
+    }
+
+    private String dottedImportName(Identifier identifier) {
+        return toString(unwrapAlias(identifier));
+    }
+
     private String toStringIdentifier(@NotNull Identifier identifier) {
         return switch (identifier) {
             case SimpleIdentifier simpleIdentifier -> simpleIdentifier.getName();
@@ -1783,16 +1929,19 @@ public class CppViewer extends LanguageViewer {
                 }
                 yield String.format("%s &", toStringType(ref.getTargetType()));
             }
-            case DictionaryType dct -> cCollectionType(String.format("std::map<%s, %s>", toStringType(dct.getKeyType()), toStringType(dct.getValueType())));
+            case UnorderedDictionaryType dct -> cCollectionType(String.format("std::unordered_map<%s, %s>",
+                    toStringType(dct.getKeyType()), toStringType(dct.getValueType())), dct);
+            case DictionaryType dct -> cCollectionType(String.format("std::map<%s, %s>",
+                    toStringType(dct.getKeyType()), toStringType(dct.getValueType())), dct);
             case ArrayType array -> {
                 if (isCMode()) {
                     throw new UnsupportedViewingException("C array types require a declarator");
                 }
-                yield String.format("std::array<%s>", toStringType(array.getItemType()));
+                yield cCollectionType(String.format("std::array<%s>", toStringType(array.getItemType())), array);
             }
-            case UnmodifiableListType array -> cCollectionType(String.format("std::array<%s>", toStringType(array.getItemType())));
-            case SetType set -> cCollectionType(String.format("std::set<%s>", toStringType(set.getItemType())));
-            case PlainCollectionType lst -> cCollectionType(String.format("std::vector<%s>", toStringType(lst.getItemType())));
+            case UnmodifiableListType array -> cCollectionType(String.format("std::array<%s>", toStringType(array.getItemType())), array);
+            case SetType set -> cCollectionType(String.format("std::set<%s>", toStringType(set.getItemType())), set);
+            case PlainCollectionType lst -> cCollectionType(String.format("std::vector<%s>", toStringType(lst.getItemType())), lst);
             case StringType str -> isCMode() ? "%schar *".formatted(str.isConst() ? "const " : "") : "std::string";
             case GenericUserType gusr -> String.format("%s<%s>", toString(gusr.getQualifiedName()), toStringArguments(List.of(gusr.getTypeParameters())));
             case UserType usr -> toString(usr.getQualifiedName());
@@ -1805,10 +1954,18 @@ public class CppViewer extends LanguageViewer {
         return initialType;
     }
 
-    private String cCollectionType(String cppType) {
+    /**
+     * Коллекция C++ печатается только вместе с заголовком, который её объявляет, поэтому
+     * заголовок откладывается здесь — в единственной точке, где {@code std::}-форма типа
+     * действительно возникает. Массив с декларатором ({@code int a[3]}) сюда не попадает, и
+     * лишнего {@code <array>} у него не появится.
+     */
+    private String cCollectionType(String cppType, Type type) {
         if (isCMode()) {
             throw new UnsupportedViewingException("C mode supports arrays but not C++ collection types");
         }
+        CppLibraryImportRegistry.headerForType(type)
+                .ifPresent(header -> preserveSystemInclude(header, type));
         return cppType;
     }
 
@@ -1865,9 +2022,12 @@ public class CppViewer extends LanguageViewer {
     @NotNull
     private String toStringBinaryExpression(@NotNull BinaryExpression binaryExpression) {
         if (binaryExpression instanceof PowOp) {
+            preserveStandardFunctionHeader("pow", binaryExpression);
             return String.format("pow(%s, %s)", toString(binaryExpression.getLeft()), toString(binaryExpression.getRight()));
         } else if (binaryExpression instanceof MatMulOp) {
-            return String.format("matmul(%s, %s)", toString(binaryExpression.getLeft()), toString(binaryExpression.getRight()));
+            // Ни оператора, ни функции matmul в C++ нет: вызов matmul(a, b) не собрался бы,
+            // а молча выданный несуществующий вызов хуже явного отказа
+            throw new UnsupportedViewingException("C++ has no matrix multiplication operator or standard function");
         } else if (binaryExpression instanceof ContainsOp op) {
             String neg = op.isNegative() ? "!" : "";
             String left = toString(op.getRight());

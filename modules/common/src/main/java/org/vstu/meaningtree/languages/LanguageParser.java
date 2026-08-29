@@ -11,6 +11,7 @@ import org.vstu.meaningtree.nodes.Node;
 import org.vstu.meaningtree.utils.Label;
 import org.vstu.meaningtree.utils.TreeSitterUtils;
 import org.vstu.meaningtree.utils.analysis.expressions.ExpressionValueEvaluator;
+import org.vstu.meaningtree.utils.analysis.imports.ImportResolver;
 import org.vstu.meaningtree.utils.analysis.loops.LoopIterationAnalyzer;
 import org.vstu.meaningtree.utils.analysis.symbols.SymbolResolver;
 import org.vstu.meaningtree.utils.hooks.HookHandle;
@@ -95,6 +96,36 @@ abstract public class LanguageParser extends TranslatorComponent {
         ExpressionValueEvaluator evaluator = new ExpressionValueEvaluator(tree, scope);
         evaluator.analyze();
         loopIterationAnalyzer.analyze(tree, evaluator);
+        resolveImports(tree);
+    }
+
+    /**
+     * Резолвинг импортов стоит последним и отдельно от остальных проходов: у него собственное
+     * условие выполнения — контекст проекта. Это единственный анализ, которому нужна файловая
+     * система, поэтому без {@code projectRootPath}/{@code currentFileRelPath} он просто не
+     * запускается, и узлы остаются без метаданных. Это штатное состояние: перевод одиночного
+     * файла контекста проекта не задаёт.
+     */
+    private void resolveImports(MeaningTree tree) {
+        ImportResolver resolver = getImportResolver();
+        if (resolver == null || !translator.hasSourceContext()) {
+            return;
+        }
+        resolver.resolve(
+                tree,
+                translator.getProjectRootPath().orElseThrow(),
+                translator.getCurrentFileRelPath().orElseThrow()
+        );
+    }
+
+    /**
+     * Резолвер импортов этого языка. Правила поиска файла у языков разные (source root в Java,
+     * пакеты в Python, каталог текущего файла в C++), поэтому общего резолвера нет.
+     *
+     * @return {@code null}, если язык резолвинг импортов не поддерживает
+     */
+    protected ImportResolver getImportResolver() {
+        return null;
     }
 
     public String getCode() {

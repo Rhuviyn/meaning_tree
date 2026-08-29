@@ -67,6 +67,8 @@ import org.vstu.meaningtree.nodes.types.containers.components.Shape;
 import org.vstu.meaningtree.nodes.types.user.Class;
 import org.vstu.meaningtree.nodes.types.user.GenericClass;
 import org.vstu.meaningtree.nodes.types.user.Structure;
+import org.vstu.meaningtree.utils.analysis.imports.CppImportResolver;
+import org.vstu.meaningtree.utils.analysis.imports.ImportResolver;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -208,11 +210,19 @@ public class CppParser extends LanguageParser {
 
     private Node fromPreprocInclude(@NotNull TSNode node) {
         TSNode path = node.getChildByFieldName("path");
-        Include.IncludeType type = Include.IncludeType.QUOTED_FORM;
         if (path.getType().equals("system_lib_string")) {
-            type = Include.IncludeType.POINTY_BRACKETS_FORM;
+            // system_lib_string включает сами угловые скобки в текст узла, в отличие от
+            // string_literal: если их не снять, при обратном выводе получится #include <<cmath>>
+            String rawPath = getCodePiece(path);
+            String fileName = rawPath.length() >= 2 && rawPath.startsWith("<") && rawPath.endsWith(">")
+                    ? rawPath.substring(1, rawPath.length() - 1)
+                    : rawPath;
+            return new Include(
+                    StringLiteral.fromUnescaped(fileName, StringLiteral.Type.NONE),
+                    Include.IncludeType.POINTY_BRACKETS_FORM
+            );
         }
-        return new Include((StringLiteral) parseTSNode(path), type);
+        return new Include((StringLiteral) parseTSNode(path), Include.IncludeType.QUOTED_FORM);
     }
 
     private ForEachLoop fromForRangeLoop(TSNode node) {
@@ -1033,7 +1043,10 @@ public class CppParser extends LanguageParser {
             Type type1 = !generic.isEmpty() ? generic.getFirst() : new UnknownType();
             Type type2 = generic.size() > 1 ? generic.get(1) : new UnknownType();
             return switch (reprQualifiedIdentifier(q)) {
-                case "std::map" -> new UnorderedDictionaryType(type1, type2);
+                // std::map упорядочен по ключу, std::unordered_map — нет: раньше оба вида
+                // сводились к одному узлу, из-за чего порядок терялся при переводе
+                case "std::map" -> new OrderedDictionaryType(type1, type2);
+                case "std::unordered_map" -> new UnorderedDictionaryType(type1, type2);
                 case "std::list", "std::vector", "std::array" -> new ListType(type1);
                 case "std::set" -> new SetType(type1);
                 case "std::string", "std::wstring" -> new StringType(8);
@@ -1716,5 +1729,12 @@ public class CppParser extends LanguageParser {
             return assignmentExpression.toStatement();
         }
         return new ExpressionStatement(expr);
+    }
+
+    private final CppImportResolver importResolver = new CppImportResolver();
+
+    @Override
+    protected ImportResolver getImportResolver() {
+        return importResolver;
     }
 }

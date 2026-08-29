@@ -57,6 +57,7 @@ import org.vstu.meaningtree.nodes.types.*;
 import org.vstu.meaningtree.nodes.types.builtin.*;
 import org.vstu.meaningtree.nodes.types.containers.*;
 import org.vstu.meaningtree.nodes.types.containers.components.Shape;
+import org.vstu.meaningtree.utils.modules.ImportPathConverter;
 import org.vstu.meaningtree.utils.tokens.OperatorToken;
 
 import java.util.ArrayList;
@@ -132,7 +133,9 @@ public class PythonViewer extends LanguageViewer {
         registerTabRenderer(ReturnStatement.class, (node, tab) -> returnToString(node));
         registerTabRenderer(ArrayInitializer.class, (node, tab) -> arrayInitializerToString(node));
         registerTabRenderer(DefinitionArgument.class, (node, tab) -> definitionArgumentToString(node));
-        registerTabRenderer(PackageDeclaration.class, (node, tab) -> String.format("import %s", toString(node.getPackageName())));
+        // Объявление пакета — не импорт: оно говорит, где лежит сам файл, а не что он
+        // подключает. В Python такого объявления нет, поэтому оно просто исчезает
+        registerTabRenderer(PackageDeclaration.class, (node, tab) -> "");
         registerTabRenderer(CommaExpression.class, (node, tab) -> String.join(", ", node.getExpressions().stream().map(this::toString).toList().toArray(new String[0])));
         registerTabRenderer(ExpressionSequence.class, (node, tab) -> String.join(", ", node.getExpressions().stream().map(this::toString).toList().toArray(new String[0])));
         registerTabRenderer(MultipleAssignmentStatement.class, (node, tab) -> assignmentToString(node));
@@ -286,6 +289,11 @@ public class PythonViewer extends LanguageViewer {
         return identifier.toString();
     }
 
+    private boolean isLibraryInclude(Include include) {
+        return include.getIncludeType() == Include.IncludeType.POINTY_BRACKETS_FORM
+                || include.getResolverMetadata().map(ImportResolverMetadata::isLibrary).orElse(false);
+    }
+
     private String importToString(Import importStmt) {
         return switch (importStmt) {
             case ImportMembersFromModule importMembersFromModule ->
@@ -303,9 +311,27 @@ public class PythonViewer extends LanguageViewer {
                             "from %s import *",
                             toString(importAllFromModule.getModuleName())
                     );
+            case ImportModules importModules ->
+                    String.format(
+                            "import %s",
+                            importModules
+                                    .getModulesNames()
+                                    .stream()
+                                    .map(this::toString)
+                                    .collect(Collectors.joining(", "))
+                    );
             case ImportModule importModule ->
                     String.format("import %s", toString(importModule.getModuleName()));
-            case Include incl -> String.format("import %s", incl.getFileName().getUnescapedValue());
+            // #include именует файл, а не модуль: имя модуля собирается из пути со снятым
+            // расширением. Точнее без резолва по проекту не сказать (см. ImportResolver).
+            // Подключение стандартной библиотеки C++ (<vector>, <cmath>) исчезает: в Python
+            // и коллекции, и математика встроены, и import vector был бы мусором
+            case Include incl -> isLibraryInclude(incl)
+                    ? ""
+                    : String.format(
+                            "import %s",
+                            ImportPathConverter.filePathToDottedName(incl.getFileName().getUnescapedValue())
+                    );
             default -> throw new IllegalStateException("Unexpected import type: " + importStmt);
         };
     }

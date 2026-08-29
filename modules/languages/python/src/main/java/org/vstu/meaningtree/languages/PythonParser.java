@@ -56,6 +56,8 @@ import org.vstu.meaningtree.nodes.types.builtin.IntType;
 import org.vstu.meaningtree.nodes.types.builtin.StringType;
 import org.vstu.meaningtree.nodes.types.containers.*;
 import org.vstu.meaningtree.nodes.types.user.Class;
+import org.vstu.meaningtree.utils.analysis.imports.ImportResolver;
+import org.vstu.meaningtree.utils.analysis.imports.PythonImportResolver;
 import org.vstu.meaningtree.utils.analysis.types.SimpleTypeInferrer;
 
 import java.lang.reflect.InvocationTargetException;
@@ -1469,5 +1471,12 @@ public class PythonParser extends LanguageParser {
             case "^" -> new XorOp(left, right);
             default -> throw new UnsupportedOperationException(String.format("Can't parse operator %s", getCodePiece(operator)));
         };
+    }
+
+    private final PythonImportResolver importResolver = new PythonImportResolver();
+
+    @Override
+    protected ImportResolver getImportResolver() {
+        return importResolver;
     }
 }

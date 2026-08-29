@@ -128,9 +128,11 @@ group: Operators
 
     case: Pow
         c++:
+            #include <cmath>
             pow(a, b);
 
         c++:
+            #include <cmath>
             pow(a, b);
 
     case: UnaryMinus

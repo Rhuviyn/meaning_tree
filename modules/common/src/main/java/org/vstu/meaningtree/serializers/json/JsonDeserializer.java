@@ -70,6 +70,7 @@ import org.vstu.meaningtree.utils.scopes.ScopeTableElement;
 import org.vstu.meaningtree.utils.tokens.*;
 
 import java.lang.reflect.Field;
+import java.nio.file.Path;
 import java.util.*;
 
 @Experimental
@@ -487,6 +488,12 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
 
         if (node instanceof Statement stmt && json.has("jump_label")) {
             stmt.setJumpLabel((JumpLabel) deserialize(json.getAsJsonObject("jump_label")));
+        }
+
+        if (node instanceof Import importNode && json.has("resolver_metadata")
+                && !json.get("resolver_metadata").isJsonNull()) {
+            importNode.setResolverMetadata(
+                    deserializeImportResolverMetadata(json.getAsJsonObject("resolver_metadata")));
         }
 
         try {
@@ -1530,6 +1537,15 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
         if (json.has("elseBranch") && !json.get("elseBranch").isJsonNull()) {
             loop.setElseBranch((Statement) deserialize(json.getAsJsonObject("elseBranch")));
         }
+    }
+
+    private ImportResolverMetadata deserializeImportResolverMetadata(JsonObject json) {
+        ImportResolverMetadata.ImportKind kind =
+                parseEnum(ImportResolverMetadata.ImportKind.class, json.get("kind").getAsString());
+        Optional<Path> resolvedFile = json.has("resolved_file") && !json.get("resolved_file").isJsonNull()
+                ? Optional.of(Path.of(json.get("resolved_file").getAsString()))
+                : Optional.empty();
+        return new ImportResolverMetadata(kind, resolvedFile);
     }
 
     private LoopIterationEstimate deserializeLoopIterationEstimate(JsonObject json) {

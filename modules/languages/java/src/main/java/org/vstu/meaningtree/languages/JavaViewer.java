@@ -62,7 +62,9 @@ import org.vstu.meaningtree.nodes.types.*;
 import org.vstu.meaningtree.nodes.types.builtin.*;
 import org.vstu.meaningtree.nodes.types.containers.*;
 import org.vstu.meaningtree.nodes.types.containers.components.Shape;
+import org.vstu.meaningtree.utils.analysis.imports.JavaLibraryImportRegistry;
 import org.vstu.meaningtree.utils.analysis.types.SimpleTypeInferrer;
+import org.vstu.meaningtree.utils.modules.ImportPathConverter;
 import org.vstu.meaningtree.utils.tokens.OperatorToken;
 
 import java.util.*;
@@ -224,6 +226,8 @@ public class JavaViewer extends LanguageViewer {
         registerRenderer(StaticImportMembersFromModule.class, this::toStringStaticImportMembersFromModule);
         registerRenderer(ImportAllFromModule.class, this::toStringImportAllFromModule);
         registerRenderer(ImportMembersFromModule.class, this::toStringImportMembersFromModule);
+        registerRenderer(ImportModule.class, this::toStringImportModule);
+        registerRenderer(Include.class, this::toStringInclude);
         registerRenderer(ObjectNewExpression.class, this::toStringObjectNewExpression);
         registerRenderer(BoolLiteral.class, this::toStringBoolLiteral);
         registerRenderer(MemberAccess.class, this::toStringMemberAccess);
@@ -443,7 +447,8 @@ public class JavaViewer extends LanguageViewer {
     public String toStringListLiteral(ListLiteral list) {
         var builder = new StringBuilder();
         String typeHint = "";
-        builder.append(String.format("new java.util.ArrayList<%s>(java.util.List.of(", typeHint));
+        builder.append(String.format("new %s<%s>(%s.of(",
+                libraryClass("ArrayList", list), typeHint, libraryClass("List", list)));
         for (Expression expression : list.getList()) {
             builder.append(String.format("%s, ", toString(expression)));
         }
@@ -457,7 +462,7 @@ public class JavaViewer extends LanguageViewer {
     public String toStringSetLiteral(SetLiteral list) {
         var builder = new StringBuilder();
         String typeHint = list.getTypeHint() == null ? "" : toString(list.getTypeHint());
-        builder.append(String.format("new java.util.HashSet<%s>() {{", typeHint));
+        builder.append(String.format("new %s<%s>() {{", libraryClass("HashSet", list), typeHint));
         for (Expression expression : list.getList()) {
             builder.append(String.format("add(%s);", toString(expression)));
         }
@@ -469,7 +474,8 @@ public class JavaViewer extends LanguageViewer {
         var builder = new StringBuilder();
         String keyTypeHint = list.getKeyTypeHint() == null ? "" : toString(list.getKeyTypeHint());
         String valueTypeHint = list.getValueTypeHint() == null || keyTypeHint.isEmpty() ? "" : ", ".concat(toString(list.getValueTypeHint()));
-        builder.append(String.format("new java.util.TreeMap<%s%s>() {{", keyTypeHint, valueTypeHint));
+        builder.append(String.format("new %s<%s%s>() {{",
+                libraryClass("TreeMap", list), keyTypeHint, valueTypeHint));
         for (Map.Entry<Expression, Expression> entry : list.getDictionary().entrySet()) {
             builder.append(String.format("put(%s, %s);", toString(entry.getKey()), toString(entry.getValue())));
         }
@@ -944,7 +950,7 @@ public class JavaViewer extends LanguageViewer {
 
     private String toStringStaticImportAll(StaticImportAll staticImportAll) {
         String importTemplate = "import static %s.*;";
-        return importTemplate.formatted(toString(staticImportAll.getModuleName()));
+        return importTemplate.formatted(toStringImportedName(staticImportAll.getModuleName()));
     }
 
     private String toStringStaticImportMembersFromModule(StaticImportMembersFromModule staticImportMembers) {
@@ -955,8 +961,8 @@ public class JavaViewer extends LanguageViewer {
             builder
                     .append(
                             importTemplate.formatted(
-                                    toString(staticImportMembers.getModuleName()),
-                                    toString(member)
+                                    toStringImportedName(staticImportMembers.getModuleName()),
+                                    toStringImportedName(member)
                             )
                     )
                     .append("\n");
@@ -971,7 +977,43 @@ public class JavaViewer extends LanguageViewer {
 
     private String toStringImportAllFromModule(ImportAllFromModule importAll) {
         String importTemplate = "import %s.*;";
-        return importTemplate.formatted(toString(importAll.getModuleName()));
+        return importTemplate.formatted(toStringImportedName(importAll.getModuleName()));
+    }
+
+    private String toStringImportModule(ImportModule importModule) {
+        return "import %s;".formatted(toStringImportedName(importModule.getModuleName()));
+    }
+
+    /**
+     * {@code #include} именует файл, а Java-импорт — тип: имя собирается из пути, у которого
+     * снято расширение, а разделители каталогов заменены точками. Точнее без резолва по
+     * проекту не сказать (см. {@code ImportResolver}).
+     */
+    private String toStringInclude(Include include) {
+        if (isLibraryInclude(include)) {
+            return "";
+        }
+        return "import %s;".formatted(
+                ImportPathConverter.filePathToDottedName(include.getFileName().getUnescapedValue()));
+    }
+
+    /**
+     * {@code #include <...>} подключает стандартную библиотеку C++, у которой в Java нет
+     * соответствия: коллекции здесь печатаются полными именами, математика живёт в
+     * {@code java.lang}. Поэтому такое подключение исчезает — {@code import vector;} был бы
+     * не переводом, а мусором.
+     */
+    private boolean isLibraryInclude(Include include) {
+        return include.getIncludeType() == Include.IncludeType.POINTY_BRACKETS_FORM
+                || include.getResolverMetadata().map(ImportResolverMetadata::isLibrary).orElse(false);
+    }
+
+    /**
+     * Алиасинг импорта ({@code import x as y}) Java не поддерживает, поэтому от алиаса
+     * остаётся только настоящее имя — тихая, но неизбежная потеря.
+     */
+    private String toStringImportedName(Identifier identifier) {
+        return toString(identifier instanceof Alias alias ? alias.getRealName() : identifier);
     }
 
     private String toStringImportMembersFromModule(ImportMembersFromModule importMembers) {
@@ -982,8 +1024,8 @@ public class JavaViewer extends LanguageViewer {
             builder
                     .append(
                         importTemplate.formatted(
-                            toString(importMembers.getModuleName()),
-                            toString(member)
+                            toStringImportedName(importMembers.getModuleName()),
+                            toStringImportedName(member)
                         )
                     )
                     .append("\n");
@@ -1593,18 +1635,57 @@ public class JavaViewer extends LanguageViewer {
 
     public String toStringSetType(SetType type) {
         var typeName = wrapperTypeName(type.getItemType());
-        return String.format("java.util.HashSet<%s>", typeName);
+        return String.format("%s<%s>", libraryClass("HashSet", type), typeName);
     }
 
     public String toStringPlainCollectionType(PlainCollectionType type) {
         var typeName = wrapperTypeName(type.getItemType());
-        return String.format("java.util.ArrayList<%s>", typeName);
+        return String.format("%s<%s>", libraryClass("ArrayList", type), typeName);
     }
 
     public String toStringDictionaryType(DictionaryType type) {
         var keyTypeName = wrapperTypeName(type.getKeyType());
         var valueTypeName = wrapperTypeName(type.getValueType());
-        return String.format("java.util.TreeMap<%s, %s>", keyTypeName, valueTypeName);
+        String className = type instanceof UnorderedDictionaryType ? "HashMap" : "TreeMap";
+        return String.format("%s<%s, %s>", libraryClass(className, type), keyTypeName, valueTypeName);
+    }
+
+    /**
+     * Имя класса стандартной библиотеки в том виде, в каком его надо напечатать здесь.
+     * <p>
+     * Полное имя и простое имя с импортом — это одно и то же решение, принятое в двух местах:
+     * если печатать простое имя, но не дописать {@code import}, код перестанет компилироваться.
+     * Поэтому обе половины живут в одном методе: сокращая имя, он тут же откладывает импорт,
+     * и разойтись им негде.
+     *
+     * @param simpleName простое имя класса из {@link JavaLibraryImportRegistry}
+     * @param origin     узел, которым размечается созданный импорт
+     */
+    private String libraryClass(String simpleName, Node origin) {
+        String qualifiedName = JavaLibraryImportRegistry.qualifiedName(simpleName).orElse(simpleName);
+        if (prefersQualifiedReferences()) {
+            return qualifiedName;
+        }
+        int lastDot = qualifiedName.lastIndexOf('.');
+        if (lastDot < 0) {
+            return qualifiedName;
+        }
+        ctx.preserveImport(new ImportMembersFromModule(
+                scopedIdentifier(qualifiedName.substring(0, lastDot), origin),
+                (SimpleIdentifier) new SimpleIdentifier(simpleName).remap(origin)
+        ).remap(origin));
+        return simpleName;
+    }
+
+    private boolean prefersQualifiedReferences() {
+        return getConfigParameter(JavaTranslator.PREFER_QUALIFIED_REFERENCES).asBoolean();
+    }
+
+    private ScopedIdentifier scopedIdentifier(String dottedName, Node origin) {
+        List<SimpleIdentifier> segments = Arrays.stream(dottedName.split("\\."))
+                .map(segment -> (SimpleIdentifier) new SimpleIdentifier(segment).remap(origin))
+                .toList();
+        return (ScopedIdentifier) new ScopedIdentifier(segments).remap(origin);
     }
 
     private String toStringStringType(StringType type) {
@@ -2157,8 +2238,6 @@ public class JavaViewer extends LanguageViewer {
     private String makeSimpleProgram(List<Node> nodes) {
         StringBuilder builder = new StringBuilder();
 
-        builder.append("package main;\n\n");
-
         builder.append("public class %s {\n\n".formatted(SIMPLE_PROGRAM_CLASS_NAME));
         increaseIndentLevel();
 
@@ -2216,7 +2295,30 @@ public class JavaViewer extends LanguageViewer {
         decreaseIndentLevel();
         builder.append("}\n");
 
-        return builder.toString();
+        return "package main;\n\n" + withProgramImports(builder.toString(), nodes);
+    }
+
+    /**
+     * Собирает шапку импортов перед готовым телом программы.
+     * <p>
+     * Строится она после тела, а не до: часть импортов становится известна только по ходу
+     * отрисовки ({@link #libraryClass} откладывает их, когда печатает простое имя класса), и
+     * шапка, собранная заранее, их бы не увидела.
+     * <p>
+     * Импорты обязаны стоять до объявления класса: попав в общий список тела, они оказываются
+     * внутри синтетического {@code main}, где Java их не принимает.
+     */
+    private String withProgramImports(String body, List<Node> nodes) {
+        List<Node> header = new ArrayList<>(getImports(nodes));
+        header.addAll(ctx.flushMissingImports(nodes));
+        if (header.isEmpty()) {
+            return body;
+        }
+        var imports = ctx.viewingIterateBody(header);
+        for (Node importNode : imports) {
+            imports.appendString(toString(importNode));
+        }
+        return String.join("\n", imports.stringBuffer()) + "\n\n" + body;
     }
 
     @Nullable
@@ -2268,11 +2370,21 @@ public class JavaViewer extends LanguageViewer {
     private List<Node> getNotMethods(List<Node> nodes) {
         var notMethods = new ArrayList<Node>();
         for (var node : nodes) {
-            if (!(node instanceof FunctionDefinition)) {
+            // Объявление пакета отбрасывается: синтетический класс живёт в package main,
+            // который makeSimpleProgram печатает сам
+            if (!(node instanceof FunctionDefinition) && !isProgramHeaderNode(node)) {
                 notMethods.add(node);
             }
         }
         return notMethods;
+    }
+
+    private List<Node> getImports(List<Node> nodes) {
+        return nodes.stream().filter(node -> node instanceof Import).toList();
+    }
+
+    private boolean isProgramHeaderNode(Node node) {
+        return node instanceof Import || node instanceof PackageDeclaration;
     }
 
     public String toStringProgramEntryPoint(ProgramEntryPoint entryPoint) {
@@ -2297,7 +2409,8 @@ public class JavaViewer extends LanguageViewer {
             constructor.appendString(toString(node));
         }
 
-        return String.join("\n", constructor.stringBuffer()) + "\n";
+        String body = String.join("\n", constructor.stringBuffer()) + "\n";
+        return ctx.prependPreservedImports(body, nodes, "", this::toString);
     }
 
     public String toStringScopedIdentifier(ScopedIdentifier scopedIdent) {

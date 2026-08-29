@@ -628,6 +628,27 @@ public class JsonSerializer implements Serializer<JsonObject> {
             json.add("jump_label", serialize(stmt.getJumpLabel()));
         }
 
+        if (node instanceof Import importNode) {
+            importNode.getResolverMetadata()
+                    .ifPresent(metadata -> json.add("resolver_metadata", serializeImportResolverMetadata(metadata)));
+        }
+
+        return json;
+    }
+
+    /**
+     * Метаданные резолвинга пишутся здесь, а не в сериализаторах каждого вида импорта: они
+     * одинаковы для всех и живут на общем предке.
+     */
+    @NotNull
+    private JsonObject serializeImportResolverMetadata(@NotNull ImportResolverMetadata metadata) {
+        JsonObject json = new JsonObject();
+        json.addProperty("kind", enumToValue(metadata.kind()));
+        if (metadata.resolvedFile().isPresent()) {
+            json.addProperty("resolved_file", metadata.resolvedFile().get().toString());
+        } else {
+            json.add("resolved_file", JsonNull.INSTANCE);
+        }
         return json;
     }
 
