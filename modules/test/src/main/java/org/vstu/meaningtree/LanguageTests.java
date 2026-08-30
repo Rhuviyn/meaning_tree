@@ -58,11 +58,18 @@ class LanguageTests {
             put("skipErrors", false);
         }};
 
+        Map<String, Object> cConfig = new HashMap<>() {{
+            put("translationUnitMode", "simple");
+            put("skipErrors", false);
+            put("preferC", true);
+        }};
+
         registerLanguageSpecificConfigurations();
         _config.addLanguageConfig(
                 new TestLanguageConfig(JavaTranslator::new, JavaTranslator.class, "java", false, defaultConfig),
                 new TestLanguageConfig(PythonTranslator::new, PythonTranslator.class, "python", true, defaultConfig),
-                new TestLanguageConfig(CppTranslator::new, CppTranslator.class, "c++", false, defaultConfig)
+                new TestLanguageConfig(CppTranslator::new, CppTranslator.class, "c++", false, defaultConfig),
+                new TestLanguageConfig(CppTranslator::new, CppTranslator.class, "c", false, cConfig)
         );
         parseTestsFiles();
     }
