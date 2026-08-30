@@ -2212,7 +2212,7 @@ public class JsonSerializer implements Serializer<JsonObject> {
     @NotNull
     private JsonObject serializeGenericUserType(@NotNull GenericUserType t) {
         JsonObject json = serializeType(t);
-        json.add("name", serialize(t.getName()));
+        json.add("name", serialize(t.getQualifiedName()));
         JsonArray targets = new JsonArray();
         for (var v : t.getTypeParameters()) targets.add(serialize(v));
         json.add("templates", targets);
@@ -2222,7 +2222,7 @@ public class JsonSerializer implements Serializer<JsonObject> {
     @NotNull
     private JsonObject serializeUserType(@NotNull UserType t) {
         JsonObject json = serializeType(t);
-        json.add("name", serialize(t.getName()));
+        json.add("name", serialize(t.getQualifiedName()));
         return json;
     }
 

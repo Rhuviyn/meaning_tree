@@ -62,8 +62,10 @@ import org.vstu.meaningtree.nodes.types.containers.*;
 import org.vstu.meaningtree.nodes.types.containers.components.Shape;
 import org.vstu.meaningtree.nodes.types.user.Class;
 import org.vstu.meaningtree.nodes.types.user.GenericClass;
+import org.vstu.meaningtree.nodes.types.user.Interface;
 import org.vstu.meaningtree.utils.analysis.imports.ImportResolver;
 import org.vstu.meaningtree.utils.analysis.imports.JavaImportResolver;
+import org.vstu.meaningtree.utils.scopes.ScopeLookupMode;
 
 import java.util.*;
 
@@ -857,10 +859,12 @@ public class JavaParser extends LanguageParser {
             parents.addAll(fromTypeList(interfaces));
         }
 
-        ClassDeclaration decl = new ClassDeclaration(modifiers, className, parents.toArray(Type[]::new));
+        ClassDeclaration decl = ClassDeclaration.withTypeNode(
+                modifiers, className, List.of(), new Class(qualifiedClassName(node, className)), parents.toArray(Type[]::new)
+        );
         _userTypes.put(className.toString(), decl.getTypeNode());
         CompoundStatement classBody = fromBlockTSNode(node.getChildByFieldName("body"));
-        UserType owner = new Class((SimpleIdentifier) className.freshClone());
+        UserType owner = (UserType) decl.getTypeNode().freshClone();
         Node[] members = classBody.getNodes();
         for (int i = 0; i < classBody.getLength(); i++) {
             Node member = members[i];
@@ -935,8 +939,10 @@ public class JavaParser extends LanguageParser {
             }
         }
 
-        InterfaceDeclaration declaration = new InterfaceDeclaration(
-                modifiers, interfaceName, parents.toArray(Type[]::new));
+        InterfaceDeclaration declaration = InterfaceDeclaration.withTypeNode(
+                modifiers, interfaceName, List.of(),
+                new Interface(qualifiedClassName(node, interfaceName)), parents.toArray(Type[]::new)
+        );
         declaration.setAnnotations(annotations);
         _userTypes.put(interfaceName.toString(), declaration.getTypeNode());
 
@@ -1302,10 +1308,15 @@ public class JavaParser extends LanguageParser {
                     case "Boolean" -> parsedType = new BooleanType();
                     case "Character" -> parsedType = new CharacterType();
                     default -> {
-                        if (!_userTypes.containsKey(typeName)) {
-                            _userTypes.put(typeName, new Class(new SimpleIdentifier(typeName)));
+                        UserType resolved = resolveDeclaredUserType(typeName);
+                        if (resolved != null) {
+                            parsedType = (Type) resolved.freshClone();
+                        } else {
+                            if (!_userTypes.containsKey(typeName)) {
+                                _userTypes.put(typeName, new Class(new SimpleIdentifier(typeName)));
+                            }
+                            parsedType = (Type) _userTypes.get(typeName).freshClone();
                         }
-                        parsedType = (Type) _userTypes.get(typeName).freshClone();
                     }
                 }
                 break;
@@ -1364,6 +1375,46 @@ public class JavaParser extends LanguageParser {
         }
 
         return parsedType;
+    }
+
+    /**
+     * Ищет класс/интерфейс с именем {@code typeName}, уже объявленный и видимый из текущей точки
+     * разбора (в т.ч. в объемлющем классе), через {@link ScopeTable}. Возвращает его собственный,
+     * возможно квалифицированный, {@link UserType}, чтобы ссылка (например, в {@code extends})
+     * совпадала (по {@code equals()}) с типом самого объявления, а не с голым одноимённым, который
+     * дал бы плоский {@code _userTypes}. {@code null}, если ничего подходящего не найдено — вызывающий
+     * код в этом случае использует прежний фолбэк.
+     */
+    @Nullable
+    private UserType resolveDeclaredUserType(String typeName) {
+        return ctx.getScopeTable()
+                .findDeclaration(new SimpleIdentifier(typeName), ClassDeclaration.class, ScopeLookupMode.VISIBLE)
+                .map(decl -> ((ClassDeclaration) decl).getTypeNode())
+                .orElse(null);
+    }
+
+    /**
+     * Строит имя объявляемого класса/интерфейса с учётом вложенности: если {@code declNode} лежит
+     * внутри тела другого {@code class_declaration}/{@code interface_declaration}, возвращает
+     * {@link ScopedIdentifier} со всей цепочкой внешних имён (снаружи внутрь) плюс собственное имя;
+     * иначе — {@code bareName} без изменений. Цепочка вычисляется на месте, по дереву tree-sitter
+     * ({@code declNode.getParent()}), а не хранится в отдельном состоянии парсера.
+     */
+    private Identifier qualifiedClassName(TSNode declNode, Identifier bareName) {
+        List<SimpleIdentifier> chain = new ArrayList<>();
+        TSNode ancestor = declNode.getParent();
+        while (!ancestor.isNull()) {
+            String type = ancestor.getType();
+            if (type.equals("class_declaration") || type.equals("interface_declaration")) {
+                chain.addFirst((SimpleIdentifier) fromIdentifierTSNode(ancestor.getChildByFieldName("name")));
+            }
+            ancestor = ancestor.getParent();
+        }
+        if (chain.isEmpty()) {
+            return (Identifier) bareName.freshClone();
+        }
+        chain.add((SimpleIdentifier) bareName.freshClone());
+        return new ScopedIdentifier(chain);
     }
 
     private ScopedIdentifier fromScopedTypeIdentifier(TSNode node) {

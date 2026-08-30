@@ -750,7 +750,7 @@ public class JavaViewer extends LanguageViewer {
 
         String name;
         if (constructorDeclaration.getOwner() != null) {
-            name = toString(constructorDeclaration.getOwner().getQualifiedName());
+            name = toString(constructorDeclaration.getOwner().getName());
         } else if (constructorDeclaration.getParentDeclaration() != null) {
             name = toString(constructorDeclaration.getParentDeclaration().getName());
         } else {
@@ -1364,7 +1364,7 @@ public class JavaViewer extends LanguageViewer {
         }
         for (var info : origin) {
             if (info.node() instanceof InterfaceDefinition definition
-                    && definition.getDeclaration().getName().internalRepresentation()
+                    && definition.getDeclaration().getTypeNode().getQualifiedName().internalRepresentation()
                     .equals(type.internalRepresentation())) {
                 return true;
             }

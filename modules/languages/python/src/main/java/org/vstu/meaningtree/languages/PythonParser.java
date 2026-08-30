@@ -56,9 +56,11 @@ import org.vstu.meaningtree.nodes.types.builtin.IntType;
 import org.vstu.meaningtree.nodes.types.builtin.StringType;
 import org.vstu.meaningtree.nodes.types.containers.*;
 import org.vstu.meaningtree.nodes.types.user.Class;
+import org.vstu.meaningtree.nodes.types.user.Structure;
 import org.vstu.meaningtree.utils.analysis.imports.ImportResolver;
 import org.vstu.meaningtree.utils.analysis.imports.PythonImportResolver;
 import org.vstu.meaningtree.utils.analysis.types.SimpleTypeInferrer;
+import org.vstu.meaningtree.utils.scopes.ScopeLookupMode;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
@@ -556,6 +558,49 @@ public class PythonParser extends LanguageParser {
         return function.equals("auto") || function.equals("enum.auto");
     }
 
+    /**
+     * Строит имя объявляемого класса с учётом вложенности: если {@code declNode} лежит внутри тела
+     * другого {@code class_definition}, возвращает {@link ScopedIdentifier} со всей цепочкой внешних
+     * имён (снаружи внутрь) плюс собственное имя; иначе — {@code bareName} без изменений. Цепочка
+     * вычисляется на месте, по дереву tree-sitter ({@code declNode.getParent()}), а не хранится в
+     * отдельном состоянии парсера.
+     */
+    private Identifier qualifiedClassName(TSNode declNode, Identifier bareName) {
+        List<SimpleIdentifier> chain = new ArrayList<>();
+        TSNode ancestor = declNode.getParent();
+        while (!ancestor.isNull()) {
+            if (ancestor.getType().equals("class_definition")) {
+                chain.addFirst((SimpleIdentifier) parseTSNode(ancestor.getChildByFieldName("name")));
+            }
+            ancestor = ancestor.getParent();
+        }
+        if (chain.isEmpty()) {
+            return (Identifier) bareName.freshClone();
+        }
+        chain.add((SimpleIdentifier) bareName.freshClone());
+        return new ScopedIdentifier(chain);
+    }
+
+    /**
+     * Резолвит ссылку на суперкласс: если это простое имя уже объявленного и видимого класса
+     * (в т.ч. в объемлющем классе), переиспользует его собственный {@link UserType} — иначе прежнее
+     * поведение (голый {@code Class(SimpleIdentifier)}). Точечные ссылки (`zoo.Animal`) не
+     * являются {@code SimpleIdentifier} и сюда не попадают — это отдельный, уже существующий
+     * случай, не входящий в эту правку.
+     */
+    private Type resolveSuperclassType(TSNode superclassNode) {
+        Node parsed = parseTSNode(superclassNode);
+        if (parsed instanceof SimpleIdentifier name) {
+            var declaration = ctx.getScopeTable()
+                    .findDeclaration(name, ClassDeclaration.class, ScopeLookupMode.VISIBLE);
+            if (declaration.isPresent()) {
+                return (UserType) ((ClassDeclaration) declaration.get()).getTypeNode().freshClone();
+            }
+            return new Class(name);
+        }
+        return new Class((SimpleIdentifier) parsed);
+    }
+
     private ClassDefinition fromRegularClass(TSNode node, List<Annotation> decorators) {
         boolean isDataclass = decorators.stream().anyMatch(PythonParser::isDataclassAnnotation);
         TSNode superclasses = node.getChildByFieldName("superclasses");
@@ -563,14 +608,15 @@ public class PythonParser extends LanguageParser {
         if (!superclasses.isNull()) {
             supertypes = new Type[superclasses.getNamedChildCount()];
             for (int i = 0; i < supertypes.length; i++) {
-                supertypes[i] = new Class((SimpleIdentifier) parseTSNode(superclasses.getNamedChild(i)));
+                supertypes[i] = resolveSuperclassType(superclasses.getNamedChild(i));
             }
         }
 
         SimpleIdentifier className = (SimpleIdentifier) parseTSNode(node.getChildByFieldName("name"));
+        Identifier qualifiedName = qualifiedClassName(node, className);
         ClassDeclaration classDecl = isDataclass
-                ? new StructureDeclaration(new ArrayList<>(), className, supertypes)
-                : new ClassDeclaration(new ArrayList<>(), className, supertypes);
+                ? StructureDeclaration.withTypeNode(new ArrayList<>(), className, List.of(), new Structure(qualifiedName), supertypes)
+                : ClassDeclaration.withTypeNode(new ArrayList<>(), className, List.of(), new Class(qualifiedName), supertypes);
         UserType type = (UserType) classDecl.getTypeNode().freshClone();
 
         CompoundStatement body = fromCompoundTSNode(node.getChildByFieldName("body"), true);

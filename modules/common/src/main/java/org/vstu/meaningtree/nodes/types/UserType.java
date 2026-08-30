@@ -35,7 +35,7 @@ public abstract class UserType extends Type {
         if (this == o) { return true; }
         if (o == null || getClass() != o.getClass()) { return false; }
         UserType other = (UserType) o;
-        return getName().equals(other.getName());
+        return getQualifiedName().equals(other.getQualifiedName());
     }
 
     @Override

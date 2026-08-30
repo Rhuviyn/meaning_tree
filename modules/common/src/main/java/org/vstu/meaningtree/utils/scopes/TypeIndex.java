@@ -36,6 +36,17 @@ class TypeIndex implements Serializable {
 
     public void registerTypeDeclaration(@NotNull Type type, @NotNull Declaration declaration) {
         typeDeclarations.put(type, declaration);
+        registerHierarchy(type, declaration);
+    }
+
+    /**
+     * Регистрирует рёбра «тип -> предки» в {@link TypeHierarchy}, не трогая индекс объявлений
+     * ({@link #typeDeclarations}, {@link #declaredTypes}). В отличие от {@link #registerTypeDeclaration},
+     * не зависит от того, в какой области видимости объявлен класс — иерархия предков описывает
+     * структуру фрагмента целиком и не подчиняется правилам видимости имён, поэтому вложенные
+     * классы должны попадать сюда так же, как классы верхнего уровня.
+     */
+    public void registerHierarchy(@NotNull Type type, @NotNull Declaration declaration) {
         if (declaration instanceof ClassDeclaration classDeclaration && type instanceof UserType userType) {
             Set<UserType> parents = new LinkedHashSet<>();
             for (Type parent : classDeclaration.getParents()) {

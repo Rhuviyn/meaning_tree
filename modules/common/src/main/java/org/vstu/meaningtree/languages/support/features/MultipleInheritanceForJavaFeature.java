@@ -40,7 +40,7 @@ public class MultipleInheritanceForJavaFeature extends SemanticFeature {
         }
         for (var info : context.meaningTree()) {
             if (info.node() instanceof InterfaceDefinition definition
-                    && definition.getDeclaration().getName().internalRepresentation()
+                    && definition.getDeclaration().getTypeNode().getQualifiedName().internalRepresentation()
                     .equals(type.internalRepresentation())) {
                 return true;
             }

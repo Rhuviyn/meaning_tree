@@ -77,6 +77,37 @@ public class ScopeTableTests {
     }
 
     @Test
+    void typeHierarchyIsPopulatedForClassesDeclaredInNestedScopes() {
+        // Вложенный класс регистрируется, пока current scope — тело внешнего класса (не глобальное),
+        // но иерархия предков не должна зависеть от глубины scope: она описывает структуру
+        // фрагмента, а не видимость имён.
+        ClassDeclaration base = new ClassDeclaration(new SimpleIdentifier("Base"));
+        ClassDeclaration child = new ClassDeclaration(
+                List.of(),
+                new SimpleIdentifier("Child"),
+                List.of(),
+                base.getTypeNode()
+        );
+
+        ScopeTable scope = new ScopeTable();
+        scope.enter();
+        scope.registerDeclaration(base.getName().getSimpleIdentifierOrThrow(), base);
+        scope.registerDeclaration(child.getName().getSimpleIdentifierOrThrow(), child);
+
+        UserType baseType = base.getTypeNode();
+        UserType childType = child.getTypeNode();
+
+        assertEquals(List.of(baseType), scope.directParents(childType).stream().toList());
+        assertTrue(scope.ancestors(childType).contains(baseType));
+        assertTrue(scope.isSubtypeOf(childType, baseType));
+
+        // При этом видимость объявлений остаётся локальной: из глобальной области видимости
+        // вложенный класс не находится.
+        assertTrue(scope.findDeclaration(child.getName().getSimpleIdentifierOrThrow(), ClassDeclaration.class,
+                ScopeLookupMode.GLOBAL).isEmpty());
+    }
+
+    @Test
     void jsonSourceMapRoundTripRestoresScopeTable() {
         ClassDeclaration base = new ClassDeclaration(new SimpleIdentifier("Base"));
         ClassDeclaration child = new ClassDeclaration(

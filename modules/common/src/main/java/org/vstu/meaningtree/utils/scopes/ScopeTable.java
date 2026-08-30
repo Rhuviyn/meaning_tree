@@ -221,6 +221,13 @@ public class ScopeTable implements Serializable {
             }
         } else {
             current.registerDeclaration(name, declaration);
+            // Иерархия предков — структурный факт о фрагменте, а не о видимости имён, поэтому
+            // регистрируется независимо от глубины scope: вложенный класс тоже должен попасть
+            // в TypeHierarchy, хотя его объявление остаётся видимым только локально.
+            Type type = declaredTypeOf(declaration);
+            if (type != null) {
+                types.registerHierarchy(type, declaration);
+            }
         }
     }
 

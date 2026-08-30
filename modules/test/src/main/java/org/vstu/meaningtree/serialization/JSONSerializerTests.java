@@ -196,6 +196,22 @@ public class JSONSerializerTests {
                     }
                 }
                 """));
+        snippets.add(new Snippet("java", "nestedClassDefinition", """
+                class Outer {
+                    static class Animal {
+                        public int speak() {
+                            return 0;
+                        }
+                    }
+                    static class Dog extends Animal {
+                        public Dog() {
+                        }
+                        public int speak() {
+                            return 1;
+                        }
+                    }
+                }
+                """));
         snippets.add(new Snippet("java", "interfaceDefinition", """
                 interface Provider {
                     int get();
@@ -295,6 +311,16 @@ public class JSONSerializerTests {
 
                     def get(self):
                         return self.value
+                """);
+        python(snippets, "nestedClassDefinition", """
+                class Outer:
+                    class Animal:
+                        def speak(self):
+                            return 0
+
+                    class Dog(Animal):
+                        def speak(self):
+                            return 1
                 """);
         python(snippets, "enumDeclaration", """
                 class Color(Enum):
