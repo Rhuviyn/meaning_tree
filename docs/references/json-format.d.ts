@@ -1230,6 +1230,7 @@ export interface MethodDeclarationNode
     modifiers: DeclarationModifier[];
     arguments: DeclarationArgumentNode[];
     parent_decl_id?: AstId | null;
+    overridden_from_id?: AstId | null;
 }
 
 export interface FunctionDeclarationNode extends NodeBase<"function_declaration"> {

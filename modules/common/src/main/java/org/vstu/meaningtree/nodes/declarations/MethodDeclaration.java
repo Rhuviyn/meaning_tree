@@ -1,5 +1,6 @@
 package org.vstu.meaningtree.nodes.declarations;
 
+import org.jetbrains.annotations.Nullable;
 import org.vstu.meaningtree.nodes.Type;
 import org.vstu.meaningtree.nodes.declarations.components.DeclarationArgument;
 import org.vstu.meaningtree.nodes.enums.DeclarationModifier;
@@ -13,6 +14,16 @@ import java.util.Objects;
 public class MethodDeclaration extends FunctionDeclaration implements NestedDeclaration<ClassDeclaration> {
     private UserType owner;
     private ClassDeclaration parent;
+
+    /**
+     * Ближайший метод предка (по классу или интерфейсу), который этот метод переопределяет
+     * или реализует. Заполняется {@code OverrideResolver} после парсинга, только если предок
+     * присутствует в том же фрагменте кода; иначе остаётся {@code null}. Ссылка не участвует
+     * в {@code equals}/{@code hashCode} и не копируется в {@link #clone()} — как и {@link #parent},
+     * она указывает на узел вверх по иерархии дерева, а не является его частью.
+     * После {@code freshClone()} ссылка продолжает указывать на узел исходного дерева.
+     */
+    private MethodDeclaration overriddenFrom;
 
     public MethodDeclaration(UserType owner,
                              Identifier name,
@@ -42,6 +53,19 @@ public class MethodDeclaration extends FunctionDeclaration implements NestedDecl
 
     public void setOwner(UserType owner) {
         this.owner = owner;
+    }
+
+    @Nullable
+    public MethodDeclaration getOverriddenFrom() {
+        return overriddenFrom;
+    }
+
+    public void setOverriddenFrom(@Nullable MethodDeclaration overriddenFrom) {
+        this.overriddenFrom = overriddenFrom;
+    }
+
+    public boolean isOverride() {
+        return overriddenFrom != null;
     }
 
     @Override

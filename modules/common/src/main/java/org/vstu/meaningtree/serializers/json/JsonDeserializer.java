@@ -80,6 +80,16 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
     private final Map<Long, Token> tokenCache = new HashMap<>();
     private final Field idField;
 
+    /**
+     * Отложенные ссылки {@code overridden_from_id}: в отличие от {@code parent_decl_id}, базовый
+     * класс может быть объявлен в исходном коде позже наследника, поэтому в момент разбора метода
+     * узел предка ещё может отсутствовать в {@link #nodeCache}. Копится по ходу разбора и
+     * разрешается одним проходом, когда рекурсия {@link #deserialize(JsonObject)} возвращается
+     * на верхний уровень.
+     */
+    private final Map<MethodDeclaration, Long> pendingOverriddenFrom = new LinkedHashMap<>();
+    private int deserializeDepth = 0;
+
     public JsonDeserializer() {
         try {
             this.idField =  Node.class.getDeclaredField("_id");
@@ -472,6 +482,18 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
             return null;
         }
 
+        deserializeDepth++;
+        try {
+            return deserializeNode(json);
+        } finally {
+            deserializeDepth--;
+            if (deserializeDepth == 0) {
+                flushPendingOverriddenFrom();
+            }
+        }
+    }
+
+    private Node deserializeNode(JsonObject json) {
         String type = json.get("type").getAsString();
         long id = json.get("id").getAsLong();
 
@@ -514,6 +536,7 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
             }
 
             restoreParentDeclaration(node, json);
+            registerPendingOverriddenFrom(node, json);
 
             if (node instanceof Expression expression && json.has("value_estimate") && !json.get("value_estimate").isJsonNull()) {
                 expression.setValueEstimate(deserializeExpressionValueEstimate(json.getAsJsonObject("value_estimate")));
@@ -1726,6 +1749,34 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
         if (nodeCache.get(parentId.getAsLong()) instanceof Declaration parent) {
             ((NestedDeclaration<Declaration>) nested).setParentDeclaration(parent);
         }
+    }
+
+    private void registerPendingOverriddenFrom(Node node, JsonObject json) {
+        if (!(node instanceof MethodDeclaration method)) {
+            return;
+        }
+        JsonElement overriddenFromId = json.get("overridden_from_id");
+        if (overriddenFromId == null || overriddenFromId.isJsonNull()) {
+            return;
+        }
+        pendingOverriddenFrom.put(method, overriddenFromId.getAsLong());
+    }
+
+    /**
+     * Разрешает {@code overridden_from_id}, отложенные до завершения разбора всего дерева
+     * (см. {@link #pendingOverriddenFrom}). Если предок так и не появился в {@link #nodeCache},
+     * ссылка остаётся {@code null} — так же, как делает {@link #restoreParentDeclaration}.
+     */
+    private void flushPendingOverriddenFrom() {
+        if (pendingOverriddenFrom.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<MethodDeclaration, Long> entry : pendingOverriddenFrom.entrySet()) {
+            if (nodeCache.get(entry.getValue()) instanceof MethodDeclaration ancestor) {
+                entry.getKey().setOverriddenFrom(ancestor);
+            }
+        }
+        pendingOverriddenFrom.clear();
     }
 
     /**

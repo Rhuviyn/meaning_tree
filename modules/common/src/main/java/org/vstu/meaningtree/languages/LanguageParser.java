@@ -13,6 +13,7 @@ import org.vstu.meaningtree.utils.TreeSitterUtils;
 import org.vstu.meaningtree.utils.analysis.expressions.ExpressionValueEvaluator;
 import org.vstu.meaningtree.utils.analysis.imports.ImportResolver;
 import org.vstu.meaningtree.utils.analysis.loops.LoopIterationAnalyzer;
+import org.vstu.meaningtree.utils.analysis.symbols.OverrideResolver;
 import org.vstu.meaningtree.utils.analysis.symbols.SymbolResolver;
 import org.vstu.meaningtree.utils.hooks.HookHandle;
 import org.vstu.meaningtree.utils.hooks.HookOrder;
@@ -90,8 +91,13 @@ abstract public class LanguageParser extends TranslatorComponent {
      * <p>
      * Вычислитель выражений создаётся один раз и передаётся дальше: иначе
      * {@code LoopIterationAnalyzer} заводит на то же дерево второй независимый экземпляр.
+     * <p>
+     * {@code OverrideResolver} заполняет {@code overriddenFrom} у методов; он не зависит от
+     * результатов остальных проходов и не влияет на них, поэтому запускается первым, вне жёсткой
+     * цепочки данных, описанной выше.
      */
     private void runAnalysisPipeline(MeaningTree tree, ScopeTable scope) {
+        new OverrideResolver(tree, scope).resolve();
         new SymbolResolver(tree, scope).resolve();
         ExpressionValueEvaluator evaluator = new ExpressionValueEvaluator(tree, scope);
         evaluator.analyze();

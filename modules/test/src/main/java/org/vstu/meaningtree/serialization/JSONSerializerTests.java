@@ -11,15 +11,22 @@ import org.vstu.meaningtree.exceptions.MeaningTreeSerializationException;
 import org.vstu.meaningtree.languages.*;
 import org.vstu.meaningtree.nodes.Node;
 import org.vstu.meaningtree.nodes.ProgramEntryPoint;
+import org.vstu.meaningtree.nodes.declarations.ClassDeclaration;
+import org.vstu.meaningtree.nodes.declarations.MethodDeclaration;
 import org.vstu.meaningtree.nodes.declarations.VariableDeclaration;
+import org.vstu.meaningtree.nodes.definitions.ClassDefinition;
 import org.vstu.meaningtree.nodes.definitions.FunctionDefinition;
+import org.vstu.meaningtree.nodes.definitions.MethodDefinition;
 import org.vstu.meaningtree.nodes.enums.AugmentedAssignmentOperator;
+import org.vstu.meaningtree.nodes.enums.DeclarationModifier;
 import org.vstu.meaningtree.nodes.expressions.identifiers.SimpleIdentifier;
 import org.vstu.meaningtree.nodes.expressions.literals.IntegerLiteral;
 import org.vstu.meaningtree.nodes.expressions.literals.ListLiteral;
 import org.vstu.meaningtree.nodes.expressions.math.AddOp;
+import org.vstu.meaningtree.nodes.statements.CompoundStatement;
 import org.vstu.meaningtree.nodes.statements.assignments.AssignmentStatement;
 import org.vstu.meaningtree.nodes.statements.assignments.ChainedAssignmentStatement;
+import org.vstu.meaningtree.nodes.types.UserType;
 import org.vstu.meaningtree.nodes.types.builtin.IntType;
 import org.vstu.meaningtree.serializers.json.JsonDeserializer;
 import org.vstu.meaningtree.serializers.json.JsonSerializer;
@@ -536,6 +543,77 @@ public class JSONSerializerTests {
         assertEquals(original.getMainClass().getId(), restored.getMainClass().getId());
         assertEquals(original.getEntryPoint().getId(), restored.getEntryPoint().getId());
         assertInstanceOf(FunctionDefinition.class, restored.getEntryPoint());
+    }
+
+    @Test
+    void overriddenFromSurvivesRoundTrip() {
+        MethodDeclaration parentMethod = overrideRoundTripMethod("Animal", "speak", null);
+        ClassDefinition parent = overrideRoundTripClass(parentMethod);
+
+        MethodDeclaration childMethod = overrideRoundTripMethod("Dog", "speak", parentMethod.getOwner());
+        childMethod.setOverriddenFrom(parentMethod);
+        ClassDefinition child = overrideRoundTripClass(childMethod);
+
+        MeaningTree tree = new MeaningTree(new ProgramEntryPoint(List.of(parent, child)));
+
+        MeaningTree restored = new JsonDeserializer().deserializeTree(new JsonSerializer().serialize(tree));
+        MethodDeclaration restoredChild = findMethodNode(restored, "speak", "Dog");
+        MethodDeclaration restoredParent = findMethodNode(restored, "speak", "Animal");
+
+        assertNotNull(restoredChild.getOverriddenFrom());
+        assertEquals(restoredParent.getId(), restoredChild.getOverriddenFrom().getId());
+    }
+
+    @Test
+    void overriddenFromResolvesWhenBaseClassIsDeclaredAfterDerivedClass() {
+        // Базовый класс лежит в дереве после наследника — разрешение по id не может быть
+        // немедленным, как для parent_decl_id, а должно быть отложено до конца разбора дерева.
+        MethodDeclaration parentMethod = overrideRoundTripMethod("Animal", "speak", null);
+        ClassDefinition parent = overrideRoundTripClass(parentMethod);
+
+        MethodDeclaration childMethod = overrideRoundTripMethod("Dog", "speak", parentMethod.getOwner());
+        childMethod.setOverriddenFrom(parentMethod);
+        ClassDefinition child = overrideRoundTripClass(childMethod);
+
+        MeaningTree tree = new MeaningTree(new ProgramEntryPoint(List.of(child, parent)));
+
+        MeaningTree restored = new JsonDeserializer().deserializeTree(new JsonSerializer().serialize(tree));
+        MethodDeclaration restoredChild = findMethodNode(restored, "speak", "Dog");
+        MethodDeclaration restoredParent = findMethodNode(restored, "speak", "Animal");
+
+        assertNotNull(restoredChild.getOverriddenFrom());
+        assertEquals(restoredParent.getId(), restoredChild.getOverriddenFrom().getId());
+    }
+
+    private static MethodDeclaration overrideRoundTripMethod(String ownerName, String methodName,
+                                                             UserType parentOwner) {
+        var owner = parentOwner == null
+                ? new ClassDeclaration(new SimpleIdentifier(ownerName))
+                : new ClassDeclaration(List.of(), new SimpleIdentifier(ownerName), List.of(), parentOwner);
+        return new MethodDeclaration(
+                owner.getTypeNode(), new SimpleIdentifier(methodName), new IntType(),
+                List.of(), List.of(DeclarationModifier.PUBLIC)
+        );
+    }
+
+    private static ClassDefinition overrideRoundTripClass(MethodDeclaration method) {
+        return new ClassDefinition(
+                ClassDeclaration.withTypeNode(
+                        List.of(), (SimpleIdentifier) method.getOwner().getName(), List.of(), method.getOwner()
+                ),
+                new CompoundStatement(new MethodDefinition(method, new CompoundStatement()))
+        );
+    }
+
+    private static MethodDeclaration findMethodNode(MeaningTree tree, String methodName, String ownerName) {
+        return StreamSupport.stream(tree.spliterator(), false)
+                .map(nodeInfo -> nodeInfo.node())
+                .filter(MethodDeclaration.class::isInstance)
+                .map(MethodDeclaration.class::cast)
+                .filter(m -> m.getName().getName().equals(methodName)
+                        && m.getOwner() != null && m.getOwner().getName().getName().equals(ownerName))
+                .findFirst()
+                .orElseThrow();
     }
 
     @Test
