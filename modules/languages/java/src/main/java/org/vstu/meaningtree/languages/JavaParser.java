@@ -98,10 +98,11 @@ public class JavaParser extends LanguageParser {
         registerTSNodeHandler("package_declaration", PackageDeclaration.class, this::fromPackageDeclarationTSNode);
         registerTSNodeHandler("scoped_identifier", ScopedIdentifier.class, this::fromScopedIdentifierTSNode);
         registerTSNodeHandler("class_declaration", ClassDefinition.class, this::fromClassDeclarationTSNode);
+        registerTSNodeHandler("interface_declaration", InterfaceDefinition.class, this::fromInterfaceDeclarationTSNode);
         registerTSNodeHandler("enum_declaration", EnumDeclaration.class, this::fromEnumDeclarationTSNode);
         registerTSNodeHandler("field_declaration", FieldDeclaration.class, this::fromFieldDeclarationTSNode);
         registerTSNodeHandler("string_literal", StringLiteral.class, this::fromStringLiteralTSNode);
-        registerTSNodeHandler("method_declaration", Definition.class, this::fromMethodDeclarationTSNode);
+        registerTSNodeHandler("method_declaration", Node.class, this::fromMethodDeclarationTSNode);
         registerTSNodeHandler("switch_expression", SwitchStatement.class, this::fromSwitchExpressionTSNode);
         registerTSNodeHandler("break_statement", BreakStatement.class, this::fromBreakStatementTSNode);
         registerTSNodeHandler("continue_statement", ContinueStatement.class, this::fromContinueStatementTSNode);
@@ -676,7 +677,7 @@ public class JavaParser extends LanguageParser {
         return new SwitchStatement(matchValue, cases, defaultCaseBlock);
     }
 
-    private Definition fromMethodDeclarationTSNode(TSNode node) {
+    private Node fromMethodDeclarationTSNode(TSNode node) {
         List<DeclarationModifier> modifiers = new ArrayList<>();
         List<Annotation> annotations = new ArrayList<>();
         if (node.getChild(0).getType().equals("modifiers")) {
@@ -687,34 +688,36 @@ public class JavaParser extends LanguageParser {
         Identifier identifier = fromScopedIdentifierTSNode(node.getChildByFieldName("name"));
         List<DeclarationArgument> parameters = fromMethodParameters(node.getChildByFieldName("parameters"));
 
-        CompoundStatement body = fromBlockTSNode(node.getChildByFieldName("body"));
-        Definition definition;
+        if (!modifiers.contains(DeclarationModifier.STATIC)) {
+            modifiers.add(DeclarationModifier.VIRTUAL);
+        }
 
+        var methodDeclaration = new MethodDeclaration(
+                null,
+                identifier,
+                returnType,
+                annotations,
+                modifiers,
+                parameters
+        );
+
+        TSNode bodyNode = node.getChildByFieldName("body");
+        if (bodyNode.isNull()) {
+            return methodDeclaration;
+        }
+
+        CompoundStatement body = fromBlockTSNode(bodyNode);
         if (modifiers.size() == 2
                 && modifiers.contains(DeclarationModifier.STATIC)
-                && modifiers.contains(DeclarationModifier.PUBLIC)
-        ) {
-            var functionDeclaration = new FunctionDeclaration(
+                && modifiers.contains(DeclarationModifier.PUBLIC)) {
+            return new FunctionDefinition(new FunctionDeclaration(
                     identifier,
                     returnType,
                     annotations,
                     parameters
-            );
-            definition = new FunctionDefinition(functionDeclaration, body);
+            ), body);
         }
-        else {
-            var methodDeclaration = new MethodDeclaration(
-                    null,
-                    identifier,
-                    returnType,
-                    annotations,
-                    modifiers,
-                    parameters
-            );
-            definition = new MethodDefinition(methodDeclaration, body);
-        }
-
-        return definition;
+        return new MethodDefinition(methodDeclaration, body);
     }
 
     private List<DeclarationArgument> fromMethodParameters(TSNode node) {
@@ -780,6 +783,9 @@ public class JavaParser extends LanguageParser {
                 );
                 continue;
             }
+            if (node.getChild(i).getType().equals("default")) {
+                continue;
+            }
 
             modifiers.add(
                     switch (node.getChild(i).getType()) {
@@ -841,17 +847,31 @@ public class JavaParser extends LanguageParser {
         }
 
         Identifier className = fromIdentifierTSNode(node.getChildByFieldName("name"));
+        List<Type> parents = new ArrayList<>();
         TSNode superclass = node.getChildByFieldName("superclass");
-        Type[] parents = superclass.isNull()
-                ? new Type[0]
-                : new Type[]{fromTypeTSNode(superclass.getNamedChild(0))};
-        CompoundStatement classBody = fromBlockTSNode(node.getChildByFieldName("body"));
+        if (!superclass.isNull()) {
+            parents.add(fromTypeTSNode(superclass.getNamedChild(0)));
+        }
+        TSNode interfaces = node.getChildByFieldName("interfaces");
+        if (!interfaces.isNull()) {
+            parents.addAll(fromTypeList(interfaces));
+        }
 
-        ClassDeclaration decl = new ClassDeclaration(modifiers, className, parents);
+        ClassDeclaration decl = new ClassDeclaration(modifiers, className, parents.toArray(Type[]::new));
+        _userTypes.put(className.toString(), decl.getTypeNode());
+        CompoundStatement classBody = fromBlockTSNode(node.getChildByFieldName("body"));
         UserType owner = new Class((SimpleIdentifier) className.freshClone());
         Node[] members = classBody.getNodes();
         for (int i = 0; i < classBody.getLength(); i++) {
             Node member = members[i];
+            MethodDeclaration memberMethod = switch (member) {
+                case MethodDeclaration methodDeclaration -> methodDeclaration;
+                case MethodDefinition methodDefinition -> methodDefinition.getDeclaration();
+                default -> null;
+            };
+            if (memberMethod != null) {
+                memberMethod.setOwner((UserType) owner.freshClone());
+            }
             if (member instanceof FunctionDefinition function && !(member instanceof MethodDefinition)) {
                 FunctionDeclaration functionDeclaration = function.getDeclaration();
                 member = new MethodDefinition(new MethodDeclaration(
@@ -897,6 +917,78 @@ public class JavaParser extends LanguageParser {
         ClassDefinition def = new ClassDefinition(decl, classBody);
         def.getDeclaration().setAnnotations(annotations);
         return def;
+    }
+
+    private InterfaceDefinition fromInterfaceDeclarationTSNode(TSNode node) {
+        List<DeclarationModifier> modifiers = new ArrayList<>();
+        List<Annotation> annotations = new ArrayList<>();
+        if (node.getChild(0).getType().equals("modifiers")) {
+            modifiers.addAll(fromModifiers(annotations, node.getChild(0)));
+        }
+
+        Identifier interfaceName = fromIdentifierTSNode(node.getChildByFieldName("name"));
+        List<Type> parents = new ArrayList<>();
+        for (int i = 0; i < node.getNamedChildCount(); i++) {
+            TSNode child = node.getNamedChild(i);
+            if (child.getType().equals("extends_interfaces")) {
+                parents.addAll(fromTypeList(child));
+            }
+        }
+
+        InterfaceDeclaration declaration = new InterfaceDeclaration(
+                modifiers, interfaceName, parents.toArray(Type[]::new));
+        declaration.setAnnotations(annotations);
+        _userTypes.put(interfaceName.toString(), declaration.getTypeNode());
+
+        CompoundStatement body = fromBlockTSNode(node.getChildByFieldName("body"));
+        Node[] members = body.getNodes();
+        for (int i = 0; i < members.length; i++) {
+            Node member = members[i];
+            if (member instanceof FunctionDefinition function && !(member instanceof MethodDefinition)) {
+                FunctionDeclaration functionDeclaration = function.getDeclaration();
+                member = new MethodDefinition(new MethodDeclaration(
+                        (UserType) declaration.getTypeNode().freshClone(),
+                        functionDeclaration.getName(),
+                        functionDeclaration.getReturnType(),
+                        functionDeclaration.getAnnotations(),
+                        List.of(DeclarationModifier.PUBLIC, DeclarationModifier.STATIC),
+                        functionDeclaration.getArguments().toArray(new DeclarationArgument[0])
+                ), function.getBody());
+                body.substitute(i, member);
+            }
+            MethodDeclaration method = switch (member) {
+                case MethodDeclaration methodDeclaration -> methodDeclaration;
+                case MethodDefinition methodDefinition -> methodDefinition.getDeclaration();
+                default -> null;
+            };
+            if (method == null) {
+                continue;
+            }
+            method.setOwner((UserType) declaration.getTypeNode().freshClone());
+            if (!method.getModifiers().contains(DeclarationModifier.PUBLIC)
+                    && !method.getModifiers().contains(DeclarationModifier.PROTECTED)
+                    && !method.getModifiers().contains(DeclarationModifier.PRIVATE)) {
+                method.addModifiers(DeclarationModifier.PUBLIC);
+            }
+            if (member instanceof MethodDeclaration
+                    && !method.getModifiers().contains(DeclarationModifier.STATIC)
+                    && !method.getModifiers().contains(DeclarationModifier.PRIVATE)) {
+                method.addModifiers(DeclarationModifier.ABSTRACT);
+            }
+        }
+        return new InterfaceDefinition(declaration, body);
+    }
+
+    private List<Type> fromTypeList(TSNode container) {
+        TSNode typeList = container;
+        if (!container.getType().equals("type_list") && container.getNamedChildCount() == 1) {
+            typeList = container.getNamedChild(0);
+        }
+        List<Type> result = new ArrayList<>();
+        for (int i = 0; i < typeList.getNamedChildCount(); i++) {
+            result.add(fromTypeTSNode(typeList.getNamedChild(i)));
+        }
+        return result;
     }
 
     private ScopedIdentifier fromScopedIdentifierTSNode(TSNode node) {

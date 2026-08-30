@@ -384,10 +384,35 @@ public class CppParser extends LanguageParser {
             TSNode child = body.getNamedChild(i);
             switch (child.getType()) {
                 case "access_specifier" -> visibility = fromAccessSpecifier(child);
-                case "field_declaration" -> members.addAll(fromClassFields(child, visibility));
+                case "field_declaration" -> {
+                    TSNode functionDeclarator = findDeclarator(child.getChildByFieldName("declarator"), "function_declarator");
+                    if (!functionDeclarator.isNull()) {
+                        members.add(fromClassMethodDeclaration(child, functionDeclarator, declaration, visibility));
+                    } else {
+                        members.addAll(fromClassFields(child, visibility));
+                    }
+                }
                 case "function_definition" -> members.add(fromClassMethod(child, declaration, visibility));
                 default -> throw new UnsupportedParsingException("Can't parse class member " + child.getType());
             }
+        }
+
+        if (!isStructure && isSemanticInterface(members)) {
+            InterfaceDeclaration interfaceDeclaration = new InterfaceDeclaration(
+                    declaration.getModifiers(), declaration.getName(), parents.toArray(Type[]::new));
+            interfaceDeclaration.remap(declaration);
+            for (Node member : members) {
+                MethodDeclaration method = member instanceof MethodDeclaration declarationMember
+                        ? declarationMember
+                        : ((MethodDefinition) member).getDeclaration();
+                method.setOwner((UserType) interfaceDeclaration.getTypeNode().freshClone());
+            }
+            return new InterfaceDefinition(interfaceDeclaration, new CompoundStatement(members));
+        }
+
+        if (!isStructure && members.stream().anyMatch(member -> member instanceof MethodDeclaration method
+                && method.getModifiers().contains(DeclarationModifier.ABSTRACT))) {
+            declaration.addModifiers(DeclarationModifier.ABSTRACT);
         }
 
         CompoundStatement classBody = new CompoundStatement(members);
@@ -448,6 +473,9 @@ public class CppParser extends LanguageParser {
         if (hasStorageSpecifier(node, "static")) {
             modifiers.add(DeclarationModifier.STATIC);
         }
+        if (hasSpecifier(node, "virtual")) {
+            modifiers.add(DeclarationModifier.VIRTUAL);
+        }
 
         CompoundStatement body = fromBlock(node.getChildByFieldName("body"));
         if (type.isNull()) {
@@ -485,6 +513,74 @@ public class CppParser extends LanguageParser {
         return fromFunction(node).makeMethod(owner.getTypeNode(), modifiers);
     }
 
+    private MethodDeclaration fromClassMethodDeclaration(TSNode node,
+                                                         TSNode functionDeclarator,
+                                                         ClassDeclaration owner,
+                                                         DeclarationModifier visibility) {
+        List<DeclarationModifier> modifiers = new ArrayList<>();
+        if (visibility != DeclarationModifier.PRIVATE) {
+            modifiers.add(visibility);
+        }
+        if (hasSpecifier(node, "virtual")) {
+            modifiers.add(DeclarationModifier.VIRTUAL);
+        }
+        if (hasStorageSpecifier(node, "static")) {
+            modifiers.add(DeclarationModifier.STATIC);
+        }
+        TSNode defaultValue = node.getChildByFieldName("default_value");
+        if (!defaultValue.isNull() && getCodePiece(defaultValue).equals("0")) {
+            modifiers.add(DeclarationModifier.ABSTRACT);
+            if (!modifiers.contains(DeclarationModifier.VIRTUAL)) {
+                modifiers.add(DeclarationModifier.VIRTUAL);
+            }
+        }
+
+        Type returnType = fromType(node.getChildByFieldName("type"));
+        DeclaratorWithType unwrapped = unwrapIndirections(
+                node.getChildByFieldName("declarator"), returnType);
+        returnType = unwrapped.type();
+        functionDeclarator = unwrapped.declarator();
+        TSNode nameNode = functionDeclarator.getChildByFieldName("declarator");
+        SimpleIdentifier name = (SimpleIdentifier) fromIdentifier(nameNode);
+        List<DeclarationArgument> parameters = fromFunctionParameters(
+                functionDeclarator.getChildByFieldName("parameters"));
+        return new MethodDeclaration(
+                (UserType) owner.getTypeNode().freshClone(), name, returnType,
+                List.of(), modifiers, parameters);
+    }
+
+    private TSNode findDeclarator(TSNode node, String type) {
+        TSNode current = node;
+        while (!current.isNull()) {
+            if (current.getType().equals(type)) {
+                return current;
+            }
+            TSNode inner = current.getChildByFieldName("declarator");
+            if (inner.isNull() || inner.equals(current)) {
+                break;
+            }
+            current = inner;
+        }
+        return new TSNode();
+    }
+
+    private boolean isSemanticInterface(List<Node> members) {
+        if (members.isEmpty() || members.stream().anyMatch(member ->
+                !(member instanceof MethodDeclaration) && !(member instanceof MethodDefinition))) {
+            return false;
+        }
+        if (members.stream().map(member -> member instanceof MethodDeclaration declaration
+                        ? declaration
+                        : ((MethodDefinition) member).getDeclaration())
+                .anyMatch(method -> !method.getModifiers().contains(DeclarationModifier.PUBLIC)
+                        || method.getModifiers().contains(DeclarationModifier.STATIC)
+                        || (!method.getModifiers().contains(DeclarationModifier.VIRTUAL)
+                        && !method.getModifiers().contains(DeclarationModifier.ABSTRACT)))) {
+            return false;
+        }
+        return true;
+    }
+
     private boolean hasConstQualifier(TSNode node) {
         for (int i = 0; i < node.getChildCount(); i++) {
             TSNode child = node.getChild(i);
@@ -499,6 +595,15 @@ public class CppParser extends LanguageParser {
         for (int i = 0; i < node.getChildCount(); i++) {
             TSNode child = node.getChild(i);
             if (child.getType().equals("storage_class_specifier") && getCodePiece(child).equals(value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasSpecifier(TSNode node, String value) {
+        for (int i = 0; i < node.getChildCount(); i++) {
+            if (getCodePiece(node.getChild(i)).equals(value)) {
                 return true;
             }
         }

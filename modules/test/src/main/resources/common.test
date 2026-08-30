@@ -871,7 +871,7 @@ group: SimpleStatements
         c++:
             class A
             {
-                void run()
+                virtual void run()
                 {
                     auto result = create();
                 }
@@ -1932,7 +1932,7 @@ group: StructuresOOP
                 def b(self):
                     return r + m
 
-        java:
+        main java:
             class A {
                 public Object a() {
                     return k();
@@ -1947,12 +1947,12 @@ group: StructuresOOP
             class A
             {
                 public:
-                    auto a()
+                    virtual auto a()
                     {
                         return k();
                     }
 
-                    auto b()
+                    virtual auto b()
                     {
                         return r + m;
                     }
@@ -1971,7 +1971,7 @@ group: StructuresOOP
                 def b(self):
                     return r + m
 
-        java:
+        main java:
             class A {
                 public int k = 32;
                 public int m = 34;
@@ -1992,12 +1992,12 @@ group: StructuresOOP
                     int k = 32;
                     int m = 34;
 
-                    auto a()
+                    virtual auto a()
                     {
                         return k();
                     }
 
-                    auto b()
+                    virtual auto b()
                     {
                         return r + m;
                     }
@@ -2036,7 +2036,7 @@ group: StructuresOOP
                     self.method()
                     return x.a + self.m
 
-        java:
+        main java:
             class A {
                 public Object name(Object k) {
                     var x = this.method().plus + this.t;
@@ -2049,7 +2049,7 @@ group: StructuresOOP
             class A
             {
             public:
-                auto name(auto k)
+                virtual auto name(auto k)
                 {
                     auto x = this->method().plus + this->t;
                     this->method();

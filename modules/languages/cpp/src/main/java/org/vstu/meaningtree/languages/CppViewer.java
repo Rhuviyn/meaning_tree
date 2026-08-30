@@ -204,6 +204,8 @@ public class CppViewer extends LanguageViewer {
         registerRenderer(SwitchStatement.class, this::toStringSwitchStatement);
         registerRenderer(FunctionDefinition.class, this::toStringFunctionDefinition);
         registerRenderer(FunctionDeclaration.class, this::toStringFunctionDeclaration);
+        registerRenderer(MethodDefinition.class, this::toStringMethodDefinition);
+        registerRenderer(MethodDeclaration.class, this::toStringMethodDeclaration);
         registerRenderer(ObjectConstructorDefinition.class, this::toStringObjectConstructorDefinition);
         registerRenderer(ObjectDestructorDefinition.class, this::toStringObjectDestructorDefinition);
         registerRenderer(ClassDeclaration.class, this::toStringClassDeclaration);
@@ -552,6 +554,32 @@ public class CppViewer extends LanguageViewer {
                 : toStringParameters(functionDeclaration.getArguments());
         builder.append(parameters);
 
+        return builder.toString();
+    }
+
+    private String toStringMethodDeclaration(MethodDeclaration declaration) {
+        return toStringMethodSignature(declaration) + ";";
+    }
+
+    private String toStringMethodDefinition(MethodDefinition definition) {
+        String signature = toStringMethodSignature(definition.getDeclaration());
+        String body = toString(definition.getBody());
+        return _openBracketOnSameLine
+                ? signature + " " + body
+                : signature + "\n" + indent(body);
+    }
+
+    private String toStringMethodSignature(MethodDeclaration declaration) {
+        boolean isVirtual = declaration.getModifiers().contains(DeclarationModifier.VIRTUAL)
+                || declaration.getModifiers().contains(DeclarationModifier.ABSTRACT);
+        StringBuilder builder = new StringBuilder();
+        if (isVirtual) {
+            builder.append("virtual ");
+        }
+        builder.append(toStringFunctionDeclaration(declaration));
+        if (declaration.getModifiers().contains(DeclarationModifier.ABSTRACT)) {
+            builder.append(" = 0");
+        }
         return builder.toString();
     }
 

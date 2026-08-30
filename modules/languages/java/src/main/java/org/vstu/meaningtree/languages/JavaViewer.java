@@ -213,6 +213,8 @@ public class JavaViewer extends LanguageViewer {
         registerRenderer(PackageDeclaration.class, this::toStringPackageDeclaration);
         registerRenderer(ClassDeclaration.class, this::toStringClassDeclaration);
         registerRenderer(ClassDefinition.class, this::toStringClassDefinition);
+        registerRenderer(InterfaceDeclaration.class, this::toStringInterfaceDeclaration);
+        registerRenderer(InterfaceDefinition.class, this::toStringInterfaceDefinition);
         registerRenderer(EnumDeclaration.class, this::toStringEnumDeclaration);
         registerRenderer(Comment.class, this::toStringComment);
         registerRenderer(BreakStatement.class, this::toStringBreakStatement);
@@ -290,6 +292,7 @@ public class JavaViewer extends LanguageViewer {
         registerUnsupportedFeature(new NonDirectionalRangeForFeature());
         registerUnsupportedFeature(new PointerTypeFeature());
         registerUnsupportedFeature(new ConstInFunctionSignatureFeature());
+        registerUnsupportedFeature(new MultipleInheritanceForJavaFeature());
     }
 
 
@@ -1195,12 +1198,19 @@ public class JavaViewer extends LanguageViewer {
     }
 
     private String toStringMethodDeclaration(MethodDeclaration methodDeclaration) {
+        return toStringMethodSignature(methodDeclaration, false) + ";";
+    }
+
+    private String toStringMethodSignature(MethodDeclaration methodDeclaration, boolean defaultMethod) {
         StringBuilder builder = new StringBuilder();
         builder.append(toStringAnnotations(methodDeclaration.getAnnotations()));
 
         String modifiersList = toString(methodDeclaration.getModifiers());
         if (!modifiersList.isEmpty()) {
             builder.append(modifiersList).append(" ");
+        }
+        if (defaultMethod) {
+            builder.append("default ");
         }
 
         String returnType = toString(methodDeclaration.getReturnType());
@@ -1218,9 +1228,8 @@ public class JavaViewer extends LanguageViewer {
     private String toStringMethodDefinition(MethodDefinition methodDefinition) {
         StringBuilder builder = new StringBuilder();
 
-        // Преобразование типа нужно, чтобы избежать вызова toString(Node node)
-        String methodDeclaration = toString(methodDefinition.getDeclaration());
-        builder.append(methodDeclaration);
+        MethodDeclaration declaration = methodDefinition.getDeclaration();
+        builder.append(toStringMethodSignature(declaration, isDefaultInterfaceMethod(declaration)));
 
         String body = toString(methodDefinition.getBody());
         if (_openBracketOnSameLine)
@@ -1229,6 +1238,15 @@ public class JavaViewer extends LanguageViewer {
             { builder.append("\n").append(indent(body)).append("\n"); }
 
         return builder.toString();
+    }
+
+    private boolean isDefaultInterfaceMethod(MethodDeclaration declaration) {
+        boolean belongsToInterface = declaration.getParentDeclaration() instanceof InterfaceDeclaration
+                || declaration.getOwner() instanceof org.vstu.meaningtree.nodes.types.user.Interface
+                || declaration.getOwner() instanceof GenericInterface;
+        return belongsToInterface
+                && !declaration.getModifiers().contains(DeclarationModifier.STATIC)
+                && !declaration.getModifiers().contains(DeclarationModifier.PRIVATE);
     }
 
     private String toStringContinueStatement(ContinueStatement stmt) {
@@ -1313,10 +1331,45 @@ public class JavaViewer extends LanguageViewer {
         }
 
         String result = modifiers + "class " + toString(decl.getName());
-        if (!decl.getParents().isEmpty()) {
-            result += " extends " + toString(decl.getParents().getFirst());
+        List<Type> interfaces = decl.getParents().stream().filter(this::isInterfaceType).toList();
+        List<Type> classes = decl.getParents().stream().filter(parent -> !isInterfaceType(parent)).toList();
+        if (!classes.isEmpty()) {
+            result += " extends " + toString(classes.getFirst());
+        }
+        if (!interfaces.isEmpty()) {
+            result += " implements " + interfaces.stream().map(this::toString).collect(Collectors.joining(", "));
         }
         return result;
+    }
+
+    private String toStringInterfaceDeclaration(InterfaceDeclaration declaration) {
+        String modifiers = toString(declaration.getModifiers());
+        String result = (modifiers.isEmpty() ? "" : modifiers + " ")
+                + "interface " + toString(declaration.getName());
+        if (!declaration.getParents().isEmpty()) {
+            result += " extends " + declaration.getParents().stream()
+                    .map(this::toString)
+                    .collect(Collectors.joining(", "));
+        }
+        return result;
+    }
+
+    private boolean isInterfaceType(Type type) {
+        if (type instanceof org.vstu.meaningtree.nodes.types.user.Interface
+                || type instanceof GenericInterface) {
+            return true;
+        }
+        if (origin == null) {
+            return false;
+        }
+        for (var info : origin) {
+            if (info.node() instanceof InterfaceDefinition definition
+                    && definition.getDeclaration().getName().internalRepresentation()
+                    .equals(type.internalRepresentation())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -1379,6 +1432,19 @@ public class JavaViewer extends LanguageViewer {
         else
         { builder.append("\n").append(indent(body)); }
 
+        return builder.toString();
+    }
+
+    private String toStringInterfaceDefinition(InterfaceDefinition definition) {
+        StringBuilder builder = new StringBuilder();
+        builder.append(toStringAnnotations(definition.getDeclaration().getAnnotations()));
+        builder.append(toString(definition.getDeclaration()));
+        String body = toString(definition.getBody());
+        if (_openBracketOnSameLine) {
+            builder.append(" ").append(body);
+        } else {
+            builder.append("\n").append(indent(body));
+        }
         return builder.toString();
     }
 
