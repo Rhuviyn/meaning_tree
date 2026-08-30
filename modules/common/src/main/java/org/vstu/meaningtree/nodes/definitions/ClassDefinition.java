@@ -28,7 +28,21 @@ public class ClassDefinition extends Definition {
     }
 
     public List<Node> getMethods() {
-        return Arrays.stream(body.getNodes()).filter((Node node) -> node instanceof MethodDeclaration).collect(Collectors.toList());
+        return Arrays.stream(body.getNodes())
+                .filter(node -> node instanceof MethodDeclaration || node instanceof MethodDefinition)
+                .collect(Collectors.toList());
+    }
+
+    public List<MethodDeclaration> getAbstractMethods() {
+        return Arrays.stream(body.getNodes())
+                .map(node -> switch (node) {
+                    case MethodDeclaration declaration -> declaration;
+                    case MethodDefinition definition -> definition.getDeclaration();
+                    default -> null;
+                })
+                .filter(Objects::nonNull)
+                .filter(method -> method.getModifiers().contains(DeclarationModifier.ABSTRACT))
+                .toList();
     }
 
     public List<Node> getAllNodes() {

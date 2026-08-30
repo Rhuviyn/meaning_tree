@@ -5,6 +5,7 @@ public enum DeclarationModifier {
     PRIVATE,
     PROTECTED,
     ABSTRACT,
+    VIRTUAL,
     CONST,
     STATIC,
 }

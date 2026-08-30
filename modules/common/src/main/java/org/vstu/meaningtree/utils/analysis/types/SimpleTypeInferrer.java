@@ -650,6 +650,9 @@ public class SimpleTypeInferrer {
             case PackageDeclaration packageDeclaration -> {} // do nothing
             // объявление перечисления не вводит переменных, выводить нечего
             case EnumDeclaration enumDeclaration -> {}
+            // Сигнатуры функций/методов и объявления типов уже содержат явные типы.
+            case FunctionDeclaration functionDeclaration -> {}
+            case ClassDeclaration classDeclaration -> {}
             default -> throw new IllegalStateException("Unexpected declaration type: " + declaration.getClass());
         }
     }

@@ -43,8 +43,7 @@ public abstract class Declaration extends Node {
     }
 
     public void addModifiers(DeclarationModifier ... modifiers) {
-        for (DeclarationModifier mod : modifiers) {
-            this.modifiers.add(mod);
-        }
+        this.modifiers = new ArrayList<>(this.modifiers);
+        this.modifiers.addAll(List.of(modifiers));
     }
 }

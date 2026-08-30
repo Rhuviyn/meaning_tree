@@ -337,6 +337,7 @@ export type DeclarationModifier =
     | "private"
     | "protected"
     | "abstract"
+    | "virtual"
     | "const"
     | "static";
 
@@ -1059,9 +1060,14 @@ export interface ShapeNode extends NodeBase<"shape"> {
     dimensions: Array<AnyNode | null>;
 }
 
-/** Пользовательский тип: `user_type`, `class_type`, `enum_type`, `structure_type`. */
+/**
+ * Пользовательский тип: `user_type`, `class_type`, `interface_type`, `enum_type`,
+ * `structure_type`.
+ */
 export interface UserTypeNode
-    extends TypeBase<"user_type" | "class_type" | "enum_type" | "structure_type"> {
+    extends TypeBase<
+        "user_type" | "class_type" | "interface_type" | "enum_type" | "structure_type"
+    > {
     name: AnyNode;
 }
 
@@ -1131,9 +1137,18 @@ export interface DefinitionNode<T extends string> extends NodeBase<T> {
 }
 
 export type ClassDefinitionNode = DefinitionNode<"class_definition">;
+/** Определение интерфейса. */
+export interface InterfaceDefinitionNode extends DefinitionNode<"interface_definition"> {
+    declaration: InterfaceDeclarationNode;
+    body: CompoundStatementNode;
+}
 export type StructureDefinitionNode = DefinitionNode<"structure_definition">;
 export type ObjectConstructorDefinitionNode = DefinitionNode<"object_constructor_definition">;
 export type ObjectDestructorDefinitionNode = DefinitionNode<"object_destructor_definition">;
+/**
+ * Определение метода. Внутри `InterfaceDefinitionNode` наличие этого узла означает
+ * default-метод; отдельного значения `default` в `DeclarationModifier` нет.
+ */
 export type MethodDefinitionNode = DefinitionNode<"method_definition">;
 export type FunctionDefinitionNode = DefinitionNode<"function_definition">;
 
@@ -1167,8 +1182,10 @@ export interface AnnotationNode extends NodeBase<"annotation"> {
     arguments: AnyNode[];
 }
 
-export interface ClassDeclarationNode
-    extends NodeBase<"class_declaration" | "structure_declaration"> {
+export interface ClassDeclarationNode<
+    T extends "class_declaration" | "structure_declaration" | "interface_declaration" =
+        "class_declaration" | "structure_declaration"
+> extends NodeBase<T> {
     modifiers: DeclarationModifier[];
     name: AnyNode;
     /** Базовые классы/интерфейсы. */
@@ -1178,6 +1195,9 @@ export interface ClassDeclarationNode
     type_node: AnyType;
     annotations: AnnotationNode[];
 }
+
+/** Объявление интерфейса; по структуре наследует формат объявления класса. */
+export type InterfaceDeclarationNode = ClassDeclarationNode<"interface_declaration">;
 
 export interface EnumDeclarationNode extends NodeBase<"enum_declaration"> {
     modifiers: DeclarationModifier[];
@@ -1195,7 +1215,8 @@ export interface EnumDeclarationNode extends NodeBase<"enum_declaration"> {
 
 /**
  * Объявление метода. У `object_constructor_declaration` и
- * `object_destructor_declaration` поле `return_type` отсутствует.
+ * `object_destructor_declaration` поле `return_type` отсутствует. Непосредственный
+ * `MethodDeclarationNode` в теле интерфейса является абстрактным методом.
  */
 export interface MethodDeclarationNode
     extends NodeBase<
@@ -1435,12 +1456,14 @@ export type NodeTypeName =
     | "unknown_type"
     | "user_type"
     | "class_type"
+    | "interface_type"
     | "enum_type"
     | "structure_type"
     | "generic_class_type"
     | "generic_structure_type"
     // Определения
     | "class_definition"
+    | "interface_definition"
     | "structure_definition"
     | "object_constructor_definition"
     | "object_destructor_definition"
@@ -1451,6 +1474,7 @@ export type NodeTypeName =
     | "declaration_argument"
     | "annotation"
     | "class_declaration"
+    | "interface_declaration"
     | "structure_declaration"
     | "enum_declaration"
     | "object_constructor_declaration"
@@ -1609,6 +1633,7 @@ export type AnyNode =
     | ShapeNode
     // Объявления и определения
     | ClassDefinitionNode
+    | InterfaceDefinitionNode
     | StructureDefinitionNode
     | ObjectConstructorDefinitionNode
     | ObjectDestructorDefinitionNode
@@ -1618,6 +1643,7 @@ export type AnyNode =
     | DeclarationArgumentNode
     | AnnotationNode
     | ClassDeclarationNode
+    | InterfaceDeclarationNode
     | EnumDeclarationNode
     | MethodDeclarationNode
     | FunctionDeclarationNode

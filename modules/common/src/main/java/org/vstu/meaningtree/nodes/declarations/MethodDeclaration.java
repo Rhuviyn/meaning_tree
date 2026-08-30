@@ -1,6 +1,5 @@
 package org.vstu.meaningtree.nodes.declarations;
 
-import org.vstu.meaningtree.iterators.utils.TreeNode;
 import org.vstu.meaningtree.nodes.Type;
 import org.vstu.meaningtree.nodes.declarations.components.DeclarationArgument;
 import org.vstu.meaningtree.nodes.enums.DeclarationModifier;
@@ -39,6 +38,10 @@ public class MethodDeclaration extends FunctionDeclaration implements NestedDecl
 
     public UserType getOwner() {
         return owner;
+    }
+
+    public void setOwner(UserType owner) {
+        this.owner = owner;
     }
 
     @Override

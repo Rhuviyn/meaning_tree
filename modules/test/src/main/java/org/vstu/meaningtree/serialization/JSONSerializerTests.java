@@ -189,6 +189,14 @@ public class JSONSerializerTests {
                     }
                 }
                 """));
+        snippets.add(new Snippet("java", "interfaceDefinition", """
+                interface Provider {
+                    int get();
+                    default int fallback() {
+                        return 0;
+                    }
+                }
+                """));
         snippets.add(new Snippet("java", "entryPointClass", """
                 class Main {
                     static int helper(int x) {
@@ -405,6 +413,15 @@ public class JSONSerializerTests {
                 int main() {
                     return 0;
                 }
+                """));
+        snippets.add(new Snippet("c++", "abstractInterfaceDefinition", """
+                class Provider {
+                public:
+                    virtual int get() = 0;
+                    virtual int fallback() {
+                        return 0;
+                    }
+                };
                 """));
         snippets.add(new Snippet("c++", "includes", """
                 #include <iostream>

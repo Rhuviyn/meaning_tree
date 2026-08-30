@@ -575,6 +575,7 @@ public class JsonSerializer implements Serializer<JsonObject> {
             case TupleType t -> serializeTupleType(t);
             case Type t -> serializeType(t);
 
+            case InterfaceDefinition id -> serializeClassDefinition(id);
             case ClassDefinition cd -> serializeClassDefinition(cd);
             case ObjectConstructorDefinition ocd -> serializeObjectConstructorDefinition(ocd);
             case ObjectDestructorDefinition ocdef -> serializeObjectDestructorDefinition(ocdef);
@@ -583,6 +584,7 @@ public class JsonSerializer implements Serializer<JsonObject> {
             case DefinitionArgument defArg -> serializeDefinitionArgument(defArg);
             case DeclarationArgument declarationArgument -> serializeDeclarationArgument(declarationArgument);
             case Annotation anno -> serializeAnnotation(anno);
+            case InterfaceDeclaration interfaceDeclaration -> serializeClassDeclaration(interfaceDeclaration);
             case ClassDeclaration classDeclaration -> serializeClassDeclaration(classDeclaration);
             case EnumDeclaration enumDeclaration -> serializeEnumDeclaration(enumDeclaration);
             case ObjectConstructorDeclaration objectConstructorDefinition -> serializeMethodDeclaration(objectConstructorDefinition);

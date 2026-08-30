@@ -51,6 +51,7 @@ import org.vstu.meaningtree.nodes.types.containers.*;
 import org.vstu.meaningtree.nodes.types.containers.components.Shape;
 import org.vstu.meaningtree.nodes.types.user.GenericClass;
 import org.vstu.meaningtree.nodes.types.user.GenericStructure;
+import org.vstu.meaningtree.nodes.types.user.Interface;
 import org.vstu.meaningtree.nodes.types.user.Structure;
 import org.vstu.meaningtree.utils.TransliterationUtils;
 
@@ -227,6 +228,7 @@ public class JsonNodeTypeClassMapper {
         register("unknown_type", UnknownType.class);
         register("user_type", UserType.class);
         register("class_type", org.vstu.meaningtree.nodes.types.user.Class.class);
+        register("interface_type", Interface.class);
         register("enum_type", org.vstu.meaningtree.nodes.types.user.Enum.class);
         register("structure_type", Structure.class);
         register("generic_class_type", GenericClass.class);
@@ -234,6 +236,7 @@ public class JsonNodeTypeClassMapper {
 
         // Definitions
         register("class_definition", ClassDefinition.class);
+        register("interface_definition", InterfaceDefinition.class);
         register("structure_definition", StructureDefinition.class);
         register("object_constructor_definition", ObjectConstructorDefinition.class);
         register("object_destructor_definition", ObjectDestructorDefinition.class);
@@ -245,6 +248,7 @@ public class JsonNodeTypeClassMapper {
         register("declaration_argument", DeclarationArgument.class);
         register("annotation", Annotation.class);
         register("class_declaration", ClassDeclaration.class);
+        register("interface_declaration", InterfaceDeclaration.class);
         register("structure_declaration", StructureDeclaration.class);
         register("enum_declaration", EnumDeclaration.class);
         register("object_constructor_declaration", ObjectConstructorDeclaration.class);

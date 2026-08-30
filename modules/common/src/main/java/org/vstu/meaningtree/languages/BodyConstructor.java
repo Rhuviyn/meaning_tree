@@ -2,10 +2,7 @@ package org.vstu.meaningtree.languages;
 
 import org.jetbrains.annotations.NotNull;
 import org.vstu.meaningtree.nodes.Node;
-import org.vstu.meaningtree.nodes.declarations.EnumDeclaration;
-import org.vstu.meaningtree.nodes.declarations.FieldDeclaration;
-import org.vstu.meaningtree.nodes.declarations.SeparatedVariableDeclaration;
-import org.vstu.meaningtree.nodes.declarations.VariableDeclaration;
+import org.vstu.meaningtree.nodes.declarations.*;
 import org.vstu.meaningtree.nodes.definitions.ClassDefinition;
 import org.vstu.meaningtree.nodes.definitions.FunctionDefinition;
 import org.vstu.meaningtree.nodes.definitions.MethodDefinition;
@@ -109,6 +106,8 @@ public class BodyConstructor implements Iterable<Node> {
                 for (Node clsComponent : def.getBody().getNodes()) {
                     if (clsComponent instanceof FieldDeclaration field) {
                         field.setParentDeclaration(def.getDeclaration());
+                    } else if (clsComponent instanceof MethodDeclaration method) {
+                        method.setParentDeclaration(def.getDeclaration());
                     } else if (clsComponent instanceof MethodDefinition method) {
                         method.getDeclaration().setParentDeclaration(def.getDeclaration());
                     }

@@ -1196,7 +1196,10 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
                     (Type) deserialize(json.getAsJsonObject("key_type")),
                     (Type) deserialize(json.getAsJsonObject("value_type"))
             );
-            case "user_type", "class", "class_type", "interface", "structure", "enum" -> new org.vstu.meaningtree.nodes.types.user.Class(
+            case "interface", "interface_type" -> new org.vstu.meaningtree.nodes.types.user.Interface(
+                    (Identifier) deserialize(json.getAsJsonObject("name"))
+            );
+            case "user_type", "class", "class_type", "structure", "enum" -> new org.vstu.meaningtree.nodes.types.user.Class(
                     (Identifier) deserialize(json.getAsJsonObject("name"))
             );
             case "structure_type" -> new org.vstu.meaningtree.nodes.types.user.Structure(
@@ -1214,6 +1217,9 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
                 }
                 if (type.equals("generic_structure_type") || type.equals("generic_structure")) {
                     yield new org.vstu.meaningtree.nodes.types.user.GenericStructure(name, templates.toArray(new Type[0]));
+                }
+                if (type.equals("generic_interface")) {
+                    yield new GenericInterface(name, templates.toArray(new Type[0]));
                 }
                 yield new GenericUserType(name, templates.toArray(new Type[0]));
             }
@@ -1290,7 +1296,7 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
                 List<Expression> args = deserializeExpressionList(json.getAsJsonArray("arguments"));
                 yield new Annotation(function, args.toArray(new Expression[0]));
             }
-            case "class_declaration", "structure_declaration" -> {
+            case "class_declaration", "structure_declaration", "interface_declaration" -> {
                 List<DeclarationModifier> modifiers = deserializeModifiers(json.getAsJsonArray("modifiers"));
                 Identifier name = (Identifier) deserialize(json.getAsJsonObject("name"));
                 List<Type> parents = new ArrayList<>();
@@ -1314,6 +1320,11 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
                     yield typeNode == null
                             ? new StructureDeclaration(modifiers, name, typeParams, parents.toArray(new Type[0]))
                             : StructureDeclaration.withTypeNode(modifiers, name, typeParams, typeNode, parents.toArray(new Type[0]));
+                }
+                if (type.equals("interface_declaration")) {
+                    yield typeNode == null
+                            ? new InterfaceDeclaration(modifiers, name, typeParams, parents.toArray(new Type[0]))
+                            : InterfaceDeclaration.withTypeNode(modifiers, name, typeParams, typeNode, parents.toArray(new Type[0]));
                 }
                 yield typeNode == null
                         ? new ClassDeclaration(modifiers, name, typeParams, parents.toArray(new Type[0]))
@@ -1382,6 +1393,10 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
             // Definitions
             case "class_definition" -> new ClassDefinition(
                     (ClassDeclaration) deserialize(json.getAsJsonObject("declaration")),
+                    (CompoundStatement) deserialize(json.getAsJsonObject("body"))
+            );
+            case "interface_definition" -> new InterfaceDefinition(
+                    (InterfaceDeclaration) deserialize(json.getAsJsonObject("declaration")),
                     (CompoundStatement) deserialize(json.getAsJsonObject("body"))
             );
             case "function_definition" -> new FunctionDefinition(
