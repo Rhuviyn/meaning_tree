@@ -1633,6 +1633,12 @@ public class JavaParser extends LanguageParser {
 
         var decl = new VariableDeclaration(type, declarators);
         decl.setAnnotations(annotations);
+
+        if (getCodePiece(node.getChildByFieldName("type")).equals("Scanner")) {
+            ctx.scope.registerVariable(decl);
+            ctx.rejectNode(decl);
+        }
+
         return decl;
     }
 
