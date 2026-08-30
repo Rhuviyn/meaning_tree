@@ -1390,11 +1390,16 @@ public class PythonViewer extends LanguageViewer {
         Expression[] components = formatInput.getFormat().getTemplate().getComponents();
         Expression[] substitutions = formatInput.getValues();
 
-        if (components.length == 1 && components[0] instanceof FormatSpecifier specifier && !specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET)) {
+        if (components.length == 1 && components[0] instanceof FormatSpecifier specifier && !(specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET) && !specifier.assignmentIsSuppressed)) {
             if (specifier.assignmentIsSuppressed) {
-                Optional<Type> type = specifier.getCorrespondingDataType();
-                if (type.isEmpty()) {
-                    throw new UnsupportedViewingException("Data type in scanf() is not simple and cannot be converted.");
+                Optional<Type> type;
+                if (specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET)) {
+                    type = Optional.of(new StringType());
+                } else {
+                    type = specifier.getCorrespondingDataType();
+                    if (type.isEmpty()) {
+                        throw new UnsupportedViewingException("Data type in scanf() is not simple and cannot be converted.");
+                    }
                 }
                 SimpleIdentifier tmpVariable = ctx.makeUniqueIdentifier("tmp");
                 VariableDeclaration tmpDeclaration = new VariableDeclaration(type.get(), tmpVariable);
@@ -1431,8 +1436,7 @@ public class PythonViewer extends LanguageViewer {
                 builder.append(", 16");
             }
 
-            if (!specifier.type.equals(FormatSpecifier.SpecifierType.STRING) &&
-                    !specifier.type.equals(FormatSpecifier.SpecifierType.CHARACTER)) {
+            if (specifier.isInteger() || specifier.isFloating()) {
                 builder.append(")");
             }
         } else {
@@ -1456,16 +1460,22 @@ public class PythonViewer extends LanguageViewer {
 
             builder.append(String.format("%s = input()", userInputVarName));
 
-            iVarIdentifier = ctx.makeUniqueIdentifier(iVarName);
-            iVarName = iVarIdentifier.getName();
-            VariableDeclaration iVarDeclaration = new VariableDeclaration(new IntType(), iVarIdentifier);
-            ctx.scope.registerVariable(iVarDeclaration);
-            builder.append("\n").append(tab.toString()).append(iVarName).append(" = 0");
+            if (components.length > 1
+                    || (components[0] instanceof FormatSpecifier specifier
+                    && specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET)
+                    && !specifier.assignmentIsSuppressed)) {
+                iVarIdentifier = ctx.makeUniqueIdentifier(iVarName);
+                iVarName = iVarIdentifier.getName();
+                VariableDeclaration iVarDeclaration = new VariableDeclaration(new IntType(), iVarIdentifier);
+                ctx.scope.registerVariable(iVarDeclaration);
+                builder.append("\n").append(tab.toString()).append(iVarName).append(" = 0");
+            }
 
             for (Expression component : components) {
-                if (component instanceof FormatSpecifier specifier && !specifier.hasWidth() && !specifier.assignmentIsSuppressed
-                        && !specifier.type.equals(FormatSpecifier.SpecifierType.CHARACTER)
-                        && component != components[components.length - 1]) {
+                if (component instanceof FormatSpecifier specifier && ((specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET) && !specifier.assignmentIsSuppressed)
+                        || (!specifier.hasWidth() && !specifier.assignmentIsSuppressed
+                            && !specifier.type.equals(FormatSpecifier.SpecifierType.CHARACTER)
+                            && component != components[components.length - 1]))) {
                     needsTmpInput = true;
                 }
             }
@@ -1479,7 +1489,7 @@ public class PythonViewer extends LanguageViewer {
 
             for (Expression component : components) {
                 boolean isLastComponent = component == components[components.length - 1];
-                if (component instanceof FormatSpecifier specifier) {
+                if (component instanceof FormatSpecifier specifier && !(isLastComponent && specifier.assignmentIsSuppressed)) {
                     String inputVarName = "";
                     if (!specifier.assignmentIsSuppressed) {
                         Expression inputVariable = substitutions[substitutionCounter++];
@@ -1555,11 +1565,7 @@ public class PythonViewer extends LanguageViewer {
                                                             %s\t\tif %s[%s - 1] == 'e' or %s[%s - 1] == 'E':
                                                             %s\t\t\t%s = %s.replace("+", "")
                                                             %s\t\t\t%s = %s.replace("-", "")
-                                                            %s\t\telse:
-                                                            %s\t\t\t%s = %s[:%s]
-                                                            %s\t\t\t%s -= 1
-                                                            %s\t\t\t%s = ""
-                                                            %s\t%s += 1""",
+                                                            %s\t\telse:""",
                                         tab, userInputVarName, iVarName,
                                         tab, dataTypeVarName, dataTypeVarName,
                                         tab, userInputVarName, iVarName, userInputVarName, iVarName,
@@ -1570,12 +1576,24 @@ public class PythonViewer extends LanguageViewer {
                                         tab, userInputVarName, iVarName, userInputVarName, iVarName,
                                         tab, dataTypeVarName, dataTypeVarName,
                                         tab, dataTypeVarName, dataTypeVarName,
-                                        tab,
-                                        tab, tmpInputVarName, tmpInputVarName, iVarName,
+                                        tab
+                                ));
+
+                                builder.append(specifier.assignmentIsSuppressed ? "" : String.format("%s\n\t\t\t%s = %s[:%s]", tab, tmpInputVarName, tmpInputVarName, iVarName));
+
+                                builder.append(String.format("""
+                                        
+                                        %s\t\t\t%s -= 1
+                                        %s\t\t\t%s = ""
+                                        %s\t%s += 1""",
                                         tab, iVarName,
                                         tab, dataTypeVarName,
-                                        tab, iVarName
-                                ));
+                                        tab, iVarName));
+
+                            }
+
+                            if (specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET) && specifier.hasWidth() && !isLastComponent) {
+                                builder.append(String.format("\n%s%s -= len(%s)", tab, iVarName, tmpInputVarName));
                             }
                         }
 
@@ -1583,7 +1601,7 @@ public class PythonViewer extends LanguageViewer {
                             builder.append(String.format("\n%s%s", tab, inputVarName));
 
                             if (specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET)) {
-                                builder.append(String.format(" = %s%s;",
+                                builder.append(String.format(" = %s%s",
                                         tmpInputVarName,
                                         specifier.hasWidth() ? ("[0: " + specifier.width + "]") : ""));
                             }
@@ -1612,11 +1630,16 @@ public class PythonViewer extends LanguageViewer {
                             }
                         }
                         if (!isLastComponent && specifier.hasWidth()) {
-                            builder.append(String.format("\n%s%s += %d",
-                                    tab, iVarName, specifier.width));
+                            if (specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET)) {
+                                builder.append(String.format("\n%s%s += min(%d, len(%s))",
+                                        tab, iVarName, specifier.width, tmpInputVarName));
+                            } else {
+                                builder.append(String.format("\n%s%s += %d",
+                                        tab, iVarName, specifier.width));
+                            }
                         }
                     }
-                } else {
+                } else if (component instanceof StringLiteral && !isLastComponent) {
                     String skipStr = toString(component);
                     builder.append(String.format("""
 

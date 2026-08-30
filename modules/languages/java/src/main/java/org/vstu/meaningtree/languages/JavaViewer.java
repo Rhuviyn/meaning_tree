@@ -433,7 +433,7 @@ public class JavaViewer extends LanguageViewer {
                     switch (exprType) {
                         case StringType ignored -> builder.append(".next()");
                         case IntType ignored -> builder.append(".nextInt()");
-                        case FloatType ignored -> builder.append(".nextDouble()");
+                        case FloatType ignored -> builder.append(".nextFloat()");
                         case CharacterType ignored -> builder.append(".next().charAt(0)");
                         default -> throw new IllegalStateException("Unsupported type in Java input: " + toString(exprType));
                     }
@@ -452,14 +452,19 @@ public class JavaViewer extends LanguageViewer {
         Expression[] components = formatInput.getFormat().getTemplate().getComponents();
         Expression[] substitutions = formatInput.getValues();
 
-        if (components.length == 1 && components[0] instanceof FormatSpecifier specifier && !specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET)) {
+        if (components.length == 1 && components[0] instanceof FormatSpecifier specifier && !(specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET) && !specifier.assignmentIsSuppressed)) {
 
             Expression inputVariable;
 
             if (specifier.assignmentIsSuppressed) {
-                Optional<Type> type = specifier.getCorrespondingDataType();
-                if (type.isEmpty()) {
-                    throw new UnsupportedViewingException("Data type in scanf() is not simple and cannot be converted.");
+                Optional<Type> type;
+                if (specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET)) {
+                    type = Optional.of(new StringType());
+                } else {
+                    type = specifier.getCorrespondingDataType();
+                    if (type.isEmpty()) {
+                        throw new UnsupportedViewingException("Data type in scanf() is not simple and cannot be converted.");
+                    }
                 }
                 SimpleIdentifier tmpVariable = ctx.makeUniqueIdentifier("tmp");
                 VariableDeclaration tmpDeclaration = new VariableDeclaration(type.get(), tmpVariable);
@@ -484,7 +489,7 @@ public class JavaViewer extends LanguageViewer {
                 if (specifier.isInteger()) {
                     builder.append("Integer.parseInt(");
                 } else if (specifier.isFloating()) {
-                    builder.append("Float.parseFloat()");
+                    builder.append("Float.parseFloat(");
                 }
 
                 builder.append(scannerName).append(".next()");
@@ -503,13 +508,12 @@ public class JavaViewer extends LanguageViewer {
                 }
             } else {
                 builder.append(scannerName);
-                Type exprType = ctx.inferType(inputVariable);
-                switch (exprType) {
-                    case StringType ignored -> builder.append(".next()");
-                    case IntType ignored -> builder.append(".nextInt()");
-                    case FloatType ignored -> builder.append(".nextDouble()");
-                    case CharacterType ignored -> builder.append(".next().charAt(0)");
-                    default -> throw new IllegalStateException("Unsupported type in Java input: " + toString(exprType));
+                switch (specifier.type) {
+                    case STRING, SCANSET -> builder.append(".next()");
+                    case DECIMAL -> builder.append(".nextInt()");
+                    case FLOATING, FLOATING_EXP_LOWERCASE, FLOATING_EXP_UPPERCASE -> builder.append(".nextFloat()");
+                    case CHARACTER -> builder.append(".next().charAt(0)");
+                    default -> throw new IllegalStateException("Unsupported specifier type in Java: " + specifier.type);
                 }
             }
         } else {
@@ -533,9 +537,10 @@ public class JavaViewer extends LanguageViewer {
             ctx.getNearestUnfilledViewerBody().appendStringWithIndent(toStringVariableDeclaration(userInputVarDeclaration));
 
             for (Expression component : components) {
-                if (component instanceof FormatSpecifier specifier && !specifier.hasWidth() && !specifier.assignmentIsSuppressed
-                        && !specifier.type.equals(FormatSpecifier.SpecifierType.CHARACTER)
-                        && component != components[components.length - 1]) {
+                if (component instanceof FormatSpecifier specifier && ((specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET) && !specifier.assignmentIsSuppressed)
+                        || (!specifier.hasWidth() && !specifier.assignmentIsSuppressed
+                            && !specifier.type.equals(FormatSpecifier.SpecifierType.CHARACTER)
+                            && component != components[components.length - 1]))) {
                     needsTmpInput = true;
                 }
             }
@@ -550,16 +555,21 @@ public class JavaViewer extends LanguageViewer {
 
             builder.append(userInputVarName).append(" = ").append(scannerName).append(".nextLine();");
 
-            iVarIdentifier = ctx.makeUniqueIdentifier(iVarName);
-            iVarName = iVarIdentifier.getName();
-            VariableDeclaration iVarDeclaration = new VariableDeclaration(new IntType(), iVarIdentifier);
-            ctx.scope.registerVariable(iVarDeclaration);
-            ctx.getNearestUnfilledViewerBody().appendStringWithIndent(toStringVariableDeclaration(iVarDeclaration));
-            builder.append("\n").append(indent(iVarName)).append(" = 0;");
+            if (components.length > 1
+                    || (components[0] instanceof FormatSpecifier specifier
+                    && specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET)
+                    && !specifier.assignmentIsSuppressed)) {
+                iVarIdentifier = ctx.makeUniqueIdentifier(iVarName);
+                iVarName = iVarIdentifier.getName();
+                VariableDeclaration iVarDeclaration = new VariableDeclaration(new IntType(), iVarIdentifier);
+                ctx.scope.registerVariable(iVarDeclaration);
+                ctx.getNearestUnfilledViewerBody().appendStringWithIndent(toStringVariableDeclaration(iVarDeclaration));
+                builder.append("\n").append(indent(iVarName)).append(" = 0;");
+            }
 
             for (Expression component : components) {
                 boolean isLastComponent = component == components[components.length - 1];
-                if (component instanceof FormatSpecifier specifier) {
+                if (component instanceof FormatSpecifier specifier && !(isLastComponent && specifier.assignmentIsSuppressed)) {
                     String inputVarName = "";
                     if (!specifier.assignmentIsSuppressed) {
                         Expression inputVariable = substitutions[substitutionCounter++];
@@ -571,9 +581,7 @@ public class JavaViewer extends LanguageViewer {
 
                     if (specifier.type.equals(FormatSpecifier.SpecifierType.CHARACTER)) {
                         if (specifier.assignmentIsSuppressed) {
-                            if (!isLastComponent) {
-                                builder.append(String.format("\n%s++;", indent(iVarName)));
-                            }
+                            builder.append(String.format("\n%s++;", indent(iVarName)));
                         } else {
                             builder.append(String.format("\n%s = %s.charAt(%s", indent(inputVarName), userInputVarName, iVarName))
                                     .append(isLastComponent ? ");" : "++);");
@@ -619,15 +627,14 @@ public class JavaViewer extends LanguageViewer {
                                         indent("")));
                             }
 
-                            builder.append(String.format("""
-
-                                                        %swhile (%s < %s.length() && %s.indexOf(%s.charAt(%s)) %s= -1) {
-                                                        %s\t%s;""",
+                            builder.append(String.format("\n%swhile (%s < %s.length() && %s.indexOf(%s.charAt(%s)) %s= -1) {",
                                     indent(""), iVarName, userInputVarName, dataTypeVarName, userInputVarName, iVarName,
-                                    (specifier.scanSetIsNegated || specifier.type.equals(FormatSpecifier.SpecifierType.STRING)) ? "=" : "!",
-                                    indent(""), specifier.assignmentIsSuppressed ? (iVarName + "++") :
-                                            (tmpInputVarName + " += " + userInputVarName + ".charAt(" + iVarName +(specifier.isFloating() ? ")" : "++)"))));
-
+                                    (specifier.scanSetIsNegated || specifier.type.equals(FormatSpecifier.SpecifierType.STRING)) ? "=" : "!"));
+                            if (!specifier.assignmentIsSuppressed) {
+                                builder.append(String.format("\n%s += %s.charAt(%s);", indent(tmpInputVarName), userInputVarName, iVarName +(specifier.isFloating() ? "" : "++")));
+                            } else if (!specifier.isFloating()) {
+                                builder.append(indent("\n")).append(iVarName).append("++;");
+                            }
                             if (specifier.isFloating()) {
                                 builder.append(String.format("""
 
@@ -642,7 +649,7 @@ public class JavaViewer extends LanguageViewer {
                                                             %s\t\t\t%s.replace("+", "");
                                                             %s\t\t\t%s.replace("-", "");
                                                             %s\t\t} else {
-                                                            %s\t\t\t%s = %s.substring(0, %s--);
+                                                            %s\t\t\t%s
                                                             %s\t\t\t%s = "";
                                                             %s\t\t}
                                                             %s\t}
@@ -658,7 +665,9 @@ public class JavaViewer extends LanguageViewer {
                                         indent(""), dataTypeVarName,
                                         indent(""), dataTypeVarName,
                                         indent(""),
-                                        indent(""), tmpInputVarName, tmpInputVarName, iVarName,
+                                        indent(""), specifier.assignmentIsSuppressed
+                                                ? iVarName + "--;"
+                                                : String.format("%s = %s.substring(0, %s--);", tmpInputVarName, tmpInputVarName, iVarName),
                                         indent(""), dataTypeVarName,
                                         indent(""),
                                         indent(""),
@@ -666,6 +675,10 @@ public class JavaViewer extends LanguageViewer {
                                 ));
                             }
                             builder.append("\n").append(indent("}"));
+
+                            if (specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET) && specifier.hasWidth() && !isLastComponent) {
+                                builder.append(String.format("\n%s -= %s.length();", indent(iVarName), tmpInputVarName));
+                            }
                         }
 
                         if (!specifier.assignmentIsSuppressed) {
@@ -702,11 +715,16 @@ public class JavaViewer extends LanguageViewer {
                             }
                         }
                         if (!isLastComponent && specifier.hasWidth()) {
-                            builder.append(String.format("\n%s += %d;",
-                                    indent(iVarName), specifier.width));
+                            if (specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET)) {
+                                builder.append(String.format("\n%s += Math.min(%d, %s.length());",
+                                        indent(iVarName), specifier.width, tmpInputVarName));
+                            } else {
+                                builder.append(String.format("\n%s += %d;",
+                                        indent(iVarName), specifier.width));
+                            }
                         }
                     }
-                } else {
+                } else if (component instanceof StringLiteral && !isLastComponent) {
                     String skipStr = toString(component);
                     builder.append(String.format("""
 
@@ -893,13 +911,6 @@ public class JavaViewer extends LanguageViewer {
                         .append(!value.allChildren().isEmpty() ? "(" : "")
                         .append(toString(value))
                         .append(!value.allChildren().isEmpty() ? ")" : "");
-            }
-            builder.deleteCharAt(builder.length() - 1);
-            builder.deleteCharAt(builder.length() - 1);
-
-            if (!printValues.addsNewLine() && printValues.end != null && !((StringLiteral)printValues.end).getUnescapedValue().isEmpty()) {
-                builder.append(", ");
-                builder.append(toString(printValues.end));
             }
         }
         builder.append(")");

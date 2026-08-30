@@ -442,9 +442,9 @@ public class CppViewer extends LanguageViewer {
                             if (specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET) || specifier.hasWidth()) {
                                 isInputSimple = false;
                             }
-                            if (!specifier.hasWidth() && !specifier.assignmentIsSuppressed
+                            if ((specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET) && !specifier.assignmentIsSuppressed) || (!specifier.hasWidth() && !specifier.assignmentIsSuppressed
                                     && !specifier.type.equals(FormatSpecifier.SpecifierType.CHARACTER)
-                                    && component != components[components.length - 1]) {
+                                    && component != components[components.length - 1])) {
                                 needsTmpInput = true;
                             }
                         } else {
@@ -518,8 +518,9 @@ public class CppViewer extends LanguageViewer {
                         builder.append("std::getline(std::cin, ").append(userInputVarName).append(");");
 
                         if (components.length > 1
-                                || !(components[0] instanceof FormatSpecifier specifier)
-                                || specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET)) {
+                                || (components[0] instanceof FormatSpecifier specifier
+                                && specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET)
+                                && !specifier.assignmentIsSuppressed)) {
                             iVarIdentifier = ctx.makeUniqueIdentifier(iVarName);
                             iVarName = iVarIdentifier.getName();
                             VariableDeclaration iVarDeclaration = new VariableDeclaration(new IntType(), iVarIdentifier);
@@ -530,7 +531,7 @@ public class CppViewer extends LanguageViewer {
 
                         for (Expression component : components) {
                             boolean isLastComponent = component == components[components.length - 1];
-                            if (component instanceof FormatSpecifier specifier) {
+                            if (component instanceof FormatSpecifier specifier && !(isLastComponent && specifier.assignmentIsSuppressed)) {
                                 String inputVarName = "";
                                 if (!specifier.assignmentIsSuppressed) {
                                     Expression inputVariable = substitutions[substitutionCounter++];
@@ -542,9 +543,7 @@ public class CppViewer extends LanguageViewer {
 
                                 if (specifier.type.equals(FormatSpecifier.SpecifierType.CHARACTER)) {
                                     if (specifier.assignmentIsSuppressed) {
-                                        if (!isLastComponent) {
-                                            builder.append(String.format("\n%s++;", indent(iVarName)));
-                                        }
+                                        builder.append(String.format("\n%s++;", indent(iVarName)));
                                     } else {
                                         builder.append(String.format("\n%s = %s[%s", indent(inputVarName), userInputVarName, iVarName))
                                                 .append(isLastComponent ? "];" : "++];");
@@ -641,6 +640,10 @@ public class CppViewer extends LanguageViewer {
                                             ));
                                         }
                                         builder.append("\n").append(indent("}"));
+
+                                        if (specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET) && specifier.hasWidth() && !isLastComponent) {
+                                            builder.append(String.format("\n%s -= %s.length();", indent(iVarName), tmpInputVarName));
+                                        }
                                     }
 
                                     if (!specifier.assignmentIsSuppressed) {
@@ -677,11 +680,18 @@ public class CppViewer extends LanguageViewer {
                                         }
                                     }
                                     if (!isLastComponent && specifier.hasWidth()) {
-                                        builder.append(String.format("\n%s += %d;",
-                                                indent(iVarName), specifier.width));
+                                        if (specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET)) {
+                                            ctx.imports().preserveImport(new Include(StringLiteral.fromEscaped("algorithm", StringLiteral.Type.NONE),
+                                                    Include.IncludeType.POINTY_BRACKETS_FORM));
+                                            builder.append(String.format("\n%s += std::min(%d, %s.length());",
+                                                    indent(iVarName), specifier.width, tmpInputVarName));
+                                        } else {
+                                            builder.append(String.format("\n%s += %d;",
+                                                    indent(iVarName), specifier.width));
+                                        }
                                     }
                                 }
-                            } else {
+                            } else if (component instanceof StringLiteral && !isLastComponent) {
                                 String skipStr = toString(component);
                                 builder.append(String.format("""
                                         
@@ -741,8 +751,11 @@ public class CppViewer extends LanguageViewer {
             if (isCMode()) {
                 if (prompt instanceof StringLiteral str) {
                     builder.append(String.format("printf(%s);\n", toStringStringLiteral(str)));
+                } else {
+                    builder.append(String.format("printf(\"%%%s\", %s);\n",
+                            FormatSpecifier.getSpecifierTypeForDataType(ctx.inferType(prompt)).getSymbol(),
+                            toString(prompt)));
                 }
-                builder.append(String.format("printf(\"%%%s\", %s);\n", ctx.inferType(prompt), toString(prompt)));
             } else {
                 builder
                         .append(String.format(
@@ -763,7 +776,7 @@ public class CppViewer extends LanguageViewer {
                 FormatSpecifier.SpecifierType type = FormatSpecifier.getSpecifierTypeForDataType(readInput.type);
                 builder.append(String.format("scanf(\"%%%s\", %s)",
                         type.getSymbol(),
-                        type.equals(FormatSpecifier.SpecifierType.STRING) ? "" : "&" + toString(value)));
+                        (type.equals(FormatSpecifier.SpecifierType.STRING) ? "" : "&") + toString(value)));
             } else {
                 builder.append(String.format("std::cin >> %s", toString(value)));
             }
@@ -1673,8 +1686,12 @@ public class CppViewer extends LanguageViewer {
 
     private String toStringPrint(PrintCommand print) {
         if (isCMode()) {
+            ctx.imports().preserveImport(new Include(StringLiteral.fromEscaped("stdio.h", StringLiteral.Type.NONE),
+                    Include.IncludeType.POINTY_BRACKETS_FORM));
             return toPrintf(print);
         } else {
+            ctx.imports().preserveImport(new Include(StringLiteral.fromEscaped("iostream", StringLiteral.Type.NONE),
+                    Include.IncludeType.POINTY_BRACKETS_FORM));
             return switch (print) {
                 case FormatPrint fmt -> String.format("std::cout << %s", fromStringFormat(fmt.getFormat()));
                 case PrintValues pv -> {
@@ -1706,7 +1723,7 @@ public class CppViewer extends LanguageViewer {
                         return String.format("printf(%s)", toStringStringLiteral(end));
                     } else {
                         return String.format("printf(\"%%%s\", %s)",
-                                FormatSpecifier.getSpecifierTypeForDataType(ctx.inferType(pv.end)),
+                                FormatSpecifier.getSpecifierTypeForDataType(ctx.inferType(pv.end)).getSymbol(),
                                 toString(pv.end));
                     }
                 }
@@ -1721,7 +1738,7 @@ public class CppViewer extends LanguageViewer {
                     if (separatorExpression instanceof StringLiteral sep) {
                         separatorString = sep.getEscapedValue().replace("%", "%%");
                     } else if (separatorIsExpression) {
-                        separatorString = "%" + FormatSpecifier.getSpecifierTypeForDataType(ctx.inferType(separatorExpression));
+                        separatorString = "%" + FormatSpecifier.getSpecifierTypeForDataType(ctx.inferType(separatorExpression)).getSymbol();
                     }
 
                     for (int i = 0; i < arguments.size(); i++) {
@@ -1732,21 +1749,45 @@ public class CppViewer extends LanguageViewer {
                                 completeArguments.add(separatorExpression);
                             }
                         }
-                        formatString.append("%").append(FormatSpecifier.getSpecifierTypeForDataType(ctx.inferType(currentArgument)));
-                        completeArguments.add(currentArgument);
+                        if (currentArgument instanceof StringFormat stringFormat) {
+                            StringBuilder formatPart = new StringBuilder();
+                            int substitutionCounter = 0;
+                            Expression[] substitutions = stringFormat.getSubstitutions();
+                            Expression[] components = stringFormat.getTemplate().getComponents();
+
+                            for (Expression component : components) {
+                                switch (component) {
+                                    case StringLiteral literal -> formatPart.append(literal.getEscapedValue().replace("%", "%%"));
+                                    case FormatSpecifier specifier -> {
+                                        formatPart.append("%").append(specifier.asString());
+                                        if (specifier.isExpression()) {
+                                            Type exprType = ctx.inferType(substitutions[substitutionCounter]);
+                                            formatPart.append(FormatSpecifier.getSpecifierTypeForDataType(exprType).getSymbol());
+                                        }
+                                        substitutionCounter++;
+                                    }
+                                    default -> throw new IllegalArgumentException(String.format("Unexpected node in format string: %s. Only StringLiteral and FormatSpecifier are allowed.", component.getNodeUniqueName()));
+                                }
+                            }
+                            formatString.append(formatPart);
+                            completeArguments.addAll(List.of(substitutions));
+                        } else {
+                            formatString.append("%").append(FormatSpecifier.getSpecifierTypeForDataType(ctx.inferType(currentArgument)).getSymbol());
+                            completeArguments.add(currentArgument);
+                        }
                     }
                     if (pv.end != null) {
                         if (pv.end instanceof StringLiteral end) {
                             formatString.append(end.getEscapedValue().replace("%", "%%"));
                         } else {
-                            formatString.append("%").append(FormatSpecifier.getSpecifierTypeForDataType(ctx.inferType(pv.end)));
+                            formatString.append("%").append(FormatSpecifier.getSpecifierTypeForDataType(ctx.inferType(pv.end)).getSymbol());
                             completeArguments.add(pv.end);
                         }
                     }
                 } else {
                     completeArguments = pv.getCompleteValues();
                     for (Expression expression : completeArguments) {
-                        formatString.append("%").append(FormatSpecifier.getSpecifierTypeForDataType(ctx.inferType(expression)));
+                        formatString.append("%").append(FormatSpecifier.getSpecifierTypeForDataType(ctx.inferType(expression)).getSymbol());
                     }
                 }
                 formatString.append("\"");
@@ -1755,7 +1796,7 @@ public class CppViewer extends LanguageViewer {
             default -> {
                 StringBuilder formatString = new StringBuilder("\"");
                 for (Expression expression : print.getArguments()) {
-                    formatString.append("%").append(FormatSpecifier.getSpecifierTypeForDataType(ctx.inferType(expression)));
+                    formatString.append("%").append(FormatSpecifier.getSpecifierTypeForDataType(ctx.inferType(expression)).getSymbol());
                 }
                 return String.format("printf(%s, %s)", formatString.append("\""), toStringFunctionCallArgumentsList(print.getArguments()));
             }
