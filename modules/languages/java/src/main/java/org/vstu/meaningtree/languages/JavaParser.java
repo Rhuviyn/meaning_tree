@@ -36,6 +36,7 @@ import org.vstu.meaningtree.nodes.expressions.newexpr.ObjectNewExpression;
 import org.vstu.meaningtree.nodes.expressions.other.*;
 import org.vstu.meaningtree.nodes.expressions.unary.*;
 import org.vstu.meaningtree.nodes.interfaces.HasVariableDeclaration;
+import org.vstu.meaningtree.nodes.io.FormatPrint;
 import org.vstu.meaningtree.nodes.io.ReadInput;
 import org.vstu.meaningtree.nodes.io.PrintCommand;
 import org.vstu.meaningtree.nodes.io.PrintValues;
@@ -682,6 +683,14 @@ public class JavaParser extends LanguageParser {
             TSNode tsArgument = argumentsNode.getNamedChild(i);
             Expression argument = (Expression) parseTSNode(tsArgument);
             arguments.add(argument);
+        }
+
+        if (getCodePiece(objectNode).equals("System.out") && (objectMethodName.equals("printf")
+                && argumentsNode.getNamedChild(0).getType().equals("string_literal"))) {
+            String formatString = ((StringLiteral) arguments.removeFirst()).getUnescapedValue();
+            return new FormatPrint(new StringFormat(StringLiteral.Type.NONE,
+                    StringFormatTemplate.fromFormatString(formatString),
+                    arguments.toArray(new Expression[0])));
         }
 
         if (objectNode.isNull()) {
