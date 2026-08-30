@@ -371,9 +371,8 @@ public class CppViewer extends LanguageViewer {
     /* Перевод оператора ввода */
     private String toStringInput(InputCommand inputCommand) {
         StringBuilder builder = new StringBuilder();
-        boolean preferC = getConfigFlag("preferC");
 
-        if (preferC) {
+        if (isCMode()) {
             ctx.preserveImport(new Include(StringLiteral.fromEscaped("stdio.h", StringLiteral.Type.NONE),
                     Include.IncludeType.POINTY_BRACKETS_FORM));
         } else {
@@ -397,7 +396,7 @@ public class CppViewer extends LanguageViewer {
             }
             case AssignInput assignInput -> {
                 String value = toString(assignInput.getValue());
-                if (preferC) {
+                if (isCMode()) {
                     if (assignInput.hasLimitedLength()) {
                         ctx.preserveImport(new Include(StringLiteral.fromEscaped("string.h", StringLiteral.Type.NONE),
                                 Include.IncludeType.POINTY_BRACKETS_FORM));
@@ -426,7 +425,7 @@ public class CppViewer extends LanguageViewer {
                 }
             }
             case FormatInput formatInput -> {
-                if (preferC) {
+                if (isCMode()) {
                     if (formatInput.getValues().length == 0) {
                         return String.format("scanf(%s)", formatInput.getFormatString());
                     }
@@ -707,7 +706,7 @@ public class CppViewer extends LanguageViewer {
                 return builder.toString();
             }
             default -> {
-                if (preferC) {
+                if (isCMode()) {
                     StringBuilder args = new StringBuilder();
                     for (var expr : inputCommand.getArguments()) {
                         FormatSpecifier.SpecifierType type = FormatSpecifier.getSpecifierTypeForDataType(ctx.inferType(expr));
@@ -728,9 +727,8 @@ public class CppViewer extends LanguageViewer {
 
     private String toStringReadInput(ReadInput readInput, Expression value) {
         StringBuilder builder = new StringBuilder();
-        boolean preferC = getConfigFlag("preferC");
 
-        if (preferC) {
+        if (isCMode()) {
             ctx.preserveImport(new Include(StringLiteral.fromEscaped("stdio.h", StringLiteral.Type.NONE),
                     Include.IncludeType.POINTY_BRACKETS_FORM));
         } else {
@@ -740,7 +738,7 @@ public class CppViewer extends LanguageViewer {
 
         if (readInput.hasPrompt()) {
             Expression prompt = readInput.getPrompt();
-            if (preferC) {
+            if (isCMode()) {
                 if (prompt instanceof StringLiteral str) {
                     builder.append(String.format("printf(%s);\n", toStringStringLiteral(str)));
                 }
@@ -755,13 +753,13 @@ public class CppViewer extends LanguageViewer {
         }
 
         if (readInput.readsLine) {
-            if (preferC) {
+            if (isCMode()) {
                 builder.append(String.format("gets(%s)", toString(value)));
             } else {
                 builder.append(String.format("std::getline(std::cin, %s)", toString(value)));
             }
         } else {
-            if (preferC) {
+            if (isCMode()) {
                 FormatSpecifier.SpecifierType type = FormatSpecifier.getSpecifierTypeForDataType(readInput.type);
                 builder.append(String.format("scanf(\"%%%s\", %s)",
                         type.getSymbol(),
@@ -1674,7 +1672,7 @@ public class CppViewer extends LanguageViewer {
     }
 
     private String toStringPrint(PrintCommand print) {
-        if (getConfigFlag("preferC")) {
+        if (isCMode()) {
             return toPrintf(print);
         } else {
             return switch (print) {
@@ -1838,7 +1836,7 @@ public class CppViewer extends LanguageViewer {
     }
 
     private String fromStringFormat(StringFormat stringFormat) {
-        if (getConfigFlag("preferC")) {
+        if (isCMode()) {
             throw new IllegalArgumentException("For C language StringFormat is not supported outside IO expressions.");
         }
 
