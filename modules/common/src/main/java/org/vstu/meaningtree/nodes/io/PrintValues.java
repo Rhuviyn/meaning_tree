@@ -30,6 +30,10 @@ public class PrintValues extends PrintCommand {
         return end != null && end instanceof StringLiteral && ((StringLiteral)end).getUnescapedValue().equals("\n");
     }
 
+    public boolean hasSeparation() {
+        return separator != null && (!(separator instanceof StringLiteral) || !((StringLiteral) separator).getUnescapedValue().isEmpty());
+    }
+
     public int valuesCount() {
         return arguments.size();
     }
@@ -43,11 +47,11 @@ public class PrintValues extends PrintCommand {
 
         for (Expression value : this.getArguments()) {
             complete.add(value);
-            if (separator != null) {
+            if (hasSeparation()) {
                 complete.add(separator);
             }
         }
-        if (separator != null) {
+        if (hasSeparation()) {
             complete.removeLast();
         }
         if (end != null) {
