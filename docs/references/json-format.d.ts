@@ -95,6 +95,11 @@ export interface ScopeTableDocument {
             declaration: ScopeNodeRef;
             definition: ScopeNodeRef;
         }>;
+        /**
+         * Группы перегрузок. Отсутствует в документах, записанных до появления перегрузок;
+         * пустой массив означает, что группы не строились (например, при `skipOptimizations`).
+         */
+        overload_groups?: OverloadGroupEntry[];
     };
     types: {
         declared_types: Array<{
@@ -116,6 +121,24 @@ export interface ScopeTableDocument {
         items: ScopeImportRef[];
     };
     scopes: ScopeEntry[];
+}
+
+/**
+ * Одноимённые callable-сущности, между которыми выбирает разрешение вызова.
+ * Группа существует и для неперегруженного имени — тогда в ней одна декларация.
+ *
+ * Индекс членов типа отдельно не сериализуется: он выводится из групп с непустым `owner`.
+ */
+export interface OverloadGroupEntry {
+    /** Лексическая область группы; для методов и конструкторов — область владельца. */
+    scope_id: ScopeId;
+    /** `Identifier.internalRepresentation()` имени группы. */
+    name: string;
+    kind: "function" | "method" | "constructor";
+    /** Владелец для методов и конструкторов; `null` для свободных функций. */
+    owner?: AnyType | null;
+    /** По одной канонической декларации на каждую уникальную сигнатуру, в порядке объявления. */
+    declarations: ScopeNodeRef[];
 }
 
 /** Одна область видимости (`ScopeTableElement`). */
@@ -403,6 +426,15 @@ export interface NodeCommon {
     labels?: Label[];
     /** Только для `Statement` с меткой перехода (цель для `goto`/`break`/`continue`). */
     jump_label?: JumpLabelNode;
+    /**
+     * Только для мест вызова (`function_call`, `method_call`, `constructor_call`,
+     * `object_new_expression`): `id` декларации, которую вызов вызывает.
+     *
+     * Отсутствует, если вызов разрешить не удалось: вызываемая сущность вне разбираемого
+     * фрагмента либо у перегруженного имени не нашлось единственного подходящего кандидата.
+     * Оба случая штатные, поэтому отсутствие поля не означает потерю данных.
+     */
+    resolved_declaration_id?: AstId;
 }
 
 export interface NodeBase<T extends string = NodeTypeName> extends NodeCommon {

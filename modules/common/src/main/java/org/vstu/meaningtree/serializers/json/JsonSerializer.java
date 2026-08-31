@@ -33,6 +33,7 @@ import org.vstu.meaningtree.nodes.expressions.pointers.PointerMemberAccess;
 import org.vstu.meaningtree.nodes.expressions.pointers.PointerPackOp;
 import org.vstu.meaningtree.nodes.expressions.pointers.PointerUnpackOp;
 import org.vstu.meaningtree.nodes.expressions.unary.*;
+import org.vstu.meaningtree.nodes.interfaces.Callable;
 import org.vstu.meaningtree.nodes.interfaces.NestedDeclaration;
 import org.vstu.meaningtree.nodes.io.*;
 import org.vstu.meaningtree.nodes.memory.MemoryAllocationCall;
@@ -65,6 +66,7 @@ import org.vstu.meaningtree.utils.Label;
 import org.vstu.meaningtree.utils.SourceMap;
 import org.vstu.meaningtree.utils.TransliterationUtils;
 import org.vstu.meaningtree.utils.analysis.expressions.ExpressionValueEstimate;
+import org.vstu.meaningtree.utils.scopes.OverloadGroup;
 import org.vstu.meaningtree.utils.scopes.ScopeTable;
 import org.vstu.meaningtree.utils.scopes.ScopeTableElement;
 import org.vstu.meaningtree.utils.tokens.*;
@@ -162,6 +164,7 @@ public class JsonSerializer implements Serializer<JsonObject> {
             definitions.add(item);
         }
         symbols.add("definitions", definitions);
+        symbols.add("overload_groups", serializeOverloadGroups(scopeTable));
         root.add("symbols", symbols);
 
         JsonObject types = new JsonObject();
@@ -195,6 +198,30 @@ public class JsonSerializer implements Serializer<JsonObject> {
         root.add("scopes", serializeScopes(scopeTable));
 
         return root;
+    }
+
+    /**
+     * Группы перегрузок. Индекс членов типа отдельно не пишется: он полностью восстанавливается
+     * из групп, у которых есть владелец, а два независимых представления одного факта неминуемо
+     * разошлись бы.
+     */
+    private JsonArray serializeOverloadGroups(ScopeTable scopeTable) {
+        JsonArray groups = new JsonArray();
+        for (OverloadGroup group : scopeTable.overloadGroups()) {
+            JsonObject item = new JsonObject();
+            item.addProperty("scope_id", group.scopeId());
+            item.add("name", serializeScopeIdentifier(group.name()));
+            item.addProperty("kind", enumToValue(group.kind()));
+            item.add("owner", group.owner() == null ? JsonNull.INSTANCE : serialize(group.owner()));
+
+            JsonArray declarations = new JsonArray();
+            for (FunctionDeclaration declaration : group.declarations()) {
+                declarations.add(serializeScopeNode(declaration));
+            }
+            item.add("declarations", declarations);
+            groups.add(item);
+        }
+        return groups;
     }
 
     private JsonArray serializeScopes(ScopeTable scopeTable) {
@@ -640,6 +667,13 @@ public class JsonSerializer implements Serializer<JsonObject> {
         if (node instanceof Import importNode) {
             importNode.getResolverMetadata()
                     .ifPresent(metadata -> json.add("resolver_metadata", serializeImportResolverMetadata(metadata)));
+        }
+
+        // Ссылка на выбранную перегрузку пишется здесь, а не в сериализаторе каждого вида
+        // вызова: она одинакова для всех Callable и живёт на общем интерфейсе. Отсутствие поля
+        // означает «вызов не разрешён» — законное состояние, а не потерянные данные.
+        if (node instanceof Callable callable && callable.getResolvedDeclaration() != null) {
+            json.addProperty("resolved_declaration_id", callable.getResolvedDeclaration().getId());
         }
 
         return json;

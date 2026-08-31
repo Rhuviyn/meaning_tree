@@ -41,6 +41,7 @@ import org.vstu.meaningtree.nodes.expressions.pointers.PointerMemberAccess;
 import org.vstu.meaningtree.nodes.expressions.pointers.PointerPackOp;
 import org.vstu.meaningtree.nodes.expressions.pointers.PointerUnpackOp;
 import org.vstu.meaningtree.nodes.expressions.unary.*;
+import org.vstu.meaningtree.nodes.interfaces.Callable;
 import org.vstu.meaningtree.nodes.interfaces.HasComputedType;
 import org.vstu.meaningtree.nodes.interfaces.NestedDeclaration;
 import org.vstu.meaningtree.nodes.io.*;
@@ -65,6 +66,7 @@ import org.vstu.meaningtree.nodes.types.containers.components.Shape;
 import org.vstu.meaningtree.serializers.model.Deserializer;
 import org.vstu.meaningtree.utils.*;
 import org.vstu.meaningtree.utils.analysis.expressions.ExpressionValueEstimate;
+import org.vstu.meaningtree.utils.scopes.OverloadKind;
 import org.vstu.meaningtree.utils.scopes.ScopeTable;
 import org.vstu.meaningtree.utils.scopes.ScopeTableElement;
 import org.vstu.meaningtree.utils.tokens.*;
@@ -88,6 +90,13 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
      * на верхний уровень.
      */
     private final Map<MethodDeclaration, Long> pendingOverriddenFrom = new LinkedHashMap<>();
+
+    /**
+     * Отложенные ссылки {@code resolved_declaration_id}. Откладываются по той же причине, что и
+     * {@link #pendingOverriddenFrom}: вызов может встретиться раньше объявления, которое он
+     * вызывает, — как при обращении к функции, объявленной ниже по файлу.
+     */
+    private final Map<Callable, Long> pendingResolvedDeclarations = new LinkedHashMap<>();
     private int deserializeDepth = 0;
 
     public JsonDeserializer() {
@@ -185,7 +194,14 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
                 : null;
     }
 
-    private ScopeTable deserializeScopeTable(JsonObject json) {
+    /**
+     * Восстанавливает таблицу областей видимости.
+     * <p>
+     * Таблица ссылается на узлы дерева по их id, поэтому дерево должно быть разобрано
+     * <b>этим же</b> экземпляром десериализатора и до вызова этого метода: иначе ссылки не с
+     * чем сопоставить. Внутри {@link #deserializeSourceMap} порядок соблюдён.
+     */
+    public ScopeTable deserializeScopeTable(JsonObject json) {
         if (!json.get("type").getAsString().equals("scope_table")) {
             throw new MeaningTreeSerializationException("JSON is not a scope_table");
         }
@@ -235,6 +251,12 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
             scopeTable.registerDefinition(declaration, definition);
         }
 
+        // Старые документы секции не содержат: до появления перегрузок групп не было.
+        // Их отсутствие — это «групп не строили», ровно как при skipOptimizations.
+        for (JsonObject item : arrayObjects(symbols, "overload_groups")) {
+            deserializeOverloadGroup(scopeTable, item);
+        }
+
         JsonObject imports = objectSection(json, "imports");
         String importsFieldName = imports.has("items") ? "items" : "imports";
         for (JsonObject item : arrayObjects(imports, importsFieldName)) {
@@ -247,6 +269,36 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
         }
 
         return scopeTable;
+    }
+
+    /**
+     * Восстанавливает группу перегрузок и вместе с ней индекс членов типа: индекс не пишется в
+     * документ отдельно, потому что полностью выводится из групп с владельцем.
+     */
+    private void deserializeOverloadGroup(ScopeTable scopeTable, JsonObject item) {
+        SimpleIdentifier name = deserializeScopeSimpleIdentifier(item.get("name"));
+        OverloadKind kind = parseEnum(OverloadKind.class, item.get("kind").getAsString());
+
+        UserType owner = null;
+        if (item.has("owner") && !item.get("owner").isJsonNull()) {
+            Type ownerType = resolveScopeType(item.getAsJsonObject("owner"));
+            if (!(ownerType instanceof UserType userType)) {
+                throw new MeaningTreeSerializationException("Overload group owner is not a user type: " + item);
+            }
+            owner = userType;
+        }
+
+        List<FunctionDeclaration> declarations = new ArrayList<>();
+        for (JsonObject declarationItem : arrayObjects(item, "declarations")) {
+            declarations.add(resolveScopeNode(declarationItem, FunctionDeclaration.class));
+        }
+
+        if (owner != null) {
+            for (FunctionDeclaration declaration : declarations) {
+                scopeTable.registerMember(owner, declaration);
+            }
+        }
+        scopeTable.registerOverloadGroup(item.get("scope_id").getAsLong(), name, kind, owner, declarations);
     }
 
     private void restoreScopes(JsonObject json, ScopeTable scopeTable) {
@@ -489,6 +541,7 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
             deserializeDepth--;
             if (deserializeDepth == 0) {
                 flushPendingOverriddenFrom();
+                flushPendingResolvedDeclarations();
             }
         }
     }
@@ -537,6 +590,7 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
 
             restoreParentDeclaration(node, json);
             registerPendingOverriddenFrom(node, json);
+            registerPendingResolvedDeclaration(node, json);
 
             if (node instanceof Expression expression && json.has("value_estimate") && !json.get("value_estimate").isJsonNull()) {
                 expression.setValueEstimate(deserializeExpressionValueEstimate(json.getAsJsonObject("value_estimate")));
@@ -1777,6 +1831,35 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
             }
         }
         pendingOverriddenFrom.clear();
+    }
+
+    private void registerPendingResolvedDeclaration(Node node, JsonObject json) {
+        if (!(node instanceof Callable call)) {
+            return;
+        }
+        JsonElement resolvedId = json.get("resolved_declaration_id");
+        if (resolvedId == null || resolvedId.isJsonNull()) {
+            return;
+        }
+        pendingResolvedDeclarations.put(call, resolvedId.getAsLong());
+    }
+
+    /**
+     * Разрешает {@code resolved_declaration_id} после разбора всего дерева. Если объявление так
+     * и не появилось в {@link #nodeCache} — например, сериализовалось только поддерево вызова, —
+     * ссылка остаётся {@code null}: это то же состояние «не определено», в котором вызов
+     * оказывается при неоднозначном разрешении.
+     */
+    private void flushPendingResolvedDeclarations() {
+        if (pendingResolvedDeclarations.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<Callable, Long> entry : pendingResolvedDeclarations.entrySet()) {
+            if (nodeCache.get(entry.getValue()) instanceof FunctionDeclaration declaration) {
+                entry.getKey().setResolvedDeclaration(declaration);
+            }
+        }
+        pendingResolvedDeclarations.clear();
     }
 
     /**
