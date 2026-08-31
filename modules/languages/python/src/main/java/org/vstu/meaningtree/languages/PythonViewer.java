@@ -57,6 +57,7 @@ import org.vstu.meaningtree.nodes.types.*;
 import org.vstu.meaningtree.nodes.types.builtin.*;
 import org.vstu.meaningtree.nodes.types.containers.*;
 import org.vstu.meaningtree.nodes.types.containers.components.Shape;
+import org.vstu.meaningtree.utils.Label;
 import org.vstu.meaningtree.utils.modules.ImportPathConverter;
 import org.vstu.meaningtree.utils.tokens.OperatorToken;
 
@@ -161,6 +162,31 @@ public class PythonViewer extends LanguageViewer {
         registerUnsupportedFeature(new PointerTypeFeature());
         registerUnsupportedFeature(new ConstInFunctionSignatureFeature());
         registerUnsupportedFeature(FallthroughCaseBlock.class);
+    }
+
+    /**
+     * Вывод групп перегрузок. Группировка локальна для рендерящегося тела, поэтому одинаково
+     * работает и при переводе с разбором исходника, и при генерации из готового дерева.
+     */
+    private final PythonOverloadDispatcher overloadDispatcher = new PythonOverloadDispatcher(this);
+
+    /**
+     * Собирать ли одноимённые определения тела в один диспетчер.
+     * <p>
+     * Зависит от языка, из которого дерево получено. В Java и C++ одноимённые определения — это
+     * перегрузки, и вывести их подряд нельзя: в Python до вызова дожило бы только последнее.
+     * А вот в самом Python второй {@code def} того же имени и означает «живёт последний»,
+     * поэтому там их надо оставить как есть — иначе перевод Python → Python поменял бы смысл
+     * программы, сделав достижимым определение, которое было затенено.
+     * <p>
+     * Дерево неизвестного происхождения считается допускающим перегрузки: метка
+     * {@link Label#ORIGIN} проставляется при разборе и переживает сериализацию, поэтому её
+     * отсутствие означает дерево, собранное программно, а не разобранный Python.
+     */
+    private boolean groupsOverloads() {
+        return origin == null
+                || !origin.hasLabel(Label.ORIGIN)
+                || origin.getLabel(Label.ORIGIN).attributeAsInt() != PythonTranslator.ID;
     }
 
     private <T extends Node> void registerTabRenderer(Class<T> nodeType, ContextualNodeRenderer<T, Tab> renderer) {
@@ -1262,11 +1288,19 @@ public class PythonViewer extends LanguageViewer {
         if (node.getNodes().length == 0) {
             return tab.toString().concat("pass");
         }
+        var overloads = groupsOverloads()
+                ? PythonOverloadDispatcher.plan(List.of(node.getNodes()))
+                : PythonOverloadDispatcher.none();
         var constructor = ctx.viewingIterateBody(node);
         for (Node child : constructor) {
+            if (overloads.suppressed().contains(child.getId())) {
+                continue;
+            }
             StringBuilder builder = new StringBuilder();
             builder.append(tab);
-            if (child instanceof CompoundStatement) {
+            if (overloads.dispatchers().containsKey(child.getId())) {
+                builder.append(overloadDispatcher.render(overloads.dispatchers().get(child.getId()), tab));
+            } else if (child instanceof CompoundStatement) {
                 // Схлопываем лишний таб, так как блоки как самостоятельная сущность в Python не поддерживаются
                 builder.append(toString(child, tab.down().down()));
             } else {
@@ -1281,11 +1315,19 @@ public class PythonViewer extends LanguageViewer {
         if (nodes.isEmpty()) {
             return "pass";
         }
+        var overloads = groupsOverloads()
+                ? PythonOverloadDispatcher.plan(nodes)
+                : PythonOverloadDispatcher.none();
         var constructor = ctx.viewingIterateBody(nodes);
         for (Node child : constructor) {
+            if (overloads.suppressed().contains(child.getId())) {
+                continue;
+            }
             StringBuilder builder = new StringBuilder();
             builder.append(tab);
-            if (child instanceof CompoundStatement) {
+            if (overloads.dispatchers().containsKey(child.getId())) {
+                builder.append(overloadDispatcher.render(overloads.dispatchers().get(child.getId()), tab));
+            } else if (child instanceof CompoundStatement) {
                 // Схлопываем лишний таб, так как блоки как самостоятельная сущность в Python не поддерживаются
                 var result = toString(child, tab.down().down());
                 builder.append(result);
