@@ -1,8 +1,12 @@
 package org.vstu.meaningtree.languages;
 
+import org.jetbrains.annotations.NotNull;
 import org.treesitter.TSNode;
 import org.vstu.meaningtree.nodes.*;
-import org.vstu.meaningtree.nodes.declarations.VariableDeclaration;
+import org.vstu.meaningtree.nodes.declarations.*;
+import org.vstu.meaningtree.nodes.definitions.ClassDefinition;
+import org.vstu.meaningtree.nodes.definitions.FunctionDefinition;
+import org.vstu.meaningtree.nodes.definitions.MethodDefinition;
 import org.vstu.meaningtree.nodes.expressions.Identifier;
 import org.vstu.meaningtree.nodes.expressions.identifiers.SimpleIdentifier;
 import org.vstu.meaningtree.nodes.modules.*;
@@ -430,6 +434,89 @@ public class TranslatorContext {
 
     public BodyConstructor createNodeBody(boolean newScope) {
         return new BodyConstructor(this, newScope);
+    }
+
+    /**
+     * Заносит узел в текущую область видимости по его виду.
+     * <p>
+     * Единственное место, где узел превращается в запись таблицы. Им пользуются и обычное
+     * наполнение тела через {@link BodyConstructor}, и замена уже добавленного узла
+     * ({@link #substituteNode}): разойдись эти два пути, таблица после замены описывала бы
+     * узел не так, как при первичной регистрации.
+     */
+    void registerInScope(@NotNull Node node) {
+        if (node instanceof ClassDefinition def) {
+            for (Node clsComponent : def.getBody().getNodes()) {
+                if (clsComponent instanceof FieldDeclaration field) {
+                    field.setParentDeclaration(def.getDeclaration());
+                } else if (clsComponent instanceof MethodDeclaration method) {
+                    method.setParentDeclaration(def.getDeclaration());
+                } else if (clsComponent instanceof MethodDefinition method) {
+                    method.getDeclaration().setParentDeclaration(def.getDeclaration());
+                }
+            }
+            scope.registerDefinition(def.getDeclaration().getName().getSimpleIdentifierOrThrow(), def);
+        } else if (node instanceof FunctionDefinition def) {
+            scope.registerDefinition(def.getDeclaration().getName().getSimpleIdentifierOrThrow(), def);
+        } else if (node instanceof VariableDeclaration varDecl) {
+            scope.registerVariable(varDecl);
+        } else if (node instanceof SeparatedVariableDeclaration sepDecl) {
+            scope.registerVariable(sepDecl);
+        } else if (node instanceof EnumDeclaration decl) {
+            scope.registerDeclaration(decl.getName().getSimpleIdentifierOrThrow(), decl);
+        } else if (node instanceof Import imprt) {
+            scope.registerImport(imprt);
+        }
+    }
+
+    /**
+     * Убирает из текущей области видимости запись, созданную {@link #registerInScope}.
+     * <p>
+     * Нужна при замене узла: без неё в таблице остаётся объявление, которого в дереве больше
+     * нет. Переменные не удаляются по имени вслепую — удаляется ровно то объявление, которое
+     * регистрировалось, иначе замена одного члена стёрла бы одноимённый из внешней области.
+     */
+    private void unregisterFromScope(@NotNull Node node) {
+        if (node instanceof ClassDefinition def) {
+            scope.removeDeclaration(def.getDeclaration().getName().getSimpleIdentifierOrThrow(), def.getDeclaration());
+        } else if (node instanceof FunctionDefinition def) {
+            scope.removeDeclaration(def.getDeclaration().getName().getSimpleIdentifierOrThrow(), def.getDeclaration());
+        } else if (node instanceof EnumDeclaration decl) {
+            scope.removeDeclaration(decl.getName().getSimpleIdentifierOrThrow(), decl);
+        }
+    }
+
+    /**
+     * Заменяет узел в уже построенном теле, поддерживая таблицу областей видимости в
+     * согласии с деревом.
+     * <p>
+     * Парсеры дорабатывают тело класса после того, как оно собрано: Python превращает функции
+     * в методы, Java — {@code finalize} в деструктор. Прямой {@code CompoundStatement.substitute}
+     * меняет только дерево, и в таблице остаётся исходное объявление: узел, которого в дереве
+     * уже нет, с другим числом параметров и без владельца.
+     *
+     * @param body        тело, в котором заменяется узел; должно быть связано с областью
+     *                    видимости, иначе таблицу обновлять негде
+     * @param index       позиция заменяемого узла
+     * @param replacement узел, который встаёт на его место
+     */
+    public void substituteNode(@NotNull CompoundStatement body, int index, @NotNull Node replacement) {
+        Node previous = body.getNodes()[index];
+        body.substitute(index, replacement);
+
+        OptionalLong scopeId = body.getScopeId();
+        if (scopeId.isEmpty() || scope.findScope(scopeId.getAsLong()).isEmpty()) {
+            return;
+        }
+
+        long previousScopeId = scope.currentScopeId();
+        scope.setCurrentScope(scopeId.getAsLong());
+        try {
+            unregisterFromScope(previous);
+            registerInScope(replacement);
+        } finally {
+            scope.setCurrentScope(previousScopeId);
+        }
     }
 
     public void enterNewScope() {

@@ -254,6 +254,18 @@ public class ScopeTable implements Serializable {
         }
     }
 
+    /**
+     * Убирает объявление из текущей области видимости. Маршрут тот же, что у
+     * {@link #registerDeclaration}: корневая область — глобальный индекс, вложенная — локальный.
+     *
+     * @return {@code true}, если объявление было найдено и удалено
+     */
+    public boolean removeDeclaration(@NotNull SimpleIdentifier name, @NotNull Declaration declaration) {
+        return current.getParent() == null
+                ? symbols.removeDeclaration(name, declaration)
+                : current.removeDeclaration(name, declaration);
+    }
+
     public void registerDefinition(@NotNull SimpleIdentifier name, @NotNull Definition definition) {
         registerDeclaration(name, definition.getDeclaration());
         symbols.registerDefinition(definition.getDeclaration(), definition);

@@ -25,6 +25,11 @@ class SymbolIndex implements Serializable {
         definitions.put(declaration, definition);
     }
 
+    public boolean removeDeclaration(@NotNull SimpleIdentifier name, @NotNull Declaration declaration) {
+        definitions.remove(declaration);
+        return declarations.remove(name, declaration);
+    }
+
     public Optional<Declaration> findDeclaration(@NotNull SimpleIdentifier name,
                                                  @Nullable java.lang.Class<? extends Declaration> clazz) {
         return declarations.findLast(name, clazz);

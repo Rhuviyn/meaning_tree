@@ -125,6 +125,16 @@ public class ScopeTableElement implements Serializable {
         }
     }
 
+    /** Убирает конкретное объявление из этой области видимости. */
+    public boolean removeDeclaration(@NotNull SimpleIdentifier name, @NotNull Declaration declaration) {
+        Type type = ScopeTable.declaredTypeOf(declaration);
+        if (type != null) {
+            typeDeclarations.remove(type);
+            declaredTypes.remove(name);
+        }
+        return localDeclarations.remove(name, declaration);
+    }
+
     public Identifier registerType(@NotNull Identifier name, @NotNull Type type) {
         if (!declaredTypes.containsValue(type)) {
             declaredTypes.put(name, type);

@@ -54,6 +54,27 @@ final class DeclarationBucket implements Serializable {
     }
 
     /**
+     * Убирает конкретное объявление имени.
+     * <p>
+     * Сравнение по ссылке, а не по значению: {@code Node.equals} сравнивает без учёта id,
+     * поэтому удаление «по значению» задело бы одинаковую по содержанию декларацию, которую
+     * никто не просил трогать.
+     *
+     * @return {@code true}, если объявление было найдено и удалено
+     */
+    boolean remove(@NotNull SimpleIdentifier name, @NotNull Declaration declaration) {
+        List<Declaration> declarations = byName.get(name);
+        if (declarations == null) {
+            return false;
+        }
+        boolean removed = declarations.removeIf(existing -> existing == declaration);
+        if (declarations.isEmpty()) {
+            byName.remove(name);
+        }
+        return removed;
+    }
+
+    /**
      * Последняя подходящая декларация имени.
      * <p>
      * Именно последняя, а не первая: до перегрузок хранилище было {@code Map} и повторная

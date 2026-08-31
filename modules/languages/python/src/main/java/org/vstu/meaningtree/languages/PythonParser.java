@@ -644,7 +644,7 @@ public class PythonParser extends LanguageParser {
         for (int i = 0; i < body.getLength(); i++) {
             Node bodyNode = bodyNodes[i];
             if (bodyNode instanceof VariableDeclaration var) {
-                body.substitute(i, var.makeField(List.of(DeclarationModifier.PUBLIC)));
+                ctx.substituteNode(body, i, var.makeField(List.of(DeclarationModifier.PUBLIC)));
             } else if (bodyNode instanceof FunctionDefinition func) {
                 boolean isStatic = false;
                 List<Annotation> anno = new ArrayList<>(func.getDeclaration().getAnnotations());
@@ -681,9 +681,9 @@ public class PythonParser extends LanguageParser {
                         }
                     }
                 }
-                body.substitute(i, PythonSpecialNodeTransformations.detectInstanceReferences(method));
+                ctx.substituteNode(body, i, PythonSpecialNodeTransformations.detectInstanceReferences(method));
             } else {
-                body.substitute(i, bodyNode);
+                ctx.substituteNode(body, i, bodyNode);
             }
         }
 

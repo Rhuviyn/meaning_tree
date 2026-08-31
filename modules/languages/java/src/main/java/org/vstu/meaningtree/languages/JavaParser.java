@@ -893,7 +893,7 @@ public class JavaParser extends LanguageParser {
                         List.of(DeclarationModifier.PUBLIC, DeclarationModifier.STATIC),
                         functionDeclaration.getArguments().toArray(new DeclarationArgument[0])
                 ), function.getBody());
-                classBody.substitute(i, member);
+                ctx.substituteNode(classBody, i, member);
             }
 
             if (member instanceof ObjectConstructorDefinition constructor && !decl.getParents().isEmpty()) {
@@ -915,7 +915,7 @@ public class JavaParser extends LanguageParser {
                     && method.getDeclaration().getReturnType() instanceof NoReturn
                     && !method.getDeclaration().getModifiers().contains(DeclarationModifier.STATIC)) {
                 MethodDeclaration methodDeclaration = method.getDeclaration();
-                classBody.substitute(i, new ObjectDestructorDefinition(
+                ctx.substituteNode(classBody, i, new ObjectDestructorDefinition(
                         owner,
                         methodDeclaration.getName(),
                         methodDeclaration.getAnnotations(),
@@ -967,7 +967,7 @@ public class JavaParser extends LanguageParser {
                         List.of(DeclarationModifier.PUBLIC, DeclarationModifier.STATIC),
                         functionDeclaration.getArguments().toArray(new DeclarationArgument[0])
                 ), function.getBody());
-                body.substitute(i, member);
+                ctx.substituteNode(body, i, member);
             }
             MethodDeclaration method = switch (member) {
                 case MethodDeclaration methodDeclaration -> methodDeclaration;

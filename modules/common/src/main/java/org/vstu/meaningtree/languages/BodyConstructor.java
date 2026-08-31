@@ -2,11 +2,6 @@ package org.vstu.meaningtree.languages;
 
 import org.jetbrains.annotations.NotNull;
 import org.vstu.meaningtree.nodes.Node;
-import org.vstu.meaningtree.nodes.declarations.*;
-import org.vstu.meaningtree.nodes.definitions.ClassDefinition;
-import org.vstu.meaningtree.nodes.definitions.FunctionDefinition;
-import org.vstu.meaningtree.nodes.definitions.MethodDefinition;
-import org.vstu.meaningtree.nodes.modules.Import;
 import org.vstu.meaningtree.nodes.statements.CompoundStatement;
 
 import java.util.ArrayList;
@@ -102,28 +97,7 @@ public class BodyConstructor implements Iterable<Node> {
 
     private void setNodeHook(Node node) {
         if (!ctx.consumeIgnore(node)) {
-            if (node instanceof ClassDefinition def) {
-                for (Node clsComponent : def.getBody().getNodes()) {
-                    if (clsComponent instanceof FieldDeclaration field) {
-                        field.setParentDeclaration(def.getDeclaration());
-                    } else if (clsComponent instanceof MethodDeclaration method) {
-                        method.setParentDeclaration(def.getDeclaration());
-                    } else if (clsComponent instanceof MethodDefinition method) {
-                        method.getDeclaration().setParentDeclaration(def.getDeclaration());
-                    }
-                }
-                ctx.scope.registerDefinition(def.getDeclaration().getName().getSimpleIdentifierOrThrow(), def);
-            } else if (node instanceof FunctionDefinition def) {
-                ctx.scope.registerDefinition(def.getDeclaration().getName().getSimpleIdentifierOrThrow(), def);
-            } else if (node instanceof VariableDeclaration varDecl) {
-                ctx.scope.registerVariable(varDecl);
-            } else if (node instanceof SeparatedVariableDeclaration sepDecl) {
-                ctx.scope.registerVariable(sepDecl);
-            } else if (node instanceof EnumDeclaration decl) {
-                ctx.scope.registerDeclaration(decl.getName().getSimpleIdentifierOrThrow(), decl);
-            } else if (node instanceof Import imprt) {
-                ctx.scope.registerImport(imprt);
-            }
+            ctx.registerInScope(node);
         }
         ctx.processInfer(node);
     }
