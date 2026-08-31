@@ -40,6 +40,10 @@ A new or changed node type is not complete until serializers/deserializers, `@Tr
 
 Before/after baseline workflow and the full `.test` DSL reference (groups, cases, `main`/`alt`/`isolated` blocks, formatting rules) live in [docs/references/conversion-tests.md](docs/references/conversion-tests.md).
 
+## Session Handoff Notes
+
+Work that outlives a session lives in `docs/session-handoff/`: `plans/` (agreed scope of a feature — check for an existing plan before designing one, and update it when implementation proves a premise wrong), `bugs/` (defects found but not fixed: symptom, verified cause with file and line, repro), `ideas/` (proposals that are not yet agreed work). Search it before a task, add to it before finishing one. Descriptions of current behavior go to `docs/references/` instead.
+
 ## Tree-Sitter Guidance
 
 For parser or generator changes, create or reuse a tiny representative code snippet and inspect its tree-sitter tree before mapping it to MeaningTree nodes. This is especially important for ambiguous syntax, declarations, type annotations, loops, pattern-like constructs, and language-specific edge cases.
