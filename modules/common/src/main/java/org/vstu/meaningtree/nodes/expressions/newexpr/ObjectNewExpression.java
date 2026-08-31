@@ -1,14 +1,17 @@
 package org.vstu.meaningtree.nodes.expressions.newexpr;
 
+import org.jetbrains.annotations.Nullable;
 import org.vstu.meaningtree.iterators.utils.TreeNode;
 import org.vstu.meaningtree.nodes.Expression;
 import org.vstu.meaningtree.nodes.Type;
+import org.vstu.meaningtree.nodes.declarations.FunctionDeclaration;
+import org.vstu.meaningtree.nodes.interfaces.Callable;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class ObjectNewExpression extends NewExpression {
+public class ObjectNewExpression extends NewExpression implements Callable {
     @TreeNode private List<Expression> constructorArguments;
 
     public ObjectNewExpression(Type type, Expression... constructorArguments) {
@@ -22,6 +25,36 @@ public class ObjectNewExpression extends NewExpression {
 
     public List<Expression> getConstructorArguments() {
         return constructorArguments;
+    }
+
+    @Override
+    public List<Expression> getArguments() {
+        return constructorArguments;
+    }
+
+    /** Имя вызываемой сущности у создания объекта — сам создаваемый тип. */
+    @Override
+    public Expression getCallableName() {
+        return getType();
+    }
+
+    /**
+     * Конструктор, который вызывает создание объекта; см.
+     * {@link Callable#getResolvedDeclaration()}. Служебная обратная ссылка без
+     * {@code @TreeNode}: конструктор уже присутствует в дереве в своём классе.
+     */
+    @Nullable
+    private FunctionDeclaration resolvedDeclaration;
+
+    @Override
+    @Nullable
+    public FunctionDeclaration getResolvedDeclaration() {
+        return resolvedDeclaration;
+    }
+
+    @Override
+    public void setResolvedDeclaration(@Nullable FunctionDeclaration declaration) {
+        this.resolvedDeclaration = declaration;
     }
 
     // anonymous classes unsupported
@@ -44,6 +77,8 @@ public class ObjectNewExpression extends NewExpression {
     public ObjectNewExpression clone() {
         ObjectNewExpression obj = (ObjectNewExpression) super.clone();
         obj.constructorArguments = new ArrayList<>(constructorArguments.stream().map(Expression::clone).toList());
+        // Клон — это ещё не разобранный вызов: результат прежнего анализа к нему не относится.
+        obj.resolvedDeclaration = null;
         return obj;
     }
 }

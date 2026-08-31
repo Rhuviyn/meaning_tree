@@ -13,6 +13,8 @@ import org.vstu.meaningtree.utils.TreeSitterUtils;
 import org.vstu.meaningtree.utils.analysis.expressions.ExpressionValueEvaluator;
 import org.vstu.meaningtree.utils.analysis.imports.ImportResolver;
 import org.vstu.meaningtree.utils.analysis.loops.LoopIterationAnalyzer;
+import org.vstu.meaningtree.utils.analysis.symbols.OverloadCallResolver;
+import org.vstu.meaningtree.utils.analysis.symbols.OverloadIndexer;
 import org.vstu.meaningtree.utils.analysis.symbols.OverrideResolver;
 import org.vstu.meaningtree.utils.analysis.symbols.SymbolResolver;
 import org.vstu.meaningtree.utils.analysis.types.conversion.TypeConversionAnalyzer;
@@ -21,6 +23,7 @@ import org.vstu.meaningtree.utils.analysis.types.conversion.TypeConversionSemant
 import org.vstu.meaningtree.utils.hooks.HookHandle;
 import org.vstu.meaningtree.utils.hooks.HookOrder;
 import org.vstu.meaningtree.utils.hooks.HookPhase;
+import org.vstu.meaningtree.utils.scopes.OverloadSemantics;
 import org.vstu.meaningtree.utils.scopes.ScopeTable;
 
 import java.util.*;
@@ -100,11 +103,19 @@ abstract public class LanguageParser extends TranslatorComponent {
      * {@code OverrideResolver} заполняет {@code overriddenFrom} у методов; он не зависит от
      * результатов остальных проходов и не влияет на них, поэтому запускается первым, вне жёсткой
      * цепочки данных, описанной выше.
+     * <p>
+     * {@code OverloadIndexer} встроен в ту же цепочку: он наполняет {@code ScopeTable} членами
+     * типов и группами перегрузок, а {@code TypeConversionAnalyzer} этими группами пользуется,
+     * выбирая перегрузку для места вызова. Стоит после {@code SymbolResolver}, потому что
+     * отбор кандидатов опирается на типы, дописанные тем проходом.
      */
     private void runAnalysisPipeline(MeaningTree tree, ScopeTable scope) {
         new OverrideResolver(tree, scope).resolve();
         new SymbolResolver(tree, scope).resolve();
-        typeConversionReport = new TypeConversionAnalyzer(getTypeConversionSemantics()).analyze(tree, scope);
+        new OverloadIndexer(tree, scope, getOverloadSemantics()).index();
+        TypeConversionAnalyzer typeConversionAnalyzer = new TypeConversionAnalyzer(getTypeConversionSemantics());
+        new OverloadCallResolver(tree, scope, typeConversionAnalyzer).resolveAll();
+        typeConversionReport = typeConversionAnalyzer.analyze(tree, scope);
         ExpressionValueEvaluator evaluator = new ExpressionValueEvaluator(tree, scope);
         evaluator.analyze();
         loopIterationAnalyzer.analyze(tree, evaluator);
@@ -138,6 +149,15 @@ abstract public class LanguageParser extends TranslatorComponent {
      */
     protected ImportResolver getImportResolver() {
         return null;
+    }
+
+    /**
+     * Правила языка о перегрузках. По умолчанию — перегрузка по сигнатуре: так устроено
+     * большинство языков, а тот, где одноимённые определения затеняют друг друга,
+     * переопределяет метод.
+     */
+    protected OverloadSemantics getOverloadSemantics() {
+        return OverloadSemantics.bySignature();
     }
 
     /** Language-specific primitive conversion rules; the default uses only common semantics. */

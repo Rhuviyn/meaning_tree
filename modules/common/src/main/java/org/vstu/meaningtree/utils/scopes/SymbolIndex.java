@@ -8,20 +8,17 @@ import org.vstu.meaningtree.nodes.expressions.Identifier;
 import org.vstu.meaningtree.nodes.expressions.identifiers.SimpleIdentifier;
 
 import java.io.Serializable;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 class SymbolIndex implements Serializable {
     @NotNull
-    private final Map<SimpleIdentifier, Declaration> declarations = new HashMap<>();
+    private final DeclarationBucket declarations = new DeclarationBucket();
 
     @NotNull
     private final Map<Declaration, Definition> definitions = new HashMap<>();
 
     public void registerDeclaration(@NotNull SimpleIdentifier name, @NotNull Declaration declaration) {
-        declarations.put(name, declaration);
+        declarations.register(name, declaration);
     }
 
     public void registerDefinition(@NotNull Declaration declaration, @NotNull Definition definition) {
@@ -30,17 +27,16 @@ class SymbolIndex implements Serializable {
 
     public Optional<Declaration> findDeclaration(@NotNull SimpleIdentifier name,
                                                  @Nullable java.lang.Class<? extends Declaration> clazz) {
-        Declaration declaration = declarations.get(name);
-        if (declaration != null && matchesDeclarationClass(declaration, clazz)) {
-            return Optional.of(declaration);
-        }
-        return Optional.empty();
+        return declarations.findLast(name, clazz);
+    }
+
+    public List<Declaration> findDeclarations(@NotNull SimpleIdentifier name,
+                                              @Nullable java.lang.Class<? extends Declaration> clazz) {
+        return declarations.findAll(name, clazz);
     }
 
     public List<Declaration> findDeclaration(@NotNull java.lang.Class<? extends Declaration> clazz) {
-        return declarations.values().stream()
-                .filter(declaration -> matchesDeclarationClass(declaration, clazz))
-                .toList();
+        return declarations.findAll(clazz);
     }
 
     public Optional<Definition> findDefinition(@NotNull Declaration declaration) {
@@ -53,16 +49,11 @@ class SymbolIndex implements Serializable {
                 .toList();
     }
 
-    public Map<Identifier, Declaration> allDeclarations() {
-        return Map.copyOf(new HashMap<Identifier, Declaration>(declarations));
+    public Map<Identifier, List<Declaration>> allDeclarations() {
+        return Map.copyOf(new LinkedHashMap<Identifier, List<Declaration>>(declarations.asMap()));
     }
 
     public Map<Declaration, Definition> allDefinitions() {
         return Map.copyOf(definitions);
-    }
-
-    private static boolean matchesDeclarationClass(@NotNull Declaration declaration,
-                                                   @Nullable java.lang.Class<? extends Declaration> clazz) {
-        return clazz == null || clazz.isAssignableFrom(declaration.getClass());
     }
 }

@@ -62,6 +62,7 @@ import org.vstu.meaningtree.utils.analysis.imports.PythonImportResolver;
 import org.vstu.meaningtree.utils.analysis.types.PythonTypeConversionSemantics;
 import org.vstu.meaningtree.utils.analysis.types.SimpleTypeInferrer;
 import org.vstu.meaningtree.utils.analysis.types.conversion.TypeConversionSemantics;
+import org.vstu.meaningtree.utils.scopes.OverloadSemantics;
 import org.vstu.meaningtree.utils.scopes.ScopeLookupMode;
 
 import java.lang.reflect.InvocationTargetException;
@@ -77,6 +78,17 @@ public class PythonParser extends LanguageParser {
     @Override
     protected TypeConversionSemantics getTypeConversionSemantics() {
         return new PythonTypeConversionSemantics();
+    }
+
+    /**
+     * В Python перегрузок нет: второй {@code def} того же имени связывает имя заново, и первое
+     * определение становится недостижимым. Поэтому одноимённые определения — затенение, а не
+     * группа перегрузок. {@code typing.overload} остаётся вне поддержки: это аннотация для
+     * статической проверки, во время исполнения она диспетчеризацию не создаёт.
+     */
+    @Override
+    protected OverloadSemantics getOverloadSemantics() {
+        return OverloadSemantics.shadowing();
     }
 
     private void configureTsNodeHandlers() {

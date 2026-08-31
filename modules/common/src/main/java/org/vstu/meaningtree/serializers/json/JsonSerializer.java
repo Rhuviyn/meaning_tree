@@ -140,12 +140,17 @@ public class JsonSerializer implements Serializer<JsonObject> {
         root.addProperty("current_scope_id", scopeTable.currentScopeId());
 
         JsonObject symbols = new JsonObject();
+        // Одно имя может нести несколько деклараций (перегрузки), поэтому на имя приходится
+        // столько элементов массива, сколько у него деклараций. Форма элемента не меняется,
+        // и десериализатор читает их тем же циклом, что и раньше.
         JsonArray declarations = new JsonArray();
         for (var entry : scopeTable.allDeclarations().entrySet()) {
-            JsonObject item = new JsonObject();
-            item.add("name", serializeScopeIdentifier(entry.getKey()));
-            item.add("declaration", serializeScopeNode(entry.getValue()));
-            declarations.add(item);
+            for (var declaration : entry.getValue()) {
+                JsonObject item = new JsonObject();
+                item.add("name", serializeScopeIdentifier(entry.getKey()));
+                item.add("declaration", serializeScopeNode(declaration));
+                declarations.add(item);
+            }
         }
         symbols.add("declarations", declarations);
 
@@ -223,10 +228,12 @@ public class JsonSerializer implements Serializer<JsonObject> {
 
             JsonArray declarations = new JsonArray();
             for (var entry : scope.allDeclarations().entrySet()) {
-                JsonObject declaration = new JsonObject();
-                declaration.add("name", serializeScopeIdentifier(entry.getKey()));
-                declaration.add("declaration", serializeScopeNode(entry.getValue()));
-                declarations.add(declaration);
+                for (var scopeDeclaration : entry.getValue()) {
+                    JsonObject declaration = new JsonObject();
+                    declaration.add("name", serializeScopeIdentifier(entry.getKey()));
+                    declaration.add("declaration", serializeScopeNode(scopeDeclaration));
+                    declarations.add(declaration);
+                }
             }
             item.add("declarations", declarations);
 

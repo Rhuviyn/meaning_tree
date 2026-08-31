@@ -6,10 +6,7 @@ import org.vstu.meaningtree.nodes.Declaration;
 import org.vstu.meaningtree.nodes.Definition;
 import org.vstu.meaningtree.nodes.Node;
 import org.vstu.meaningtree.nodes.Type;
-import org.vstu.meaningtree.nodes.declarations.ClassDeclaration;
-import org.vstu.meaningtree.nodes.declarations.EnumDeclaration;
-import org.vstu.meaningtree.nodes.declarations.SeparatedVariableDeclaration;
-import org.vstu.meaningtree.nodes.declarations.VariableDeclaration;
+import org.vstu.meaningtree.nodes.declarations.*;
 import org.vstu.meaningtree.nodes.expressions.Identifier;
 import org.vstu.meaningtree.nodes.expressions.identifiers.SimpleIdentifier;
 import org.vstu.meaningtree.nodes.modules.Import;
@@ -45,6 +42,29 @@ public class ScopeTable implements Serializable {
     @NotNull
     private final Map<Long, ScopeTableElement> scopes;
 
+    /**
+     * Члены пользовательских типов: владелец — имя — все одноимённые декларации.
+     * <p>
+     * Отдельно от лексических областей видимости потому, что метод виден не по вложенности
+     * блоков, а по владельцу: два класса в одной области могут объявлять одноимённые методы,
+     * и это не перегрузка друг друга.
+     */
+    @NotNull
+    private final Map<UserType, Map<SimpleIdentifier, List<FunctionDeclaration>>> members;
+
+    /** Группы перегрузок в порядке построения. */
+    @NotNull
+    private final List<OverloadGroup> overloadGroups;
+
+    /**
+     * Обратный индекс «декларация — её группа».
+     * <p>
+     * Ключи сравниваются по ссылке: {@code Node.equals} сравнивает по значению и без id,
+     * поэтому две одинаковые по значению декларации разных классов схлопнулись бы в один ключ.
+     */
+    @NotNull
+    private final Map<FunctionDeclaration, OverloadGroup> groupByDeclaration;
+
     private long nextScopeId;
 
     /**
@@ -61,6 +81,9 @@ public class ScopeTable implements Serializable {
         this.types = new TypeIndex();
         this.imports = new ImportIndex();
         this.scopes = new LinkedHashMap<>();
+        this.members = new LinkedHashMap<>();
+        this.overloadGroups = new ArrayList<>();
+        this.groupByDeclaration = new IdentityHashMap<>();
         this.nextScopeId = 1;
         this.current = createScope(null, null);
     }
@@ -255,6 +278,31 @@ public class ScopeTable implements Serializable {
         };
     }
 
+    /**
+     * Все одноимённые декларации: перегрузки одного имени в ближайшей области видимости,
+     * где это имя объявлено. Пустой список означает, что имя не найдено.
+     *
+     * @see #findDeclaration(SimpleIdentifier, Class, ScopeLookupMode) одиночный вариант,
+     *      возвращающий последнюю подходящую декларацию
+     */
+    public List<Declaration> findDeclarations(@NotNull SimpleIdentifier name,
+                                              @Nullable Class<? extends Declaration> clazz) {
+        return findDeclarations(name, clazz, ScopeLookupMode.VISIBLE);
+    }
+
+    public List<Declaration> findDeclarations(@NotNull SimpleIdentifier name,
+                                              @Nullable Class<? extends Declaration> clazz,
+                                              @NotNull ScopeLookupMode mode) {
+        return switch (mode) {
+            case CURRENT -> current.findCurrentDeclarations(name, clazz);
+            case GLOBAL -> symbols.findDeclarations(name, clazz);
+            case VISIBLE -> {
+                var local = current.findDeclarations(name, clazz);
+                yield local.isEmpty() ? symbols.findDeclarations(name, clazz) : local;
+            }
+        };
+    }
+
     public List<Declaration> findDeclaration(@NotNull Class<? extends Declaration> clazz) {
         return findDeclaration(clazz, ScopeLookupMode.VISIBLE);
     }
@@ -341,7 +389,78 @@ public class ScopeTable implements Serializable {
         return typeHierarchy().userTypes();
     }
 
-    public Map<Identifier, Declaration> allDeclarations() {
+    /**
+     * Идентификатор корневой области видимости. Она создаётся в конструкторе и существует
+     * всегда, поэтому это безопасная точка отсчёта для деклараций, у которых не нашлось
+     * охватывающего блока.
+     */
+    public long rootScopeId() {
+        return scopes.keySet().iterator().next();
+    }
+
+    /**
+     * Регистрирует член пользовательского типа: метод, конструктор или иную callable-сущность,
+     * принадлежащую владельцу.
+     */
+    public void registerMember(@NotNull UserType owner, @NotNull FunctionDeclaration member) {
+        members.computeIfAbsent(owner, key -> new LinkedHashMap<>())
+                .computeIfAbsent(member.getName(), key -> new ArrayList<>())
+                .add(member);
+    }
+
+    /** Все одноимённые члены владельца в порядке регистрации. */
+    public List<FunctionDeclaration> findMembers(@NotNull UserType owner, @NotNull SimpleIdentifier name) {
+        return List.copyOf(members.getOrDefault(owner, Map.of()).getOrDefault(name, List.of()));
+    }
+
+    /** Все члены владельца в порядке регистрации. */
+    public List<FunctionDeclaration> findMembers(@NotNull UserType owner) {
+        return members.getOrDefault(owner, Map.of()).values().stream()
+                .flatMap(List::stream)
+                .toList();
+    }
+
+    /**
+     * Создаёт и запоминает группу перегрузок. Единственный способ получить
+     * {@link OverloadGroup}: таблица остаётся единственным владельцем групп, поэтому обратный
+     * индекс не может разойтись с их списком.
+     */
+    public OverloadGroup registerOverloadGroup(long scopeId,
+                                               @NotNull SimpleIdentifier name,
+                                               @NotNull OverloadKind kind,
+                                               @Nullable UserType owner,
+                                               @NotNull List<FunctionDeclaration> declarations) {
+        OverloadGroup group = new OverloadGroup(scopeId, name, kind, owner, declarations);
+        overloadGroups.add(group);
+        for (FunctionDeclaration declaration : group.declarations()) {
+            groupByDeclaration.put(declaration, group);
+        }
+        return group;
+    }
+
+    /**
+     * Группа, в которую входит декларация.
+     * <p>
+     * Пусто означает, что группы не строились вовсе — например, при
+     * {@code skipOptimizations}, когда конвейер анализа не выполняется, — а не что декларация
+     * не перегружена: неперегруженное имя тоже образует группу из одного элемента.
+     */
+    public Optional<OverloadGroup> findOverloadGroup(@NotNull FunctionDeclaration declaration) {
+        return Optional.ofNullable(groupByDeclaration.get(declaration));
+    }
+
+    /** Все построенные группы перегрузок. */
+    public List<OverloadGroup> overloadGroups() {
+        return List.copyOf(overloadGroups);
+    }
+
+    /** Группы, в которых имя действительно перегружено, то есть несёт больше одной сигнатуры. */
+    public List<OverloadGroup> overloadedGroups() {
+        return overloadGroups.stream().filter(OverloadGroup::isOverloaded).toList();
+    }
+
+    /** Глобальные декларации: имя — все одноимённые декларации в порядке регистрации. */
+    public Map<Identifier, List<Declaration>> allDeclarations() {
         return symbols.allDeclarations();
     }
 

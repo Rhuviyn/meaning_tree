@@ -42,7 +42,7 @@ public class ScopeTableElement implements Serializable {
     private final Map<SimpleIdentifier, VariableDeclaration> variableDeclarations;
 
     @NotNull
-    private final Map<SimpleIdentifier, Declaration> localDeclarations;
+    private final DeclarationBucket localDeclarations;
 
     @NotNull
     private final Map<Identifier, Type> declaredTypes;
@@ -56,7 +56,7 @@ public class ScopeTableElement implements Serializable {
         this.parent = parent;
         this.variables = new HashMap<>();
         this.variableDeclarations = new HashMap<>();
-        this.localDeclarations = new HashMap<>();
+        this.localDeclarations = new DeclarationBucket();
         this.declaredTypes = new HashMap<>();
         this.typeDeclarations = new HashMap<>();
         setOwner(owner);
@@ -74,8 +74,8 @@ public class ScopeTableElement implements Serializable {
         return id;
     }
 
-    public Map<Identifier, Declaration> allDeclarations() {
-        return Map.copyOf(new HashMap<Identifier, Declaration>(localDeclarations));
+    public Map<Identifier, List<Declaration>> allDeclarations() {
+        return Map.copyOf(new HashMap<Identifier, List<Declaration>>(localDeclarations.asMap()));
     }
 
     public Map<SimpleIdentifier, Type> allVariables() {
@@ -117,7 +117,7 @@ public class ScopeTableElement implements Serializable {
     }
 
     public void registerDeclaration(@NotNull SimpleIdentifier name, @NotNull Declaration decl) {
-        localDeclarations.put(name, decl);
+        localDeclarations.register(name, decl);
         Type type = ScopeTable.declaredTypeOf(decl);
         if (type != null) {
             typeDeclarations.put(type, decl);
@@ -232,11 +232,30 @@ public class ScopeTableElement implements Serializable {
 
     public Optional<Declaration> findCurrentDeclaration(@NotNull SimpleIdentifier name,
                                                         @Nullable Class<? extends Declaration> clazz) {
-        Declaration declaration = localDeclarations.get(name);
-        if (declaration != null && (clazz == null || clazz.isAssignableFrom(declaration.getClass()))) {
-            return Optional.of(declaration);
+        return localDeclarations.findLast(name, clazz);
+    }
+
+    /**
+     * Все одноимённые декларации ближайшей области видимости, в которой имя объявлено.
+     * <p>
+     * Именно ближайшей, а не объединение всех: внутренняя область целиком затеняет имя,
+     * объявленное снаружи, поэтому перегрузки из разных областей в одну группу не сливаются.
+     */
+    public List<Declaration> findDeclarations(@NotNull SimpleIdentifier name,
+                                              @Nullable Class<? extends Declaration> clazz) {
+        var local = findCurrentDeclarations(name, clazz);
+        if (!local.isEmpty()) {
+            return local;
         }
-        return Optional.empty();
+        if (parent != null) {
+            return parent.findDeclarations(name, clazz);
+        }
+        return List.of();
+    }
+
+    public List<Declaration> findCurrentDeclarations(@NotNull SimpleIdentifier name,
+                                                     @Nullable Class<? extends Declaration> clazz) {
+        return localDeclarations.findAll(name, clazz);
     }
 
     public List<Declaration> findDeclaration(@NotNull Class<? extends Declaration> clazz) {
@@ -248,9 +267,7 @@ public class ScopeTableElement implements Serializable {
     }
 
     public List<Declaration> findCurrentDeclaration(@NotNull Class<? extends Declaration> clazz) {
-        return localDeclarations.values().stream()
-                .filter(declaration -> clazz.isAssignableFrom(declaration.getClass()))
-                .toList();
+        return localDeclarations.findAll(clazz);
     }
 
     public Optional<Type> findType(@NotNull Identifier name) {
