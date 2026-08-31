@@ -10,6 +10,8 @@ import org.vstu.meaningtree.nodes.expressions.Literal;
 import org.vstu.meaningtree.nodes.expressions.ParenthesizedExpression;
 import org.vstu.meaningtree.nodes.expressions.UnaryExpression;
 import org.vstu.meaningtree.nodes.expressions.bitwise.InversionOp;
+import org.vstu.meaningtree.nodes.expressions.calls.ConstructorCall;
+import org.vstu.meaningtree.nodes.expressions.calls.FunctionCall;
 import org.vstu.meaningtree.nodes.expressions.comparison.BinaryComparison;
 import org.vstu.meaningtree.nodes.expressions.comparison.CompoundComparison;
 import org.vstu.meaningtree.nodes.expressions.identifiers.SimpleIdentifier;
@@ -474,6 +476,10 @@ public class SimpleTypeInferrer {
             case CompoundComparison compoundComparison -> inference(compoundComparison, scope);
             case TernaryOperator ternaryOperator -> inference(ternaryOperator, scope);
             case Range range -> inference(range, scope);
+            case CastTypeExpression cast -> cast.getCastType();
+            case ConstructorCall constructorCall -> constructorCall.getOwner();
+            case FunctionCall functionCall when functionCall.hasFunctionName() ->
+                    scope.scope().getFunctionReturnType(functionCall.getFunctionName());
             default -> new UnknownType();
             //default -> throw new IllegalStateException("Unexpected expression type: " + expression.getClass());
         };

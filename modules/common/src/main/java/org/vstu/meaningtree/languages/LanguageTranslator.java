@@ -14,6 +14,7 @@ import org.vstu.meaningtree.languages.support.SupportReport;
 import org.vstu.meaningtree.nodes.Node;
 import org.vstu.meaningtree.utils.Experimental;
 import org.vstu.meaningtree.utils.Label;
+import org.vstu.meaningtree.utils.analysis.types.conversion.TypeConversionReport;
 import org.vstu.meaningtree.utils.scopes.ScopeTable;
 import org.vstu.meaningtree.utils.tokens.Token;
 import org.vstu.meaningtree.utils.tokens.TokenGroup;
@@ -50,6 +51,7 @@ public abstract class LanguageTranslator implements Cloneable {
      * {@link #getLatestScopeTable()}.
      */
     private ScopeTable _latestScopeTable = null;
+    private TypeConversionReport _latestTypeConversionReport = null;
 
     private Path _projectRootPath = null;
     private Path _currentFileRelPath = null;
@@ -128,6 +130,14 @@ public abstract class LanguageTranslator implements Cloneable {
         return _latestScopeTable;
     }
 
+    /**
+     * Report produced for the latest successfully parsed tree.
+     * Empty when analysis passes were skipped or no parse has completed yet.
+     */
+    public Optional<TypeConversionReport> getLatestTypeConversionReport() {
+        return Optional.ofNullable(_latestTypeConversionReport);
+    }
+
     /** Таблица последнего успешного разбора. */
     @Nullable
     public ScopeTable getParseScopeTable() {
@@ -143,6 +153,10 @@ public abstract class LanguageTranslator implements Cloneable {
     private void publishParseScopeTable() {
         _parseScopeTable = _language.context().getScopeTable();
         _latestScopeTable = _parseScopeTable;
+    }
+
+    private void publishTypeConversionReport() {
+        _latestTypeConversionReport = _language.getTypeConversionReport().orElse(null);
     }
 
     private void publishRenderScopeTable() {
@@ -338,6 +352,7 @@ public abstract class LanguageTranslator implements Cloneable {
             if (mt != null) {
                 finalizeMeaningTree(mt);
                 publishParseScopeTable();
+                publishTypeConversionReport();
             }
         } finally {
             _language.rollbackContext();

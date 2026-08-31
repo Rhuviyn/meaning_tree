@@ -59,7 +59,9 @@ import org.vstu.meaningtree.nodes.types.user.Class;
 import org.vstu.meaningtree.nodes.types.user.Structure;
 import org.vstu.meaningtree.utils.analysis.imports.ImportResolver;
 import org.vstu.meaningtree.utils.analysis.imports.PythonImportResolver;
+import org.vstu.meaningtree.utils.analysis.types.PythonTypeConversionSemantics;
 import org.vstu.meaningtree.utils.analysis.types.SimpleTypeInferrer;
+import org.vstu.meaningtree.utils.analysis.types.conversion.TypeConversionSemantics;
 import org.vstu.meaningtree.utils.scopes.ScopeLookupMode;
 
 import java.lang.reflect.InvocationTargetException;
@@ -70,6 +72,11 @@ public class PythonParser extends LanguageParser {
     public PythonParser(LanguageTranslator translator) {
         super(translator, new TreeSitterPython());
         configureTsNodeHandlers();
+    }
+
+    @Override
+    protected TypeConversionSemantics getTypeConversionSemantics() {
+        return new PythonTypeConversionSemantics();
     }
 
     private void configureTsNodeHandlers() {

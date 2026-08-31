@@ -69,6 +69,8 @@ import org.vstu.meaningtree.nodes.types.user.GenericClass;
 import org.vstu.meaningtree.nodes.types.user.Structure;
 import org.vstu.meaningtree.utils.analysis.imports.CppImportResolver;
 import org.vstu.meaningtree.utils.analysis.imports.ImportResolver;
+import org.vstu.meaningtree.utils.analysis.types.CppTypeConversionSemantics;
+import org.vstu.meaningtree.utils.analysis.types.conversion.TypeConversionSemantics;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -79,6 +81,11 @@ public class CppParser extends LanguageParser {
     public CppParser(LanguageTranslator translator) {
         super(translator, new TreeSitterCpp());
         configureTsNodeHandlers();
+    }
+
+    @Override
+    protected TypeConversionSemantics getTypeConversionSemantics() {
+        return new CppTypeConversionSemantics();
     }
 
     private void configureTsNodeHandlers() {

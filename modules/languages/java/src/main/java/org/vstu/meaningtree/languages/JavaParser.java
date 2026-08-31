@@ -65,6 +65,8 @@ import org.vstu.meaningtree.nodes.types.user.GenericClass;
 import org.vstu.meaningtree.nodes.types.user.Interface;
 import org.vstu.meaningtree.utils.analysis.imports.ImportResolver;
 import org.vstu.meaningtree.utils.analysis.imports.JavaImportResolver;
+import org.vstu.meaningtree.utils.analysis.types.JavaTypeConversionSemantics;
+import org.vstu.meaningtree.utils.analysis.types.conversion.TypeConversionSemantics;
 import org.vstu.meaningtree.utils.scopes.ScopeLookupMode;
 
 import java.util.*;
@@ -76,6 +78,11 @@ public class JavaParser extends LanguageParser {
         super(translator, new TreeSitterJava());
         _userTypes = new HashMap<>();
         configureTsNodeHandlers();
+    }
+
+    @Override
+    protected TypeConversionSemantics getTypeConversionSemantics() {
+        return new JavaTypeConversionSemantics();
     }
 
     private void configureTsNodeHandlers() {
@@ -1275,8 +1282,11 @@ public class JavaParser extends LanguageParser {
         switch (type) {
             case "integral_type":
                 parsedType = switch(typeName) {
-                    case "char" -> new CharacterType();
-                    case "int", "short", "long", "byte" -> new IntType();
+                    case "char" -> new CharacterType(16);
+                    case "byte" -> new IntType(8);
+                    case "short" -> new IntType(16);
+                    case "int" -> new IntType(32);
+                    case "long" -> new IntType(64);
                     default -> throw new IllegalStateException("Unexpected value: " + typeName);
                 };
                 break;
@@ -1306,7 +1316,7 @@ public class JavaParser extends LanguageParser {
                     case "Float" -> parsedType = new FloatType(32);
                     case "Double" -> parsedType = new FloatType(64);
                     case "Boolean" -> parsedType = new BooleanType();
-                    case "Character" -> parsedType = new CharacterType();
+                    case "Character" -> parsedType = new CharacterType(16);
                     default -> {
                         UserType resolved = resolveDeclaredUserType(typeName);
                         if (resolved != null) {

@@ -15,6 +15,9 @@ import org.vstu.meaningtree.utils.analysis.imports.ImportResolver;
 import org.vstu.meaningtree.utils.analysis.loops.LoopIterationAnalyzer;
 import org.vstu.meaningtree.utils.analysis.symbols.OverrideResolver;
 import org.vstu.meaningtree.utils.analysis.symbols.SymbolResolver;
+import org.vstu.meaningtree.utils.analysis.types.conversion.TypeConversionAnalyzer;
+import org.vstu.meaningtree.utils.analysis.types.conversion.TypeConversionReport;
+import org.vstu.meaningtree.utils.analysis.types.conversion.TypeConversionSemantics;
 import org.vstu.meaningtree.utils.hooks.HookHandle;
 import org.vstu.meaningtree.utils.hooks.HookOrder;
 import org.vstu.meaningtree.utils.hooks.HookPhase;
@@ -49,6 +52,7 @@ abstract public class LanguageParser extends TranslatorComponent {
 
     private final Map<String, HandlerEntry> tsNodeHandlers = new LinkedHashMap<>();
     private final LoopIterationAnalyzer loopIterationAnalyzer = new LoopIterationAnalyzer();
+    private TypeConversionReport typeConversionReport;
 
     public LanguageParser(LanguageTranslator translator, TSLanguage language) {
         super(translator);
@@ -61,10 +65,10 @@ abstract public class LanguageParser extends TranslatorComponent {
     /**
      * Регистрирует конвейер анализа, выполняемый после построения дерева.
      * <p>
-     * Конвейер зарегистрирован одним хуком, а не тремя с разными {@link HookOrder}:
+     * Конвейер зарегистрирован одним хуком, а не набором хуков с разными {@link HookOrder}:
      * приоритет означал бы, что порядок — это политика, которую можно переназначить, а
-     * здесь он жёсткая зависимость по данным (см. {@link #runAnalysisPipeline}). Три
-     * прохода — это одна неделимая единица работы, и включается-выключается она целиком.
+     * здесь он жёсткая зависимость по данным (см. {@link #runAnalysisPipeline}). Проходы
+     * образуют одну неделимую единицу работы и включаются-выключаются целиком.
      * <p>
      * При {@link ConfigParameters#skipOptimizations} хук не регистрируется вовсе, поэтому
      * фаза остаётся пустой и {@code run} выходит из неё без единой аллокации.
@@ -83,7 +87,8 @@ abstract public class LanguageParser extends TranslatorComponent {
      * Проходы анализа в единственно допустимом порядке.
      * <p>
      * {@code SymbolResolver} дописывает типы полей, найденных по присваиваниям вида
-     * {@code self.x = ...} в любом методе класса; этими типами пользуется
+     * {@code self.x = ...} в любом методе класса. Полная таблица символов нужна
+     * {@code TypeConversionAnalyzer}, после чего этими же типами пользуется
      * {@code ExpressionValueEvaluator}; вычисленные им оценки нужны
      * {@code LoopIterationAnalyzer}. Каждому следующему нужен <b>полный</b> результат
      * предыдущего по всему дереву, поэтому проходы нельзя ни переставить, ни слить в один
@@ -99,6 +104,7 @@ abstract public class LanguageParser extends TranslatorComponent {
     private void runAnalysisPipeline(MeaningTree tree, ScopeTable scope) {
         new OverrideResolver(tree, scope).resolve();
         new SymbolResolver(tree, scope).resolve();
+        typeConversionReport = new TypeConversionAnalyzer(getTypeConversionSemantics()).analyze(tree, scope);
         ExpressionValueEvaluator evaluator = new ExpressionValueEvaluator(tree, scope);
         evaluator.analyze();
         loopIterationAnalyzer.analyze(tree, evaluator);
@@ -134,6 +140,15 @@ abstract public class LanguageParser extends TranslatorComponent {
         return null;
     }
 
+    /** Language-specific primitive conversion rules; the default uses only common semantics. */
+    protected TypeConversionSemantics getTypeConversionSemantics() {
+        return TypeConversionSemantics.common();
+    }
+
+    public Optional<TypeConversionReport> getTypeConversionReport() {
+        return Optional.ofNullable(typeConversionReport);
+    }
+
     public String getCode() {
         return _code;
     }
@@ -142,6 +157,7 @@ abstract public class LanguageParser extends TranslatorComponent {
         _code = "";
         _byteValueTags.clear();
         _tsTreeCache = null;
+        typeConversionReport = null;
         rollbackContext();
     }
 
