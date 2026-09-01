@@ -14,7 +14,10 @@ import org.vstu.meaningtree.languages.support.SupportReport;
 import org.vstu.meaningtree.nodes.Node;
 import org.vstu.meaningtree.utils.Experimental;
 import org.vstu.meaningtree.utils.Label;
+import org.vstu.meaningtree.utils.analysis.imports.ImportResolver;
 import org.vstu.meaningtree.utils.analysis.types.conversion.TypeConversionReport;
+import org.vstu.meaningtree.utils.analysis.types.conversion.TypeConversionSemantics;
+import org.vstu.meaningtree.utils.scopes.OverloadSemantics;
 import org.vstu.meaningtree.utils.scopes.ScopeTable;
 import org.vstu.meaningtree.utils.tokens.Token;
 import org.vstu.meaningtree.utils.tokens.TokenGroup;
@@ -253,6 +256,24 @@ public abstract class LanguageTranslator implements Cloneable {
     protected void clearSourceContext() {
         _projectRootPath = null;
         _currentFileRelPath = null;
+    }
+
+    /**
+     * Языковые правила анализа, которыми параметризуется {@link org.vstu.meaningtree.utils.analysis.AnalysisPipeline}.
+     * Делегируют парсеру этого языка ({@link #_language}): именно там они переопределяются
+     * по языкам, здесь — только публичный фасад, которым может пользоваться код вне пакета
+     * {@code languages}.
+     */
+    public OverloadSemantics getOverloadSemantics() {
+        return _language.getOverloadSemantics();
+    }
+
+    public TypeConversionSemantics getTypeConversionSemantics() {
+        return _language.getTypeConversionSemantics();
+    }
+
+    public @Nullable ImportResolver getImportResolver() {
+        return _language.getImportResolver();
     }
 
     public MeaningTree getMeaningTree(String code) {

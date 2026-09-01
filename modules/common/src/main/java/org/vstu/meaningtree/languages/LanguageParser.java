@@ -10,14 +10,8 @@ import org.vstu.meaningtree.languages.configs.ConfigParameters;
 import org.vstu.meaningtree.nodes.Node;
 import org.vstu.meaningtree.utils.Label;
 import org.vstu.meaningtree.utils.TreeSitterUtils;
-import org.vstu.meaningtree.utils.analysis.expressions.ExpressionValueEvaluator;
+import org.vstu.meaningtree.utils.analysis.AnalysisPipeline;
 import org.vstu.meaningtree.utils.analysis.imports.ImportResolver;
-import org.vstu.meaningtree.utils.analysis.loops.LoopIterationAnalyzer;
-import org.vstu.meaningtree.utils.analysis.symbols.OverloadCallResolver;
-import org.vstu.meaningtree.utils.analysis.symbols.OverloadIndexer;
-import org.vstu.meaningtree.utils.analysis.symbols.OverrideResolver;
-import org.vstu.meaningtree.utils.analysis.symbols.SymbolResolver;
-import org.vstu.meaningtree.utils.analysis.types.conversion.TypeConversionAnalyzer;
 import org.vstu.meaningtree.utils.analysis.types.conversion.TypeConversionReport;
 import org.vstu.meaningtree.utils.analysis.types.conversion.TypeConversionSemantics;
 import org.vstu.meaningtree.utils.hooks.HookHandle;
@@ -54,7 +48,6 @@ abstract public class LanguageParser extends TranslatorComponent {
     }
 
     private final Map<String, HandlerEntry> tsNodeHandlers = new LinkedHashMap<>();
-    private final LoopIterationAnalyzer loopIterationAnalyzer = new LoopIterationAnalyzer();
     private TypeConversionReport typeConversionReport;
 
     public LanguageParser(LanguageTranslator translator, TSLanguage language) {
@@ -87,58 +80,16 @@ abstract public class LanguageParser extends TranslatorComponent {
     }
 
     /**
-     * Проходы анализа в единственно допустимом порядке.
-     * <p>
-     * {@code SymbolResolver} дописывает типы полей, найденных по присваиваниям вида
-     * {@code self.x = ...} в любом методе класса. Полная таблица символов нужна
-     * {@code TypeConversionAnalyzer}, после чего этими же типами пользуется
-     * {@code ExpressionValueEvaluator}; вычисленные им оценки нужны
-     * {@code LoopIterationAnalyzer}. Каждому следующему нужен <b>полный</b> результат
-     * предыдущего по всему дереву, поэтому проходы нельзя ни переставить, ни слить в один
-     * обход.
-     * <p>
-     * Вычислитель выражений создаётся один раз и передаётся дальше: иначе
-     * {@code LoopIterationAnalyzer} заводит на то же дерево второй независимый экземпляр.
-     * <p>
-     * {@code OverrideResolver} заполняет {@code overriddenFrom} у методов; он не зависит от
-     * результатов остальных проходов и не влияет на них, поэтому запускается первым, вне жёсткой
-     * цепочки данных, описанной выше.
-     * <p>
-     * {@code OverloadIndexer} встроен в ту же цепочку: он наполняет {@code ScopeTable} членами
-     * типов и группами перегрузок, а {@code TypeConversionAnalyzer} этими группами пользуется,
-     * выбирая перегрузку для места вызова. Стоит после {@code SymbolResolver}, потому что
-     * отбор кандидатов опирается на типы, дописанные тем проходом.
+     * Строит {@link AnalysisPipeline} этого языка и запускает его на построенном дереве.
+     * Языковые правила и резолвинг импортов конвейер сам берёт у {@code translator}
+     * (см. {@link org.vstu.meaningtree.languages.LanguageTranslator#getOverloadSemantics()} и
+     * соседние методы); здесь только вызов и снятие результата.
      */
     private void runAnalysisPipeline(MeaningTree tree, ScopeTable scope) {
-        new OverrideResolver(tree, scope).resolve();
-        new SymbolResolver(tree, scope).resolve();
-        new OverloadIndexer(tree, scope, getOverloadSemantics()).index();
-        TypeConversionAnalyzer typeConversionAnalyzer = new TypeConversionAnalyzer(getTypeConversionSemantics());
-        new OverloadCallResolver(tree, scope, typeConversionAnalyzer).resolveAll();
-        typeConversionReport = typeConversionAnalyzer.analyze(tree, scope);
-        ExpressionValueEvaluator evaluator = new ExpressionValueEvaluator(tree, scope);
-        evaluator.analyze();
-        loopIterationAnalyzer.analyze(tree, evaluator);
-        resolveImports(tree);
-    }
-
-    /**
-     * Резолвинг импортов стоит последним и отдельно от остальных проходов: у него собственное
-     * условие выполнения — контекст проекта. Это единственный анализ, которому нужна файловая
-     * система, поэтому без {@code projectRootPath}/{@code currentFileRelPath} он просто не
-     * запускается, и узлы остаются без метаданных. Это штатное состояние: перевод одиночного
-     * файла контекста проекта не задаёт.
-     */
-    private void resolveImports(MeaningTree tree) {
-        ImportResolver resolver = getImportResolver();
-        if (resolver == null || !translator.hasSourceContext()) {
-            return;
-        }
-        resolver.resolve(
-                tree,
-                translator.getProjectRootPath().orElseThrow(),
-                translator.getCurrentFileRelPath().orElseThrow()
-        );
+        typeConversionReport = new AnalysisPipeline(tree, scope, translator)
+                .run()
+                .getTypeConversionReport()
+                .orElse(null);
     }
 
     /**
