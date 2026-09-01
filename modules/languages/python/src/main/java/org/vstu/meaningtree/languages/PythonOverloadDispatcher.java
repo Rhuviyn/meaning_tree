@@ -113,16 +113,53 @@ final class PythonOverloadDispatcher {
                 : declarationOf(definition).getName().toString();
     }
 
-    /** Одна ветка диспетчера: конкретное число аргументов и связанная с ним перегрузка. */
+    /**
+     * Одна ветка диспетчера: интервал допустимых чисел аргументов и связанная с ним перегрузка.
+     *
+     * @param arity     число позиционных параметров, стоящих до хвоста; для ветки фиксированной
+     *                  арности это точное число аргументов, для variadic — минимальное
+     * @param unbounded {@code true}, если {@code arity} — нижняя граница, а не точное число
+     * @param typeChecks проверки типов для позиций {@code [0, arity)}; {@code null} на позиции
+     *                  означает тип, не проверяемый во время исполнения
+     * @param tailCheck проверка типа каждого элемента хвоста; только для {@code unbounded}
+     */
     private record Branch(Definition definition,
                           List<DeclarationArgument> parameters,
                           int arity,
                           boolean unbounded,
-                          List<String> typeChecks) {
-        /** Может ли ветка сработать на том же числе аргументов, что и другая. */
+                          List<String> typeChecks,
+                          @Nullable String tailCheck) {
+        /**
+         * Может ли ветка сработать на том же числе аргументов, что и другая: ветка принимает
+         * числа {@code [arity, arity]} либо {@code [arity, +inf)}, пересечение проверяется как у
+         * обычных интервалов.
+         */
         boolean overlaps(Branch other) {
-            return (unbounded ? arity <= other.arity || other.unbounded : false)
-                    || (other.unbounded ? other.arity <= arity : arity == other.arity);
+            int low = Math.max(arity, other.arity);
+            int high = Math.min(unbounded ? Integer.MAX_VALUE : arity,
+                    other.unbounded ? Integer.MAX_VALUE : other.arity);
+            return low <= high;
+        }
+
+        /**
+         * Проверка типа для позиции {@code index} при данном числе аргументов: у variadic-ветки
+         * позиции за пределами {@code arity} проверяются типом элемента хвоста.
+         */
+        @Nullable
+        String checkAt(int index) {
+            if (index < typeChecks.size()) {
+                return typeChecks.get(index);
+            }
+            return unbounded ? tailCheck : null;
+        }
+
+        /** Все проверки, которые ветка обязана уметь выполнить, если она с кем-то пересекается. */
+        List<String> requiredChecks() {
+            List<String> checks = new ArrayList<>(typeChecks);
+            if (unbounded) {
+                checks.add(tailCheck);
+            }
+            return checks;
         }
     }
 
@@ -202,7 +239,11 @@ final class PythonOverloadDispatcher {
             int variadicIndex = variadicIndex(definition, parameters);
 
             if (variadicIndex >= 0) {
-                branches.add(branch(definition, parameters, variadicIndex, true));
+                // Тип пакета берётся из getElementType(): getType() оборачивает элемент в
+                // ArrayType, и хвост проверялся бы по типу контейнера, которого во время
+                // исполнения на этих позициях нет.
+                branches.add(branch(definition, parameters, variadicIndex, true,
+                        pythonTypeName(parameters.get(variadicIndex).getElementType())));
                 continue;
             }
 
@@ -210,27 +251,43 @@ final class PythonOverloadDispatcher {
             // ветка на каждое из них проще и точнее, чем одна ветка с диапазоном.
             int required = requiredCount(parameters);
             for (int arity = required; arity <= parameters.size(); arity++) {
-                branches.add(branch(definition, parameters, arity, false));
+                branches.add(branch(definition, parameters, arity, false, null));
             }
         }
 
-        // Более специфичные ветки должны проверяться раньше: bool в Python — подкласс int,
-        // поэтому isinstance(x, int) истинно и для True, и ветка int перехватила бы bool.
-        branches.sort(Comparator.comparingInt(PythonOverloadDispatcher::specificityPenalty));
+        branches.sort(BRANCH_ORDER);
         return branches;
     }
 
-    private Branch branch(Definition definition, List<DeclarationArgument> parameters, int arity, boolean unbounded) {
+    /**
+     * Порядок проверки веток. Ветка с точной арностью всегда идёт раньше variadic-ветки: и в
+     * Java (JLS 15.12.2, фазы 1-2 до фазы 3), и в C++ вызов, подходящий перегрузке с фиксированным
+     * числом параметров, выбирает именно её, а не пакет. Без этого условие вида
+     * {@code len(args) >= 0} перехватывало бы все вызовы группы, и перегрузки фиксированной
+     * арности стали бы недостижимы.
+     * <p>
+     * Среди variadic-веток раньше идёт та, у которой длиннее фиксированный префикс: она
+     * специфичнее. Среди веток одной арности раньше идёт более специфичная по типам —
+     * {@code bool} в Python подкласс {@code int}, поэтому {@code isinstance(x, int)} истинно и
+     * для {@code True}, и ветка {@code int} перехватила бы {@code bool}.
+     */
+    private static final Comparator<Branch> BRANCH_ORDER = Comparator
+            .comparing(Branch::unbounded)
+            .thenComparingInt(branch -> branch.unbounded() ? -branch.arity() : 0)
+            .thenComparingInt(PythonOverloadDispatcher::specificityPenalty);
+
+    private Branch branch(Definition definition, List<DeclarationArgument> parameters,
+                          int arity, boolean unbounded, @Nullable String tailCheck) {
         List<String> checks = new ArrayList<>();
         for (int index = 0; index < arity; index++) {
             checks.add(pythonTypeName(parameters.get(index).getType()));
         }
-        return new Branch(definition, parameters, arity, unbounded, checks);
+        return new Branch(definition, parameters, arity, unbounded, checks, tailCheck);
     }
 
     private static int specificityPenalty(Branch branch) {
         int penalty = 0;
-        for (String check : branch.typeChecks()) {
+        for (String check : branch.requiredChecks()) {
             if ("int".equals(check)) {
                 penalty++;
             }
@@ -293,6 +350,12 @@ final class PythonOverloadDispatcher {
                 for (int index = 0; index < branch.typeChecks().size(); index++) {
                     condition.add("isinstance(%s[%d], %s)".formatted(ARGS, index, branch.typeChecks().get(index)));
                 }
+                if (branch.unbounded()) {
+                    // Хвост проверяется целиком: без этого variadic-ветка отличалась бы от
+                    // пересекающихся с ней только числом аргументов, которого как раз и не хватает.
+                    condition.add("all(isinstance(element, %s) for element in %s[%d:])"
+                            .formatted(branch.tailCheck(), ARGS, branch.arity()));
+                }
             }
             conditions.put(branch, condition);
         }
@@ -307,7 +370,7 @@ final class PythonOverloadDispatcher {
      * порядок веток выбирает перегрузку произвольно.
      */
     private void requireDistinguishable(Branch branch, List<Branch> colliding) {
-        for (String check : branch.typeChecks()) {
+        for (String check : branch.requiredChecks()) {
             if (check == null) {
                 throw new UnsupportedViewingException(
                         ("Overloads of '%s' take the same number of arguments and one of them has a type that "
@@ -315,13 +378,34 @@ final class PythonOverloadDispatcher {
             }
         }
         for (Branch other : colliding) {
-            if (branch.typeChecks().equals(other.typeChecks())) {
+            if (!distinguishable(branch, other)) {
                 throw new UnsupportedViewingException(
                         ("Overloads of '%s' are indistinguishable in Python: they take the same number of "
                                 + "arguments and their parameter types map to the same Python types")
                                 .formatted(dispatchName(branch.definition())));
             }
         }
+    }
+
+    /**
+     * Можно ли выбрать между двумя пересекающимися ветками, не гадая.
+     * <p>
+     * Ветка точной арности и variadic-ветка различимы всегда: правило исходного языка отдаёт
+     * вызов точной арности, и {@link #BRANCH_ORDER} ставит её раньше. Две ветки одного вида
+     * различимы, только если их проверки типов расходятся хотя бы на одной позиции, которая
+     * может встретиться в общем для них вызове.
+     */
+    private static boolean distinguishable(Branch branch, Branch other) {
+        if (branch.unbounded() != other.unbounded()) {
+            return true;
+        }
+        int positions = Math.max(branch.typeChecks().size(), other.typeChecks().size());
+        for (int index = 0; index < positions; index++) {
+            if (!Objects.equals(branch.checkAt(index), other.checkAt(index))) {
+                return true;
+            }
+        }
+        return !Objects.equals(branch.tailCheck(), other.tailCheck());
     }
 
     /**
