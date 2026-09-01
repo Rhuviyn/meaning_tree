@@ -11,6 +11,7 @@ import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.vstu.meaningtree.languages.LanguageTranslator;
 import org.vstu.meaningtree.languages.SourceMapGenerator;
+import org.vstu.meaningtree.utils.Label;
 import org.vstu.meaningtree.languages.configs.Config;
 import org.vstu.meaningtree.languages.configs.ConfigBuilder;
 import org.vstu.meaningtree.languages.configs.ConfigParameter;
@@ -368,7 +369,7 @@ public class Main {
 
         if (cmd.isNode()) {
             if (cmd.outputSourceMap) {
-                SourceMapGenerator srcMapGen = new SourceMapGenerator(toTranslator);
+                SourceMapGenerator srcMapGen = new SourceMapGenerator(toTranslator, originTranslatorOf(target));
                 var srcMap = srcMapGen.process((Node) target);
                 String srcMapFormat = outputFormat != null ? outputFormat : "json";
                 serializers.apply(srcMapFormat, function -> function.apply(srcMap, cmd.prettify))
@@ -382,7 +383,7 @@ public class Main {
             }
         } else {
             if (cmd.outputSourceMap) {
-                SourceMapGenerator srcMapGen = new SourceMapGenerator(toTranslator);
+                SourceMapGenerator srcMapGen = new SourceMapGenerator(toTranslator, originTranslatorOf(target));
                 var srcMap = srcMapGen.process((MeaningTree) target);
                 String srcMapFormat = outputFormat != null ? outputFormat : "json";
                 serializers.apply(srcMapFormat, function -> function.apply(srcMap, cmd.prettify))
@@ -504,7 +505,7 @@ public class Main {
             }
 
             if (cmd.outputSourceMap) {
-                SourceMapGenerator srcMapGen = new SourceMapGenerator(toTranslator);
+                SourceMapGenerator srcMapGen = new SourceMapGenerator(toTranslator, fromTranslator);
                 var srcMap = srcMapGen.process(meaningTree);
                 serializers.apply("json", function -> function.apply(srcMap, cmd.prettify))
                         .ifPresentOrElse(
@@ -538,6 +539,26 @@ public class Main {
         } catch (IOException e) {
             System.err.println("Error writing output: " + e.getMessage());
         }
+    }
+
+    /**
+     * Транслятор языка, из которого получено дерево, восстановленный по метке
+     * {@link Label#ORIGIN}.
+     * <p>
+     * Нужен {@link SourceMapGenerator} для {@code originScopeTable}: правила видимости и
+     * перегрузок у языка-источника свои, и подставить вместо них правила целевого языка значило
+     * бы описать программу, которой нет. Сам генератор живёт в {@code common} и вывести язык из
+     * метки не может — {@link SupportedLanguage} объявлен здесь, в приложении.
+     *
+     * @return {@code null}, если метки нет или язык по ней неизвестен; тогда таблица источника
+     *         просто не строится
+     */
+    private static LanguageTranslator originTranslatorOf(Object target) {
+        if (!(target instanceof MeaningTree tree) || !tree.hasLabel(Label.ORIGIN)) {
+            return null;
+        }
+        SupportedLanguage language = SupportedLanguage.from(tree.getLabel(Label.ORIGIN).attributeAsInt());
+        return language == null ? null : language.createTranslator().orElse(null);
     }
 
     private static String readCode(String filePath) throws IOException {
