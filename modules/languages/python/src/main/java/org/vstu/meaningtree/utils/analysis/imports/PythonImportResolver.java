@@ -35,6 +35,16 @@ public class PythonImportResolver extends ImportResolver {
         return PythonLibraryImportRegistry.isLibraryModule(dottedName);
     }
 
+    /**
+     * Импорт в Python ищется по {@code sys.path}, где каталог текущего файла идёт первым:
+     * {@code random.py} рядом с исходником перехватывает {@code import random} у стандартной
+     * библиотеки.
+     */
+    @Override
+    protected boolean allowsLocalShadowing() {
+        return true;
+    }
+
     @Override
     protected Optional<Path> exactSearchRoot(MeaningTree tree, Path projectRoot, Path currentFileRelPath) {
         Path directory = currentFileRelPath.getParent() == null

@@ -265,6 +265,63 @@ class ImportResolverTests {
         }
     }
 
+    /**
+     * Поиск модуля в Python идёт по {@code sys.path}, где каталог текущего файла стоит первым,
+     * поэтому {@code random.py} рядом с исходником перехватывает {@code import random} у
+     * стандартной библиотеки. Реестр библиотечных имён проверялся раньше диска, и такой импорт
+     * безусловно объявлялся stdlib.
+     */
+    @Test
+    void pythonLocalModuleShadowsStandardLibrary(@TempDir Path projectRoot) throws IOException {
+        write(projectRoot, "random.py", "def random(): return 4\n");
+        write(projectRoot, "main.py", "");
+
+        List<ImportResolverMetadata> resolved = resolveAll(
+                new PythonTranslator(CONFIG),
+                projectRoot,
+                Path.of("main.py"),
+                "import random"
+        );
+
+        assertEquals(1, resolved.size());
+        assertEquals(ImportKind.LOCAL_RESOLVED_EXACT, resolved.getFirst().kind());
+        assertEquals(projectRoot.resolve("random.py"), resolved.getFirst().resolvedFile().orElseThrow());
+    }
+
+    /** Без затеняющего файла тот же импорт остаётся библиотечным. */
+    @Test
+    void pythonStandardLibraryImportStaysLibraryWithoutAShadowingFile(@TempDir Path projectRoot) throws IOException {
+        write(projectRoot, "main.py", "");
+
+        List<ImportResolverMetadata> resolved = resolveAll(
+                new PythonTranslator(CONFIG),
+                projectRoot,
+                Path.of("main.py"),
+                "import random"
+        );
+
+        assertEquals(ImportKind.LIBRARY, resolved.getFirst().kind());
+    }
+
+    /**
+     * В Java затенения нет: имя пакета абсолютно, и файл {@code java/util/List.java} где-то в
+     * проекте не перехватывает {@code import java.util.List}.
+     */
+    @Test
+    void javaStandardLibraryImportIsNotShadowedByAProjectFile(@TempDir Path projectRoot) throws IOException {
+        write(projectRoot, "src/java/util/List.java", "class List {}");
+        write(projectRoot, "src/Main.java", "");
+
+        List<ImportResolverMetadata> resolved = resolveAll(
+                new JavaTranslator(CONFIG),
+                projectRoot,
+                Path.of("src/Main.java"),
+                "import java.util.List; class Main {}"
+        );
+
+        assertEquals(ImportKind.LIBRARY, resolved.getFirst().kind());
+    }
+
     private List<ImportResolverMetadata> resolveAll(LanguageTranslator translator,
                                                     Path projectRoot,
                                                     Path currentFileRelPath,

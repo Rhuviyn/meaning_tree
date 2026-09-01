@@ -72,18 +72,29 @@ public abstract class ImportResolver {
         if (candidates.isEmpty()) {
             return null;
         }
+
+        Optional<Path> exactRoot = exactSearchRoot(tree, projectRoot, currentFileRelPath);
+        // Точный поиск раньше реестра там, где язык допускает затенение: в Python файл
+        // random.py рядом с текущим делает `import random` обращением к нему, а не к stdlib.
+        // Только точный поиск, не перебор по проекту: одноимённый файл где-то в другом каталоге
+        // стандартную библиотеку не затеняет.
+        if (allowsLocalShadowing() && exactRoot.isPresent()) {
+            Optional<Path> shadowing = findFirstExact(exactRoot.get(), candidates);
+            if (shadowing.isPresent()) {
+                return ImportResolverMetadata.resolved(
+                        ImportResolverMetadata.ImportKind.LOCAL_RESOLVED_EXACT, shadowing.get());
+            }
+        }
+
         if (candidates.stream().allMatch(this::isLibraryModule)) {
             return ImportResolverMetadata.library();
         }
 
-        Optional<Path> exactRoot = exactSearchRoot(tree, projectRoot, currentFileRelPath);
         if (exactRoot.isPresent()) {
-            for (String candidate : candidates) {
-                Optional<Path> resolved = findExact(exactRoot.get(), candidate);
-                if (resolved.isPresent()) {
-                    return ImportResolverMetadata.resolved(
-                            ImportResolverMetadata.ImportKind.LOCAL_RESOLVED_EXACT, resolved.get());
-                }
+            Optional<Path> resolved = findFirstExact(exactRoot.get(), candidates);
+            if (resolved.isPresent()) {
+                return ImportResolverMetadata.resolved(
+                        ImportResolverMetadata.ImportKind.LOCAL_RESOLVED_EXACT, resolved.get());
             }
         }
         for (String candidate : candidates) {
@@ -105,6 +116,19 @@ public abstract class ImportResolver {
     protected abstract boolean isLibraryModule(String dottedName);
 
     /**
+     * Может ли файл проекта затенить одноимённый модуль стандартной библиотеки.
+     * <p>
+     * В Python — да: поиск идёт по {@code sys.path}, где каталог текущего файла стоит первым,
+     * поэтому {@code random.py} рядом с исходником перехватывает {@code import random}. В Java
+     * имя пакета абсолютно, а в C++ форма записи ({@code <...>} против {@code "..."}) разделяет
+     * библиотеку и проект явно — там затенения нет, и обращение к диску ради него было бы
+     * лишним.
+     */
+    protected boolean allowsLocalShadowing() {
+        return false;
+    }
+
+    /**
      * Каталог, относительно которого импорт отсчитывается точно: source root в Java, корень
      * пакета в Python.
      *
@@ -113,6 +137,17 @@ public abstract class ImportResolver {
     protected abstract Optional<Path> exactSearchRoot(MeaningTree tree,
                                                       Path projectRoot,
                                                       Path currentFileRelPath);
+
+    /** Первый из кандидатов, найденный точным поиском от указанного корня. */
+    private Optional<Path> findFirstExact(Path exactRoot, List<String> candidates) {
+        for (String candidate : candidates) {
+            Optional<Path> resolved = findExact(exactRoot, candidate);
+            if (resolved.isPresent()) {
+                return resolved;
+            }
+        }
+        return Optional.empty();
+    }
 
     /**
      * Расширения файлов языка в порядке предпочтения.
