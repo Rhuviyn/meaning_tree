@@ -151,7 +151,7 @@ public class Label {
     }
 
     public int attributeAsInt() {
-        return (int) attribute;
+        return ((Number) attribute).intValue();
     }
 
     public String attributeAsString() {
@@ -167,11 +167,11 @@ public class Label {
     }
 
     public double attributeAsDouble() {
-        return (double) attribute;
+        return ((Number) attribute).doubleValue();
     }
 
     public long attributeAsLong() {
-        return (long) attribute;
+        return ((Number) attribute).longValue();
     }
 
     public long[] attributeAsLongArray() {
