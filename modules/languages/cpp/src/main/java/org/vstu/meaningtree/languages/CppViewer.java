@@ -1516,10 +1516,15 @@ public class CppViewer extends LanguageViewer {
     }
 
     private String toStringEntryPoint(ProgramEntryPoint entryPoint) {
-        String prefix = isCMode() && requiresCStandardLibrary(entryPoint) ? "#include <stdlib.h>\n" : "";
+        if (isCMode() && requiresCStandardLibrary(entryPoint)) {
+            // Отложенный импорт: preserveSystemInclude/withPreservedIncludes уже умеют не
+            // дублировать подключение, если оно есть в исходной программе, — в отличие от
+            // прежнего варианта, дописывавшего "#include <stdlib.h>" в шапку безусловно.
+            preserveSystemInclude("stdlib.h", entryPoint);
+        }
         List<Node> nodes = entryPoint.getBody();
         if (getConfigParameter("translationUnitMode").equalsValue("full") && !entryPoint.hasEntryPoint()) {
-            return prefix + withPreservedIncludes(makeSimpleProgram(nodes), nodes);
+            return withPreservedIncludes(makeSimpleProgram(nodes), nodes);
         }
 
         var constructor = ctx.viewingIterateBody(entryPoint);
@@ -1537,7 +1542,7 @@ public class CppViewer extends LanguageViewer {
             body = (body.isEmpty() ? "" : body + "\n") + synthesizeMainCallingEntryPoint(entryPoint.getEntryPoint());
         }
 
-        return prefix + withPreservedIncludes(body, nodes) + "\n";
+        return withPreservedIncludes(body, nodes) + "\n";
     }
 
     private boolean hasOwnMainFunction(Node entryPointNode) {

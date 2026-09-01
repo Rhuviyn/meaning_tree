@@ -131,6 +131,22 @@ class CppCModeTests {
     }
 
     @Test
+    void doesNotDuplicateStdlibIncludeAlreadyPresentInSource() {
+        String generated = translate("""
+                #include <stdlib.h>
+                int main() {
+                    int *a = malloc(sizeof(int) * 3);
+                    free(a);
+                    return 0;
+                }
+                """, C_MODE);
+        long includeCount = generated.lines()
+                .filter(line -> line.trim().equals("#include <stdlib.h>"))
+                .count();
+        assertEquals(1, includeCount);
+    }
+
+    @Test
     void cModeTakesPrecedenceOverHeapArrayPreference() {
         Map<String, Object> config = Map.of(
                 "translationUnitMode", "full",
