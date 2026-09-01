@@ -128,11 +128,9 @@ group: Operators
 
     case: Pow
         c++:
-            #include <cmath>
             pow(a, b);
 
         c++:
-            #include <cmath>
             pow(a, b);
 
     case: UnaryMinus
@@ -277,14 +275,12 @@ group: OtherExpression
 
     case: VariableDeclaration
         main c++:
-            #include <string>
             int a, b;
             std::string a, b;
             long long int a, b;
             long double a, b;
 
         c++:
-            #include <string>
             int a, b;
             std::string a, b;
             long a, b;
@@ -342,13 +338,11 @@ group: OtherExpression
 
     case: StackAllocatedObject
         c++:
-            #include <string>
             Box a(1);
             Box b(1, x + 2);
             std::string s("abc");
 
         c++:
-            #include <string>
             Box a(1);
             Box b(1, x + 2);
             std::string s("abc");
@@ -384,13 +378,11 @@ group: OtherExpression
 group: Pointers
     case: PointerType
         c++:
-            #include <string>
             int * a = b;
             std::string * b = "abc";
             sizeof(long *);
 
         c++:
-            #include <string>
             int * a = b;
             std::string * b = "abc";
             sizeof(long *);

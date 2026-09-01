@@ -1584,8 +1584,16 @@ public class CppViewer extends LanguageViewer {
     /**
      * Дописывает шапку из подключений, о которых стало известно только по ходу отрисовки тела
      * (см. {@link #preserveSystemInclude}), — и только тех, которых в программе ещё нет.
+     * <p>
+     * В simple-режиме шапки не бывает вообще (тело — это просто содержимое main), поэтому
+     * buffered #include в вывод не идут — но буфер всё равно дренируется (без печати
+     * результата), иначе он утечёт в следующий рендер того же контекста.
      */
     private String withPreservedIncludes(String body, List<Node> nodes) {
+        if (getConfigParameter("translationUnitMode").equalsValue("simple")) {
+            ctx.flushImports();
+            return body;
+        }
         return ctx.prependPreservedImports(body, nodes, "", this::toString);
     }
 

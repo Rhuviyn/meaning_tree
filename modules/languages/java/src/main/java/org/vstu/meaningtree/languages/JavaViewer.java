@@ -2529,6 +2529,13 @@ public class JavaViewer extends LanguageViewer {
         }
 
         String body = String.join("\n", constructor.stringBuffer()) + "\n";
+        // В simple-режиме шапки не бывает вообще: buffered import в вывод не идут, но буфер
+        // всё равно дренируется (без печати результата), иначе он утечёт в следующий рендер
+        // того же контекста
+        if (getConfigParameter("translationUnitMode").equalsValue("simple")) {
+            ctx.flushImports();
+            return body;
+        }
         return ctx.prependPreservedImports(body, bodyNodes, "", this::toString);
     }
 

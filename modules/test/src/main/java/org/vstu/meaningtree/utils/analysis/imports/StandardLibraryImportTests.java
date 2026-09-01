@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class StandardLibraryImportTests {
     private static final Map<String, Object> CONFIG = Map.of(
-            "translationUnitMode", "simple",
+            "translationUnitMode", "procedural",
             "skipErrors", false
     );
 
@@ -148,7 +148,7 @@ class StandardLibraryImportTests {
     }
 
     private Map<String, Object> shortNames() {
-        return Map.of("translationUnitMode", "simple", "skipErrors", false,
+        return Map.of("translationUnitMode", "procedural", "skipErrors", false,
                 "preferQualifiedReferences", false);
     }
 

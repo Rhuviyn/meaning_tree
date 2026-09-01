@@ -389,6 +389,43 @@ public class TranslationUnitModeTests {
     }
 
     @Test
+    void simpleModeViewerNeverFlushesImportsEvenIfTreeHasThem() {
+        // Дерево разбирается в full/procedural режиме (импорты остаются в теле), а печатается
+        // в simple — simple-viewer не должен вызывать flushImports/prependPreservedImports
+        // и печатать их, независимо от того, каким режимом дерево было разобрано.
+        MeaningTree javaTree = new JavaTranslator(PROCEDURAL_CONFIG).getMeaningTree("""
+                import java.util.List;
+
+                class Main {
+                    public static void main(String[] args) {
+                        List<String> xs = null;
+                    }
+                }
+                """);
+        String javaSimpleCode = new JavaTranslator(SIMPLE_CONFIG).getCode(javaTree);
+        assertFalse(javaSimpleCode.contains("import java.util.List;"),
+                "Simple mode must not flush/print imports");
+        String javaProceduralCode = new JavaTranslator(PROCEDURAL_CONFIG).getCode(javaTree);
+        assertTrue(javaProceduralCode.contains("import java.util.List;"),
+                "Procedural mode must still print imports");
+
+        MeaningTree cppTree = new CppTranslator(PROCEDURAL_CONFIG).getMeaningTree("""
+                #include <vector>
+
+                int main() {
+                    std::vector<int> xs;
+                    return 0;
+                }
+                """);
+        String cppSimpleCode = new CppTranslator(SIMPLE_CONFIG).getCode(cppTree);
+        assertFalse(cppSimpleCode.contains("#include <vector>"),
+                "Simple mode must not flush/print includes");
+        String cppProceduralCode = new CppTranslator(PROCEDURAL_CONFIG).getCode(cppTree);
+        assertTrue(cppProceduralCode.contains("#include <vector>"),
+                "Procedural mode must still print includes");
+    }
+
+    @Test
     void simpleModeKeepsCodeWithoutEntryPointAsIs() {
         String javaCode = new JavaTranslator(SIMPLE_CONFIG).getCode(
                 new JavaTranslator(SIMPLE_CONFIG).getMeaningTree(JAVA_WITHOUT_ENTRY_POINT));
