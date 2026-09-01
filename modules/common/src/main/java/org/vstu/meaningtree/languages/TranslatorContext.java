@@ -15,6 +15,7 @@ import org.vstu.meaningtree.utils.analysis.types.SimpleTypeInferrer;
 import org.vstu.meaningtree.utils.frames.Frame;
 import org.vstu.meaningtree.utils.frames.FrameStack;
 import org.vstu.meaningtree.utils.modules.ImportBuffer;
+import org.vstu.meaningtree.utils.scopes.ScopePolicy;
 import org.vstu.meaningtree.utils.scopes.ScopeTable;
 
 import java.nio.file.Path;
@@ -48,6 +49,13 @@ public class TranslatorContext {
     private final ImportBuffer imports = new ImportBuffer();
     private final Set<Long> rejectedNodeIds = new HashSet<>();
     private final Set<Long> ignoredNodeIds = new HashSet<>();
+
+    /**
+     * Открыл ли кадр собственную область видимости — по кадру на элемент, вершина отвечает
+     * текущему кадру. Держится отдельно от {@link FrameStack}, потому что это факт об
+     * отрисовке, а не о кадре: у разбора области открывает {@link BodyConstructor}.
+     */
+    private final Deque<Boolean> scopePerFrame = new ArrayDeque<>();
 
     TranslatorContext(TranslatorComponent component, LanguageTranslator translator) {
         this.owner = component;
@@ -255,10 +263,14 @@ public class TranslatorContext {
 
     void enterNode(Node node) {
         frameControl.enterNode(node);
+        pushRenderScope(node);
     }
 
     void enterSource(TSNode source, Class<? extends Node> declaredType) {
         frameControl.enterSource(source, declaredType);
+        // У разбора области открывает BodyConstructor: на спуске узла ещё нет, и спросить
+        // политику не о чем. Кадр всё равно отмечаем, чтобы стеки не разъехались.
+        scopePerFrame.push(false);
     }
 
     void completeFrame(Node produced) {
@@ -266,7 +278,38 @@ public class TranslatorContext {
     }
 
     void leaveFrame() {
+        if (!scopePerFrame.isEmpty() && scopePerFrame.pop()) {
+            scope.leave();
+        }
         frameControl.leave();
+    }
+
+    /**
+     * Открывает область видимости на кадре узла, если язык считает этот узел её границей.
+     * <p>
+     * Область привязана к кадру, а не к {@link StringBodyConstructor}, потому что кадр
+     * гарантированно закрывается: {@link LanguageViewer#renderPrepared} снимает его в
+     * {@code finally}. Конструктор тела такой гарантии не даёт — рендереры расходуют его
+     * по-разному, и часть из них (например, {@code toStringCompoundStatement} в Java и C++)
+     * забирает результат через {@code stringBuffer()}, ни разу не вызвав {@code getNodes()}.
+     * Область, привязанная к нему, осталась бы незакрытой, и вложенность росла бы до конца
+     * отрисовки.
+     * <p>
+     * Границу задаёт {@link ScopePolicy} языка — та же, по которой строит таблицу
+     * {@code ScopeTableBuilder}. Поэтому таблица отрисовки получается той же формы, что и
+     * построенная проходом по дереву, а не одной плоской областью, как раньше.
+     * <p>
+     * Владелец области здесь не проставляется: {@code setOwner} перепривязал бы
+     * {@code CompoundStatement} дерева к области таблицы отрисовки, стерев привязку,
+     * оставленную разбором.
+     */
+    private void pushRenderScope(Node node) {
+        boolean opens = node instanceof CompoundStatement body
+                && translator.getScopePolicy().opensScope(body, frames.at(1).flatMap(Frame::node).orElse(null));
+        scopePerFrame.push(opens);
+        if (opens) {
+            scope.enter();
+        }
     }
 
     public ScopeTable getScopeTable() {
