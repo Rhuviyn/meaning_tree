@@ -7,6 +7,8 @@ import org.vstu.meaningtree.languages.helpers.ContextualNodeRenderer;
 import org.vstu.meaningtree.languages.helpers.NodeRenderer;
 import org.vstu.meaningtree.languages.support.FeatureContext;
 import org.vstu.meaningtree.languages.support.FeatureSupport;
+import org.vstu.meaningtree.exceptions.UnsupportedViewingException;
+import org.vstu.meaningtree.languages.configs.ConfigParameters;
 import org.vstu.meaningtree.languages.support.SupportIssue;
 import org.vstu.meaningtree.languages.support.SupportReport;
 import org.vstu.meaningtree.nodes.Expression;
@@ -25,6 +27,8 @@ import org.vstu.meaningtree.utils.modules.ImportPathConverter;
 import org.vstu.meaningtree.utils.tokens.OperatorToken;
 
 import java.util.*;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
 import java.util.function.BiFunction;
 import java.util.function.UnaryOperator;
 
@@ -74,6 +78,81 @@ abstract public class LanguageViewer extends TranslatorComponent {
      * узла — в отличие от того, что каждый вьюер потом с этим именем делает (своя таблица
      * "своих" модулей у Java/Python, таблица заголовков у C++), это осталось у них.
      */
+    /**
+     * Убирает из буфера импорты, которым в целевом языке нет соответствия, и решает, законно ли
+     * это.
+     *
+     * @param renderedCode уже напечатанное тело программы; по нему проверяется, не осталось ли в
+     *                     выводе ссылок на выбрасываемый импорт
+     */
+    protected void pruneUnrenderableImports(Predicate<Import> isUnrenderable, String renderedCode) {
+        requireDroppableImports(ctx.peekImports().stream().filter(isUnrenderable).toList(), renderedCode);
+        ctx.removeBufferedImports(isUnrenderable);
+    }
+
+    /**
+     * Разрешает выбросить эти импорты или отказывает.
+     * <p>
+     * Само по себе удаление строки импорта ничего не переводит. Оно безобидно ровно тогда, когда
+     * в выводе не осталось ни одной ссылки на импортированное: либо обращений не было вовсе
+     * ({@code #include <vector>} без единого вектора), либо все они уже переписаны средствами
+     * целевого языка ({@code java.util.ArrayList} напечатан питоновским {@code list}). Если же
+     * имя в выводе осталось, программа выглядит целой и не работает — а это ровно то, чего
+     * принцип "отказаться, но не соврать" не допускает.
+     * <p>
+     * Реестр библиотечных импортов на этот вопрос ответить не может: он знает соответствия
+     * импортов, а обращения переписывают другие таблицы того же языка. Поэтому решение
+     * принимается по напечатанному коду, а не по тому, нашлось ли имя в реестре.
+     * <p>
+     * Молчаливое удаление остаётся доступным явным включением
+     * {@link ConfigParameters#silentlySkipUnknownImports}.
+     */
+    protected void requireDroppableImports(Collection<Import> unrenderable, String renderedCode) {
+        if (unrenderable.isEmpty()
+                || translator.getConfigParameter(ConfigParameters.silentlySkipUnknownImports).asBoolean()) {
+            return;
+        }
+        List<String> stillReferenced = unrenderable.stream()
+                .map(this::describeImport)
+                .filter(name -> isReferencedIn(renderedCode, name))
+                .toList();
+        if (stillReferenced.isEmpty()) {
+            return;
+        }
+        throw new UnsupportedViewingException(
+                ("Imports have no counterpart in %s, but the generated code still refers to them: %s. "
+                        + "Enable silentlySkipUnknownImports to drop them anyway")
+                        .formatted(translator.getLanguageName(), stillReferenced));
+    }
+
+    /**
+     * Осталась ли в коде ссылка на импортированное имя. Проверяется как последний сегмент
+     * точечного имени: именно им обращаются к импортированной сущности, тогда как полный путь
+     * в теле обычно не повторяется.
+     */
+    private boolean isReferencedIn(String renderedCode, String importName) {
+        String simpleName = importName.substring(importName.lastIndexOf('.') + 1);
+        simpleName = simpleName.substring(simpleName.lastIndexOf('/') + 1);
+        int dot = simpleName.indexOf('.');
+        if (dot > 0) {
+            // имя файла заголовка: <stdio.h> -> stdio
+            simpleName = simpleName.substring(0, dot);
+        }
+        if (simpleName.isEmpty()) {
+            return false;
+        }
+        return Pattern.compile("\\b" + Pattern.quote(simpleName) + "\\b").matcher(renderedCode).find();
+    }
+
+    private String describeImport(Import importNode) {
+        // Include не несёт точечного имени модуля — у него имя файла заголовка.
+        if (importNode instanceof Include include) {
+            return include.getFileName().getUnescapedValue();
+        }
+        List<String> names = moduleNamesOf(importNode);
+        return names.isEmpty() ? importNode.getNodeUniqueName() : String.join(", ", names);
+    }
+
     protected List<String> moduleNamesOf(Import importNode) {
         return switch (importNode) {
             case ImportMembersFromModule members -> List.of(ImportPathConverter.dottedName(members.getModuleName()));

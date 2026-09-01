@@ -1592,7 +1592,7 @@ public class CppViewer extends LanguageViewer {
     private String withPreservedIncludes(String body, List<Node> nodes) {
         // Убираем ещё до печати, а не полагаемся на то, что toStringImport напечатает пустую
         // строку для непереводимого импорта, — иначе от него в шапке остаётся пустая строка
-        ctx.removeBufferedImports(this::isUnrenderableImport);
+        pruneUnrenderableImports(this::isUnrenderableImport, body);
         if (getConfigParameter("translationUnitMode").equalsValue("simple")) {
             ctx.flushImports();
             return body;

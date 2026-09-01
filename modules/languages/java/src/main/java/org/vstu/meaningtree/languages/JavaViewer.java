@@ -68,6 +68,7 @@ import org.vstu.meaningtree.utils.modules.ImportPathConverter;
 import org.vstu.meaningtree.utils.tokens.OperatorToken;
 
 import java.util.*;
+import java.util.stream.Stream;
 import java.util.stream.Collectors;
 
 import static org.vstu.meaningtree.nodes.enums.AugmentedAssignmentOperator.POW;
@@ -2421,10 +2422,17 @@ public class JavaViewer extends LanguageViewer {
      * внутри синтетического {@code main}, где Java их не принимает.
      */
     private String withProgramImports(String body, List<Node> nodes) {
-        List<Node> header = new ArrayList<>(getImports(nodes).stream()
-                .filter(node -> !isUnrenderableImport((Import) node))
+        List<Import> declared = getImports(nodes).stream().map(Import.class::cast).toList();
+        List<Import> buffered = ctx.flushMissingImports(nodes);
+        // Шапка — второе место, где импорт может исчезнуть из вывода; политика та же, что у буфера.
+        requireDroppableImports(Stream.concat(declared.stream(), buffered.stream())
+                .filter(this::isUnrenderableImport)
+                .toList(), body);
+
+        List<Node> header = new ArrayList<>(declared.stream()
+                .filter(node -> !isUnrenderableImport(node))
                 .toList());
-        header.addAll(ctx.flushMissingImports(nodes).stream().filter(imp -> !isUnrenderableImport(imp)).toList());
+        header.addAll(buffered.stream().filter(imp -> !isUnrenderableImport(imp)).toList());
         if (header.isEmpty()) {
             return body;
         }
@@ -2543,15 +2551,16 @@ public class JavaViewer extends LanguageViewer {
         // Импорты верхнего уровня уходят в общий буфер вместе с отложенными по ходу отрисовки
         // (см. libraryClass) — единая дедуплицированная шапка вместо печати по месту
         List<Node> bodyNodes = ctx.bufferTopLevelImports(nodes);
-        // Библиотечный импорт чужого языка (python random и т. п.) не имеет соответствия в
-        // Java — печатать его как несуществующий import было бы мусором, поэтому убираем
-        ctx.removeBufferedImports(this::isUnrenderableImport);
         var constructor = ctx.viewingIterateBody(bodyNodes);
         for (Node node : constructor) {
             constructor.appendString(toString(node));
         }
 
         String body = String.join("\n", constructor.stringBuffer()) + "\n";
+        // Библиотечный импорт чужого языка (python random и т. п.) не имеет соответствия в Java.
+        // Убирается после печати тела: законность удаления проверяется по готовому коду — не
+        // осталось ли в нём ссылок на этот импорт (см. requireDroppableImports).
+        pruneUnrenderableImports(this::isUnrenderableImport, body);
         // В simple-режиме шапки не бывает вообще: buffered import в вывод не идут, но буфер
         // всё равно дренируется (без печати результата), иначе он утечёт в следующий рендер
         // того же контекста

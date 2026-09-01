@@ -42,6 +42,20 @@ public class ConfigParameters {
             ConfigScope.ANY
     );
 
+    /**
+     * Разрешает молча выбрасывать библиотечные импорты, которым в целевом языке не нашлось
+     * соответствия.
+     * <p>
+     * По умолчанию {@code false}: отсутствие неверной строки импорта не делает корректными
+     * оставшиеся обращения к импортированным сущностям. Тихо убрав импорт, транслятор выдаёт
+     * программу, которая выглядит целой, но не работает, — а это хуже явного отказа. Включать
+     * стоит там, где важнее получить хоть какой-то вывод, чем достоверный.
+     */
+    public static final ConfigParameter silentlySkipUnknownImports = register("silentlySkipUnknownImports",
+            new ConfigValue(false),
+            ConfigScope.ANY
+    );
+
     public static ConfigParameter get(Class<? extends LanguageTranslator> translator, String id) {
         var registry = langRegistry.getOrDefault(translator, null);
         if (registry == null) {

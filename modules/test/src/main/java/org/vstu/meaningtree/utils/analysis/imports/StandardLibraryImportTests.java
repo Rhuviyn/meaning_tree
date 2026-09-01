@@ -2,6 +2,7 @@ package org.vstu.meaningtree.utils.analysis.imports;
 
 import org.junit.jupiter.api.Test;
 import org.vstu.meaningtree.MeaningTree;
+import org.vstu.meaningtree.exceptions.UnsupportedViewingException;
 import org.vstu.meaningtree.languages.CppTranslator;
 import org.vstu.meaningtree.languages.JavaTranslator;
 import org.vstu.meaningtree.languages.LanguageTranslator;
@@ -93,6 +94,10 @@ class StandardLibraryImportTests {
         assertEquals(1, countOccurrences(code, "#include <cmath>"), code);
     }
 
+    /**
+     * Неиспользованный заголовок исчезает без отказа: убирать импорт, на который в выводе нет
+     * ни одной ссылки, безопасно — переводить там нечего.
+     */
     @Test
     void cppSystemHeaderDisappearsWhenTranslatedToJavaAndPython() {
         // <vector> в Java и Python не переводится ни во что: коллекции там встроены или
@@ -104,6 +109,34 @@ class StandardLibraryImportTests {
         String python = translate(new CppTranslator(fullUnit()), new PythonTranslator(fullUnit()),
                 "#include <vector>\nint main() { return 0; }");
         assertFalse(python.contains("vector"), python);
+    }
+
+    /**
+     * Импорт без соответствия в целевом языке можно убрать только тогда, когда в выводе не
+     * осталось ссылок на него. Здесь ссылка остаётся: {@code random.random()} в Java ни к чему
+     * не относится, и программа, из которой просто выкинули строку импорта, выглядит целой, но
+     * не работает.
+     */
+    @Test
+    void refusesToDropAnImportThatGeneratedCodeStillUses() {
+        UnsupportedViewingException error = assertThrows(UnsupportedViewingException.class,
+                () -> translate(new PythonTranslator(CONFIG), new JavaTranslator(CONFIG),
+                        "import random\nx = random.random()\n"));
+
+        assertTrue(error.getMessage().contains("random"), error.getMessage());
+        assertTrue(error.getMessage().contains("silentlySkipUnknownImports"), error.getMessage());
+    }
+
+    /** Отказ снимается явным включением флага — и только им. */
+    @Test
+    void silentSkipFlagRestoresDropping() {
+        Map<String, Object> silent = new java.util.HashMap<>(CONFIG);
+        silent.put("silentlySkipUnknownImports", true);
+
+        String java = translate(new PythonTranslator(CONFIG), new JavaTranslator(silent),
+                "import random\nx = random.random()\n");
+
+        assertFalse(java.contains("import random"), java);
     }
 
     @Test

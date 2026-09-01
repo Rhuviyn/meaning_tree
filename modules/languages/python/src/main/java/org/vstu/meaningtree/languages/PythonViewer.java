@@ -657,11 +657,11 @@ public class PythonViewer extends LanguageViewer {
         }
         boolean hadTopLevelNodes = !nodes.isEmpty();
         List<Node> bodyNodes = ctx.bufferTopLevelImports(nodes);
-        // Библиотечный импорт чужого языка (java.util.ArrayList и т.п.) не имеет питоновского
-        // соответствия — в отличие от C++, тут нет таблицы замен, поэтому его просто убираем,
-        // а не печатаем как несуществующий модуль (см. isUnrenderableImport)
-        ctx.removeBufferedImports(this::isUnrenderableImport);
+        // Тело печатается до отбрасывания импортов: решение о том, можно ли убрать импорт без
+        // соответствия, принимается по готовому коду — не осталось ли в нём ссылок на него
+        // (см. requireDroppableImports).
         String body = nodeListToString(bodyNodes, tab, !hadTopLevelNodes);
+        pruneUnrenderableImports(this::isUnrenderableImport, body);
         return ctx.prependPreservedImports(body, bodyNodes, tab.toString(), imp -> toString(imp, tab));
     }
 

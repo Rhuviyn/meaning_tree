@@ -2749,7 +2749,7 @@ group: ForeignLibraryImports
 
             x = os.getcwd()
 
-    case[translationUnitMode="procedural"]: PythonLibraryImportDroppedInJava
+    case[translationUnitMode="procedural", silentlySkipUnknownImports=true]: PythonLibraryImportDroppedInJava
         main python:
             import random
             x = random.random()
@@ -2757,7 +2757,7 @@ group: ForeignLibraryImports
         java:
             var x = random.random();
 
-    case[translationUnitMode="procedural"]: UnmappedLibraryImportLeavesNoBlankLineInCpp
+    case[translationUnitMode="procedural", silentlySkipUnknownImports=true]: UnmappedLibraryImportLeavesNoBlankLineInCpp
         main python:
             import json
             x = json.dumps({})
