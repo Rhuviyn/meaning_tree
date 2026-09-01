@@ -7,6 +7,9 @@ import org.vstu.meaningtree.nodes.Definition;
 import org.vstu.meaningtree.nodes.Node;
 import org.vstu.meaningtree.nodes.Type;
 import org.vstu.meaningtree.nodes.declarations.*;
+import org.vstu.meaningtree.nodes.definitions.ClassDefinition;
+import org.vstu.meaningtree.nodes.definitions.FunctionDefinition;
+import org.vstu.meaningtree.nodes.definitions.MethodDefinition;
 import org.vstu.meaningtree.nodes.expressions.Identifier;
 import org.vstu.meaningtree.nodes.expressions.identifiers.SimpleIdentifier;
 import org.vstu.meaningtree.nodes.modules.Import;
@@ -171,6 +174,46 @@ public class ScopeTable implements Serializable {
 
     public void setCurrentScopeOwner(@Nullable Node owner) {
         current.setOwner(owner);
+    }
+
+    /**
+     * Регистрирует узел в текущей области видимости так, как того требует его тип.
+     * <p>
+     * Единственное место, где решается «что именно означает появление этого узла в области»:
+     * этим методом пользуются и попутное наполнение при разборе
+     * ({@code TranslatorContext.registerInScope}), и отдельный проход по готовому дереву
+     * ({@code ScopeTableBuilder}). Раньше это была пара дословных копий, которые полагались на
+     * ручную синхронизацию.
+     * <p>
+     * Метод не чист: у членов {@link ClassDefinition} он проставляет владельца
+     * ({@code setParentDeclaration}), потому что без обратной ссылки член неотличим от свободной
+     * функции, а больше эту связь взять неоткуда. Побочный эффект идемпотентен — повторный вызов
+     * на том же дереве присваивает то же значение, — поэтому повторное построение таблицы дерево
+     * не портит.
+     */
+    public void register(@NotNull Node node) {
+        if (node instanceof ClassDefinition def) {
+            for (Node clsComponent : def.getBody().getNodes()) {
+                if (clsComponent instanceof FieldDeclaration field) {
+                    field.setParentDeclaration(def.getDeclaration());
+                } else if (clsComponent instanceof MethodDeclaration method) {
+                    method.setParentDeclaration(def.getDeclaration());
+                } else if (clsComponent instanceof MethodDefinition method) {
+                    method.getDeclaration().setParentDeclaration(def.getDeclaration());
+                }
+            }
+            registerDefinition(def.getDeclaration().getName().getSimpleIdentifierOrThrow(), def);
+        } else if (node instanceof FunctionDefinition def) {
+            registerDefinition(def.getDeclaration().getName().getSimpleIdentifierOrThrow(), def);
+        } else if (node instanceof VariableDeclaration varDecl) {
+            registerVariable(varDecl);
+        } else if (node instanceof SeparatedVariableDeclaration sepDecl) {
+            registerVariable(sepDecl);
+        } else if (node instanceof EnumDeclaration decl) {
+            registerDeclaration(decl.getName().getSimpleIdentifierOrThrow(), decl);
+        } else if (node instanceof Import imprt) {
+            registerImport(imprt);
+        }
     }
 
     public void registerVariable(@NotNull VariableDeclaration variableDeclaration) {

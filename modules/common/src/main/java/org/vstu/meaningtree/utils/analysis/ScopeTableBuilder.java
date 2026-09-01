@@ -3,11 +3,6 @@ package org.vstu.meaningtree.utils.analysis;
 import org.vstu.meaningtree.MeaningTree;
 import org.vstu.meaningtree.iterators.utils.NodeInfo;
 import org.vstu.meaningtree.nodes.Node;
-import org.vstu.meaningtree.nodes.declarations.*;
-import org.vstu.meaningtree.nodes.definitions.ClassDefinition;
-import org.vstu.meaningtree.nodes.definitions.FunctionDefinition;
-import org.vstu.meaningtree.nodes.definitions.MethodDefinition;
-import org.vstu.meaningtree.nodes.modules.Import;
 import org.vstu.meaningtree.nodes.statements.CompoundStatement;
 import org.vstu.meaningtree.utils.scopes.ScopeTable;
 
@@ -31,9 +26,9 @@ import java.util.Map;
  * {@code OverloadIndexer}. Проход по готовому дереву применяет правило равномерно для всех
  * языков.
  * <p>
- * Диспетчеризация "как зарегистрировать узел по его типу" в {@link #registerInScope} — намеренно
- * отдельная копия логики {@code TranslatorContext.registerInScope}, а не общая с ней
- * зависимость: класс не должен требовать правок в парсере/трансляторе ради своего существования.
+ * Диспетчеризация "как зарегистрировать узел по его типу" живёт в
+ * {@link ScopeTable#register(Node)} и общая с попутным наполнением при разборе, поэтому два
+ * пути регистрации не могут разойтись.
  * <p>
  * {@link MeaningTree#iterate()} отдаёт узлы в post-order (потомки раньше родителя — см.
  * {@code DFSNodeIterator}), а для входа/выхода из области видимости через
@@ -67,7 +62,7 @@ public final class ScopeTableBuilder {
     }
 
     private static void visit(NodeInfo info, ScopeTable scope, Map<Long, List<NodeInfo>> childrenByParentId) {
-        registerInScope(scope, info.node());
+        scope.register(info.node());
 
         boolean entered = info.node() instanceof CompoundStatement;
         if (entered) {
@@ -81,33 +76,4 @@ public final class ScopeTableBuilder {
         }
     }
 
-    /**
-     * Копия диспетчеризации {@code TranslatorContext.registerInScope}: pattern-match по типу
-     * узла, без какой-либо специфики языка. Держится отдельной копией сознательно (см. class
-     * javadoc) — при изменении оригинала эту нужно обновлять вручную.
-     */
-    private static void registerInScope(ScopeTable scope, Node node) {
-        if (node instanceof ClassDefinition def) {
-            for (Node clsComponent : def.getBody().getNodes()) {
-                if (clsComponent instanceof FieldDeclaration field) {
-                    field.setParentDeclaration(def.getDeclaration());
-                } else if (clsComponent instanceof MethodDeclaration method) {
-                    method.setParentDeclaration(def.getDeclaration());
-                } else if (clsComponent instanceof MethodDefinition method) {
-                    method.getDeclaration().setParentDeclaration(def.getDeclaration());
-                }
-            }
-            scope.registerDefinition(def.getDeclaration().getName().getSimpleIdentifierOrThrow(), def);
-        } else if (node instanceof FunctionDefinition def) {
-            scope.registerDefinition(def.getDeclaration().getName().getSimpleIdentifierOrThrow(), def);
-        } else if (node instanceof VariableDeclaration varDecl) {
-            scope.registerVariable(varDecl);
-        } else if (node instanceof SeparatedVariableDeclaration sepDecl) {
-            scope.registerVariable(sepDecl);
-        } else if (node instanceof EnumDeclaration decl) {
-            scope.registerDeclaration(decl.getName().getSimpleIdentifierOrThrow(), decl);
-        } else if (node instanceof Import imprt) {
-            scope.registerImport(imprt);
-        }
-    }
 }

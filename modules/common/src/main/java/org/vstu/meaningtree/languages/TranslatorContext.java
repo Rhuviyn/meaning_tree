@@ -500,28 +500,7 @@ public class TranslatorContext {
      * вручную, иначе построенная им таблица разойдётся с той, что собирается здесь.
      */
     void registerInScope(@NotNull Node node) {
-        if (node instanceof ClassDefinition def) {
-            for (Node clsComponent : def.getBody().getNodes()) {
-                if (clsComponent instanceof FieldDeclaration field) {
-                    field.setParentDeclaration(def.getDeclaration());
-                } else if (clsComponent instanceof MethodDeclaration method) {
-                    method.setParentDeclaration(def.getDeclaration());
-                } else if (clsComponent instanceof MethodDefinition method) {
-                    method.getDeclaration().setParentDeclaration(def.getDeclaration());
-                }
-            }
-            scope.registerDefinition(def.getDeclaration().getName().getSimpleIdentifierOrThrow(), def);
-        } else if (node instanceof FunctionDefinition def) {
-            scope.registerDefinition(def.getDeclaration().getName().getSimpleIdentifierOrThrow(), def);
-        } else if (node instanceof VariableDeclaration varDecl) {
-            scope.registerVariable(varDecl);
-        } else if (node instanceof SeparatedVariableDeclaration sepDecl) {
-            scope.registerVariable(sepDecl);
-        } else if (node instanceof EnumDeclaration decl) {
-            scope.registerDeclaration(decl.getName().getSimpleIdentifierOrThrow(), decl);
-        } else if (node instanceof Import imprt) {
-            scope.registerImport(imprt);
-        }
+        scope.register(node);
     }
 
     /**
