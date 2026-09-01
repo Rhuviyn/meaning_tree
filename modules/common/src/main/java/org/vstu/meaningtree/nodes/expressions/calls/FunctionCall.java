@@ -68,11 +68,15 @@ public class FunctionCall extends Expression implements Callable {
     }
 
     public SimpleIdentifier getFunctionName() {
-        if (hasFunctionName()) {
-            if (function instanceof ParenthesizedExpression paren) {
-                return (SimpleIdentifier) paren.getExpression();
+        // Проверяется само выражение, а не hasFunctionName: наследник вправе переопределить
+        // предикат, а часть из них хранит function == null (команды печати, ввода, работы с
+        // памятью), и доверие предикату вернуло бы отсюда null вместо исключения.
+        if (function instanceof ParenthesizedExpression paren) {
+            if (paren.getExpression() instanceof SimpleIdentifier name) {
+                return name;
             }
-            return (SimpleIdentifier) function;
+        } else if (function instanceof SimpleIdentifier name) {
+            return name;
         }
         throw new MeaningTreeException("Function does not have identifier of call");
     }

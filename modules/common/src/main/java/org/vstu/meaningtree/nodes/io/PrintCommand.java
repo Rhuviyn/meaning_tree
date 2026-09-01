@@ -12,9 +12,7 @@ public abstract class PrintCommand extends FunctionCall {
         super(null, values);
     }
 
-    @Override
-    public boolean hasFunctionName() {
-        // Язык определяет это имя самостоятельно
-        return true;
-    }
+    // hasFunctionName() не переопределяется: имя команде печати подставляет целевой язык,
+    // а в дереве function == null, поэтому для анализа это вызов без имени. Ответ true
+    // заставлял бы getFunctionName() возвращать null.
 }
