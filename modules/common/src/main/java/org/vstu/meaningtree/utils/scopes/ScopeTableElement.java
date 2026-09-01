@@ -370,6 +370,10 @@ public class ScopeTableElement implements Serializable {
         overloadGroups.add(group);
     }
 
+    void clearOverloadGroups() {
+        overloadGroups.clear();
+    }
+
     /** Группы, объявленные непосредственно в этой области. */
     @NotNull
     public List<OverloadGroup> overloadGroups() {

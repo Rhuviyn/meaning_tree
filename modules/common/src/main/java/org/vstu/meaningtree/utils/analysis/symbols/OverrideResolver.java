@@ -44,12 +44,11 @@ public final class OverrideResolver {
         Map<UserType, ClassDefinition> classesInFragment = findClassDefinitionsByType();
         for (ClassDefinition classDefinition : classesInFragment.values()) {
             for (MethodDeclaration method : findResolvableMethods(classDefinition)) {
-                MethodDeclaration ancestorMethod = findOverriddenAncestorMethod(
+                // Присваивается всегда, в том числе null: если после правки дерева совпадения
+                // больше нет, старая ссылка обязана исчезнуть, а не пережить повторный проход.
+                method.setOverriddenFrom(findOverriddenAncestorMethod(
                         classDefinition, method, classesInFragment
-                );
-                if (ancestorMethod != null) {
-                    method.setOverriddenFrom(ancestorMethod);
-                }
+                ));
             }
         }
     }

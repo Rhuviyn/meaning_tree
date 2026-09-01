@@ -63,6 +63,10 @@ public final class OverloadIndexer {
     }
 
     public void index() {
+        // Индексация полностью пересоздаёт производные индексы: повторный запуск на том же
+        // дереве обязан давать ту же таблицу, а не дописывать к прежней.
+        scopeTable.clearAnalysisIndexes();
+
         Map<GroupKey, List<FunctionDeclaration>> groups = new LinkedHashMap<>();
         Map<GroupKey, Long> groupScopes = new HashMap<>();
         Set<FunctionDeclaration> visited = Collections.newSetFromMap(new IdentityHashMap<>());
