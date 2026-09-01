@@ -626,7 +626,7 @@ public class CppParser extends LanguageParser {
                 var decl = DeclarationArgument.listUnpacking(new UnknownType(), new SimpleIdentifier("arguments"));
                 parameters.add(decl); // bad support
             }
-            if (!List.of("parameter_declaration", "variadic_parameter_declaration").contains(child.getType())) {
+            if (!List.of("parameter_declaration", "variadic_parameter_declaration", "optional_parameter_declaration").contains(child.getType())) {
                 continue;
             }
             DeclarationArgument parameter = fromFormalParameter(child);
@@ -653,7 +653,7 @@ public class CppParser extends LanguageParser {
         Expression defaultValue = defValueNode != null && !defValueNode.isNull() ?
                 (Expression) parseTSNode(defValueNode) : null;
 
-        // Не поддерживается распаковка списков (как в Python) и значения по умолчанию
+        // Не поддерживается распаковка списков (как в Python)
         return new DeclarationArgument(type,  name, defaultValue);
     }
 

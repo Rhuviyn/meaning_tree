@@ -498,6 +498,10 @@ public class PythonViewer extends LanguageViewer {
                 function.append(": ");
                 function.append(toString(arg.getElementType()));
             }
+            if (arg.hasInitialExpression() && !arg.isListUnpacking() && !arg.isDictUnpacking()) {
+                function.append(" = ");
+                function.append(toString(arg.getInitialExpression()));
+            }
         }
         function.append(")");
         if (decl.getReturnType() != null && !(decl.getReturnType() instanceof UnknownType)
