@@ -1,6 +1,7 @@
 package org.vstu.meaningtree.languages;
 
 import org.apache.commons.lang3.tuple.Pair;
+import org.jetbrains.annotations.Nullable;
 import org.vstu.meaningtree.MeaningTree;
 import org.vstu.meaningtree.iterators.utils.NodeIterable;
 import org.vstu.meaningtree.nodes.Node;
@@ -24,7 +25,20 @@ public class SourceMapGenerator {
      * Разметка включает в себя список ID узлов, а также их байтовая позиция в полученном коде
      */
     protected LanguageTranslator translator;
-    protected ScopeTable globalScope;
+
+    /**
+     * Транслятор языка, из которого получено дерево, либо {@code null}, если он вызывающему
+     * неизвестен: дерево могло прийти из JSON или быть собрано программно. Нужен только для
+     * {@code originScopeTable} — построить её правилами целевого языка нельзя, это и был прежний
+     * дефект.
+     */
+    @Nullable
+    protected LanguageTranslator originTranslator;
+
+    protected ScopeTable renderScope;
+
+    @Nullable
+    protected ScopeTable originScope;
     private final CyclomaticComplexityAnalyzer cyclomaticComplexityAnalyzer = new CyclomaticComplexityAnalyzer();
 
     // Начальный и конечный маркеры для ID
@@ -66,6 +80,17 @@ public class SourceMapGenerator {
     }
 
     public SourceMapGenerator(LanguageTranslator translator) {
+        this(translator, null);
+    }
+
+    /**
+     * @param originTranslator транслятор языка-источника дерева. Без него
+     *                         {@code SourceMap.originScopeTable()} остаётся пустой: правила
+     *                         видимости и перегрузок у языка-источника свои, и подставить вместо
+     *                         них целевые — значит описать программу, которой нет.
+     */
+    public SourceMapGenerator(LanguageTranslator translator, @Nullable LanguageTranslator originTranslator) {
+        this.originTranslator = originTranslator;
         this.translator = translator.clone();
         // clone() переносит только конфигурацию, а привязка к файлу проекта должна попасть
         // в готовую карту (см. buildSourceMap), поэтому копируем её отдельно
@@ -78,35 +103,41 @@ public class SourceMapGenerator {
     }
 
     public SourceMap process(MeaningTree meaningTree) {
-        String code = instrumentedCode(() -> translator.getCode(meaningTree));
-        globalScope = translator.isSkipOptimizations()
-                ? translator.getLatestScopeTable()
-                : analyzedScope(meaningTree);
-        return buildSourceMap(meaningTree, code);
+        return process(meaningTree, meaningTree);
     }
 
     public SourceMap process(Node root) {
-        String code = instrumentedCode(() -> translator.getCode(root));
-        globalScope = translator.isSkipOptimizations()
+        return process(root, new MeaningTree(root));
+    }
+
+    /**
+     * Таблица источника строится до генерации, а целевая — после: оптимизации целевого языка
+     * дорабатывают дерево, и после них это уже другая программа. Порядок здесь и есть разница
+     * между двумя таблицами.
+     */
+    private SourceMap process(NodeIterable root, MeaningTree tree) {
+        originScope = originTranslator == null ? null : analyzedScope(tree, originTranslator);
+        String code = instrumentedCode(() -> root instanceof MeaningTree
+                ? translator.getCode((MeaningTree) root)
+                : translator.getCode((Node) root));
+        renderScope = translator.isSkipOptimizations()
                 ? translator.getLatestScopeTable()
-                : analyzedScope(new MeaningTree(root));
+                : analyzedScope(tree, translator);
         return buildSourceMap(root, code);
     }
 
     /**
-     * Строит {@link ScopeTable} для дерева заново и дополняет его метаданными
-     * {@link AnalysisPipeline} (перегрузки, преобразования типов, резолвинг импортов и т.д.).
+     * Строит {@link ScopeTable} для дерева правилами указанного языка и дополняет её
+     * метаданными {@link AnalysisPipeline} (перегрузки, преобразования типов и т.д.).
      * <p>
-     * {@code translator} здесь — целевой транслятор, а не тот, что разбирал исходник: его
-     * {@code getLatestScopeTable()} после рендеринга содержит только структурную таблицу
-     * рендеринга, без результатов анализа. Раз анализ не завязан на разбор (см.
-     * {@link AnalysisPipeline}), его можно выполнить здесь заново — на том же дереве и с
-     * языковыми правилами целевого языка. Вызывается только когда оптимизации не отключены —
-     * см. {@link #process(MeaningTree)}.
+     * Правила берутся у того транслятора, чью сторону перевода таблица описывает: границы
+     * областей и семантику перегрузок нельзя подставить от другого языка, иначе таблица опишет
+     * программу, которой нет. Резолвинг импортов здесь не выполняется — это единственная стадия
+     * с обходом файловой системы, и карте кода она ничего не добавляет.
      */
-    private ScopeTable analyzedScope(MeaningTree tree) {
-        ScopeTable scope = ScopeTableBuilder.build(tree, translator.getScopePolicy());
-        new AnalysisPipeline(tree, scope, translator).run();
+    private ScopeTable analyzedScope(MeaningTree tree, LanguageTranslator rules) {
+        ScopeTable scope = ScopeTableBuilder.build(tree, rules.getScopePolicy());
+        new AnalysisPipeline(tree, scope, rules).run(false);
         return scope;
     }
 
@@ -180,7 +211,8 @@ public class SourceMapGenerator {
         String projectFileRelPath = translator.getCurrentFileRelPath().map(path -> path.toString()).orElse(null);
 
         return new SourceMap(cleanCode.toString(), root, result,
-                globalScope,
+                renderScope,
+                originScope,
                 translator.getLanguageName(),
                 metrics,
                 projectRootPath,

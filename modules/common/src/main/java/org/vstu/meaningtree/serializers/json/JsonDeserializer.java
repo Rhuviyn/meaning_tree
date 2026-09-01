@@ -1,5 +1,6 @@
 package org.vstu.meaningtree.serializers.json;
 
+import org.jetbrains.annotations.Nullable;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -161,10 +162,15 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
             }
         }
 
-        ScopeTable scopeTable = new ScopeTable();
-        if (serialized.has("scope_table") && !serialized.get("scope_table").isJsonNull()) {
-            scopeTable = deserializeScopeTable(serialized.getAsJsonObject("scope_table"));
+        ScopeTable renderScopeTable = readScopeTable(serialized, "render_scope_table");
+        if (renderScopeTable == null) {
+            // Карты, записанные до разделения таблиц, несли одну — она описывала напечатанный код.
+            renderScopeTable = readScopeTable(serialized, "scope_table");
         }
+        if (renderScopeTable == null) {
+            renderScopeTable = new ScopeTable();
+        }
+        ScopeTable originScopeTable = readScopeTable(serialized, "origin_scope_table");
 
         Map<String, Number> metrics = new LinkedHashMap<>();
         if (serialized.has("metrics") && !serialized.get("metrics").isJsonNull()) {
@@ -184,8 +190,15 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
                 ? serialized.get("project_file_rel_path").getAsString()
                 : null;
 
-        return new SourceMap(sourceCode, rootNode, bytePositions, scopeTable, language, metrics,
-                projectRootPath, projectFileRelPath);
+        return new SourceMap(sourceCode, rootNode, bytePositions, renderScopeTable, originScopeTable,
+                language, metrics, projectRootPath, projectFileRelPath);
+    }
+
+    @Nullable
+    private ScopeTable readScopeTable(JsonObject serialized, String field) {
+        return serialized.has(field) && !serialized.get(field).isJsonNull()
+                ? deserializeScopeTable(serialized.getAsJsonObject(field))
+                : null;
     }
 
     private String originType(JsonObject origin) {

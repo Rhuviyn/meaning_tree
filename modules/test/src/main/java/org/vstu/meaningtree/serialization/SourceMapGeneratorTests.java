@@ -181,9 +181,45 @@ public class SourceMapGeneratorTests {
 
         SourceMap sourceMap = new SourceMapGenerator(translator).process(tree);
 
-        assertNotNull(sourceMap.scopeTable());
-        assertFalse(sourceMap.scopeTable().allScopes().isEmpty(),
+        assertNotNull(sourceMap.renderScopeTable());
+        assertFalse(sourceMap.renderScopeTable().allScopes().isEmpty(),
                 "Scope table must be attached to the source map");
+    }
+
+    /**
+     * Две стороны перевода описываются двумя таблицами, потому что одна не может описать обе
+     * честно: в Python тело {@code if} области не открывает, в Java открывает. Прежнее
+     * единственное поле несло смесь — исходное дерево с правилами целевого языка.
+     */
+    @Test
+    void originAndRenderScopeTablesDescribeTheirOwnLanguages() {
+        PythonTranslator source = new PythonTranslator(CONFIG);
+        MeaningTree tree = source.getMeaningTree("""
+                def f():
+                    if True:
+                        x = 1
+                    return x
+                """);
+
+        SourceMap sourceMap = new SourceMapGenerator(new JavaTranslator(CONFIG), source).process(tree);
+
+        assertNotNull(sourceMap.originScopeTable());
+        assertEquals(2, sourceMap.originScopeTable().allScopes().size(),
+                "в Python тело if собственной области не открывает");
+        assertEquals(3, sourceMap.renderScopeTable().allScopes().size(),
+                "в Java блок область открывает");
+    }
+
+    /**
+     * Без транслятора языка-источника таблица источника не строится вовсе: подставить вместо
+     * его правил целевые — значит описать программу, которой нет.
+     */
+    @Test
+    void originScopeTableIsAbsentWithoutTheSourceLanguage() {
+        PythonTranslator translator = new PythonTranslator(CONFIG);
+        MeaningTree tree = translator.getMeaningTree("x = 1\n");
+
+        assertNull(new SourceMapGenerator(translator).process(tree).originScopeTable());
     }
 
     @Test

@@ -129,6 +129,7 @@ public class ScopeTableTests {
                 root,
                 Map.<Long, Pair<Integer, Integer>>of(),
                 scope,
+                null,
                 "test",
                 Map.of(),
                 "D:\\project",
@@ -136,14 +137,14 @@ public class ScopeTableTests {
         );
 
         JsonObject json = new JsonSerializer().serialize(sourceMap);
-        JsonObject serializedScopeTable = json.getAsJsonObject("scope_table");
+        JsonObject serializedScopeTable = json.getAsJsonObject("render_scope_table");
         assertTrue(serializedScopeTable.has("symbols"));
         assertTrue(serializedScopeTable.has("types"));
         assertTrue(serializedScopeTable.has("imports"));
         assertEquals(2, serializedScopeTable.getAsJsonObject("types").getAsJsonArray("hierarchy").size());
 
         SourceMap restored = new JsonDeserializer().deserializeSourceMap(json);
-        ScopeTable restoredScope = restored.scopeTable();
+        ScopeTable restoredScope = restored.renderScopeTable();
         assertEquals("D:\\project", restored.projectRootPath());
         assertEquals("src\\main\\Sample.java", restored.projectFileRelPath());
 
@@ -183,6 +184,7 @@ public class ScopeTableTests {
                 root,
                 Map.<Long, Pair<Integer, Integer>>of(),
                 scope,
+                null,
                 "test",
                 Map.of(),
                 "D:\\project",
@@ -190,7 +192,7 @@ public class ScopeTableTests {
         );
 
         JsonObject json = new JsonSerializer().serialize(sourceMap);
-        JsonObject serializedScopeTable = json.getAsJsonObject("scope_table");
+        JsonObject serializedScopeTable = json.getAsJsonObject("render_scope_table");
         assertEquals(2, serializedScopeTable.getAsJsonArray("scopes").size());
         assertTrue(json.getAsJsonObject("origin")
                 .getAsJsonArray("body")
@@ -211,9 +213,9 @@ public class ScopeTableTests {
         assertTrue(restoredBody.getScope().isPresent());
         assertEquals(
                 restoredBody.getScope().orElseThrow().getId(),
-                restored.scopeTable().currentScopeId()
+                restored.renderScopeTable().currentScopeId()
         );
-        assertTrue(restored.scopeTable()
+        assertTrue(restored.renderScopeTable()
                 .findDeclaration(local.getName(), FunctionDeclaration.class, ScopeLookupMode.CURRENT)
                 .isPresent());
     }
