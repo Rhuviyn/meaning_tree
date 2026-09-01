@@ -68,20 +68,41 @@ public class Label {
     private short id;
     private Object attribute = null;
     private Class<?> attributeType = null;
+    private final boolean stealth;
 
     public Label(short id, Object attribute) {
+        this(id, attribute, false);
+    }
+
+    /**
+     * @param stealth если true, метка не участвует в {@link Node#equals}: узлы, различающиеся
+     *                только наличием такой метки, при сравнении содержимого считаются одинаковыми.
+     *                Нужно для меток, которые описывают происхождение/служебное состояние узла, а
+     *                не его содержимое — например, {@link #REMAPPED}.
+     */
+    public Label(short id, Object attribute, boolean stealth) {
         this.attribute = attribute;
         this.id = id;
         this.attributeType = attribute.getClass();
         typeFits(attribute);
+        this.stealth = stealth;
     }
 
     public Label(short id) {
+        this(id, false);
+    }
+
+    public Label(short id, boolean stealth) {
         this.id = id;
+        this.stealth = stealth;
     }
 
     public short getId() {
         return id;
+    }
+
+    public boolean isStealth() {
+        return stealth;
     }
 
     private static final Set<Class<?>> ALLOWED_TYPES = Set.of(

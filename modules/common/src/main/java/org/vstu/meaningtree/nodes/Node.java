@@ -15,6 +15,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 abstract public class Node implements Serializable, Cloneable, LabelAttachable, NodeIterable {
@@ -59,7 +60,16 @@ abstract public class Node implements Serializable, Cloneable, LabelAttachable, 
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         Node node = (Node) o;
-        return Objects.equals(_labels, node._labels);
+        return Objects.equals(nonStealthLabels(_labels), nonStealthLabels(node._labels));
+    }
+
+    /**
+     * Отфильтровывает {@link Label#isStealth() stealth}-метки перед сравнением: они описывают
+     * происхождение/служебное состояние узла, а не его содержимое (см. {@link #remap}), поэтому
+     * не должны влиять на {@link #equals}.
+     */
+    private static Set<Label> nonStealthLabels(Set<Label> labels) {
+        return labels.stream().filter(label -> !label.isStealth()).collect(Collectors.toSet());
     }
 
     /**
@@ -176,7 +186,7 @@ abstract public class Node implements Serializable, Cloneable, LabelAttachable, 
      */
     @SuppressWarnings("unchecked")
     public <T extends Node> T remap(Node other) {
-        setLabel(new Label(Label.REMAPPED, other.getId()));
+        setLabel(new Label(Label.REMAPPED, other.getId(), true));
         return (T) this;
     }
 
