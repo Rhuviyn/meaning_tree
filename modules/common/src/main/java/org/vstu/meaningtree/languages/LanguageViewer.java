@@ -86,8 +86,8 @@ abstract public class LanguageViewer extends TranslatorComponent {
      *                     выводе ссылок на выбрасываемый импорт
      */
     protected void pruneUnrenderableImports(Predicate<Import> isUnrenderable, String renderedCode) {
-        requireDroppableImports(ctx.peekImports().stream().filter(isUnrenderable).toList(), renderedCode);
-        ctx.removeBufferedImports(isUnrenderable);
+        requireDroppableImports(ctx.imports().peek().stream().filter(isUnrenderable).toList(), renderedCode);
+        ctx.imports().removeIf(isUnrenderable);
     }
 
     /**

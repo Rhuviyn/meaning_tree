@@ -1526,7 +1526,7 @@ public class CppViewer extends LanguageViewer {
         // #include верхнего уровня уходят в тот же буфер, что и системные подключения,
         // отложенные по ходу отрисовки (preserveSystemInclude), — единая шапка с дедупликацией,
         // а не печать по месту вперемешку с добавленной сверху
-        List<Node> bodyNodes = ctx.bufferTopLevelImports(nodes);
+        List<Node> bodyNodes = ctx.imports().bufferTopLevelImports(nodes);
         if (getConfigParameter("translationUnitMode").equalsValue("full") && !entryPoint.hasEntryPoint()) {
             return withPreservedIncludes(makeSimpleProgram(bodyNodes), bodyNodes);
         }
@@ -1594,10 +1594,10 @@ public class CppViewer extends LanguageViewer {
         // строку для непереводимого импорта, — иначе от него в шапке остаётся пустая строка
         pruneUnrenderableImports(this::isUnrenderableImport, body);
         if (getConfigParameter("translationUnitMode").equalsValue("simple")) {
-            ctx.flushImports();
+            ctx.imports().flush();
             return body;
         }
-        return ctx.prependPreservedImports(body, nodes, "", this::toString);
+        return ctx.imports().prependPreserved(body, nodes, "", this::toString);
     }
 
     /**
@@ -1956,7 +1956,7 @@ public class CppViewer extends LanguageViewer {
      * он требуется. Шапку допишет точка входа.
      */
     private void preserveSystemInclude(String header, Node origin) {
-        ctx.preserveImport(new Include(
+        ctx.imports().preserveImport(new Include(
                 (StringLiteral) StringLiteral.fromUnescaped(header, StringLiteral.Type.NONE).remap(origin),
                 Include.IncludeType.POINTY_BRACKETS_FORM
         ).remap(origin));

@@ -1755,7 +1755,7 @@ public class JavaViewer extends LanguageViewer {
         if (lastDot < 0) {
             return qualifiedName;
         }
-        ctx.preserveImport(new ImportMembersFromModule(
+        ctx.imports().preserveImport(new ImportMembersFromModule(
                 scopedIdentifier(qualifiedName.substring(0, lastDot), origin),
                 (SimpleIdentifier) new SimpleIdentifier(simpleName).remap(origin)
         ).remap(origin));
@@ -2423,7 +2423,7 @@ public class JavaViewer extends LanguageViewer {
      */
     private String withProgramImports(String body, List<Node> nodes) {
         List<Import> declared = getImports(nodes).stream().map(Import.class::cast).toList();
-        List<Import> buffered = ctx.flushMissingImports(nodes);
+        List<Import> buffered = ctx.imports().flushMissing(nodes);
         // Шапка — второе место, где импорт может исчезнуть из вывода; политика та же, что у буфера.
         requireDroppableImports(Stream.concat(declared.stream(), buffered.stream())
                 .filter(this::isUnrenderableImport)
@@ -2550,7 +2550,7 @@ public class JavaViewer extends LanguageViewer {
 
         // Импорты верхнего уровня уходят в общий буфер вместе с отложенными по ходу отрисовки
         // (см. libraryClass) — единая дедуплицированная шапка вместо печати по месту
-        List<Node> bodyNodes = ctx.bufferTopLevelImports(nodes);
+        List<Node> bodyNodes = ctx.imports().bufferTopLevelImports(nodes);
         var constructor = ctx.viewingIterateBody(bodyNodes);
         for (Node node : constructor) {
             constructor.appendString(toString(node));
@@ -2565,10 +2565,10 @@ public class JavaViewer extends LanguageViewer {
         // всё равно дренируется (без печати результата), иначе он утечёт в следующий рендер
         // того же контекста
         if (getConfigParameter("translationUnitMode").equalsValue("simple")) {
-            ctx.flushImports();
+            ctx.imports().flush();
             return body;
         }
-        return ctx.prependPreservedImports(body, bodyNodes, "", this::toString);
+        return ctx.imports().prependPreserved(body, bodyNodes, "", this::toString);
     }
 
     public String toStringScopedIdentifier(ScopedIdentifier scopedIdent) {

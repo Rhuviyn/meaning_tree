@@ -59,6 +59,7 @@ import org.vstu.meaningtree.nodes.types.containers.*;
 import org.vstu.meaningtree.nodes.types.containers.components.Shape;
 import org.vstu.meaningtree.utils.Label;
 import org.vstu.meaningtree.utils.analysis.imports.PythonLibraryImportRegistry;
+import org.vstu.meaningtree.utils.modules.ImportBuffer;
 import org.vstu.meaningtree.utils.modules.ImportPathConverter;
 import org.vstu.meaningtree.utils.tokens.OperatorToken;
 
@@ -427,7 +428,7 @@ public class PythonViewer extends LanguageViewer {
         if (needsAuto) {
             importedMembers.add(new SimpleIdentifier("auto").remap(decl));
         }
-        ctx.preserveImport(new ImportMembersFromModule(
+        ctx.imports().preserveImport(new ImportMembersFromModule(
                 new SimpleIdentifier("enum").remap(decl),
                 importedMembers
         ).remap(decl));
@@ -441,7 +442,7 @@ public class PythonViewer extends LanguageViewer {
      * контекст: точка входа допишет его в шапку программы, если его там еще нет.
      */
     private String structToString(StructureDefinition def, Tab tab) {
-        ctx.preserveImport(new ImportMembersFromModule(
+        ctx.imports().preserveImport(new ImportMembersFromModule(
                 new SimpleIdentifier("dataclasses").remap(def),
                 new SimpleIdentifier("dataclass").remap(def)
         ).remap(def));
@@ -656,13 +657,13 @@ public class PythonViewer extends LanguageViewer {
             nodes.add(entryPointIf);
         }
         boolean hadTopLevelNodes = !nodes.isEmpty();
-        List<Node> bodyNodes = ctx.bufferTopLevelImports(nodes);
+        List<Node> bodyNodes = ctx.imports().bufferTopLevelImports(nodes);
         // Тело печатается до отбрасывания импортов: решение о том, можно ли убрать импорт без
         // соответствия, принимается по готовому коду — не осталось ли в нём ссылок на него
         // (см. requireDroppableImports).
         String body = nodeListToString(bodyNodes, tab, !hadTopLevelNodes);
         pruneUnrenderableImports(this::isUnrenderableImport, body);
-        return ctx.prependPreservedImports(body, bodyNodes, tab.toString(), imp -> toString(imp, tab));
+        return ctx.imports().prependPreserved(body, bodyNodes, tab.toString(), imp -> toString(imp, tab));
     }
 
     /**
@@ -1346,7 +1347,7 @@ public class PythonViewer extends LanguageViewer {
     /**
      * @param padWithPass печатать ли {@code pass} для пустого списка. Ложь нужна, когда список
      *                     опустел из-за того, что импорты verhнего уровня вынесены в буфер
-     *                     ({@link TranslatorContext#bufferTopLevelImports}) — тогда пустое тело
+     *                     ({@link ImportBuffer#bufferTopLevelImports}) — тогда пустое тело
      *                     не значит пустую программу, и {@code pass} был бы лишним.
      */
     private String nodeListToString(List<Node> nodes, Tab tab, boolean padWithPass) {

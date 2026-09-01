@@ -11,17 +11,14 @@ import org.vstu.meaningtree.nodes.expressions.Identifier;
 import org.vstu.meaningtree.nodes.expressions.identifiers.SimpleIdentifier;
 import org.vstu.meaningtree.nodes.modules.*;
 import org.vstu.meaningtree.nodes.statements.CompoundStatement;
-import org.vstu.meaningtree.utils.Label;
 import org.vstu.meaningtree.utils.analysis.types.SimpleTypeInferrer;
 import org.vstu.meaningtree.utils.frames.Frame;
 import org.vstu.meaningtree.utils.frames.FrameStack;
+import org.vstu.meaningtree.utils.modules.ImportBuffer;
 import org.vstu.meaningtree.utils.scopes.ScopeTable;
 
 import java.nio.file.Path;
 import java.util.*;
-import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 public class TranslatorContext {
     protected TranslatorComponent owner;
@@ -48,7 +45,7 @@ public class TranslatorContext {
 
     protected Deque<BodyConstructor> activeBodyConstructors = new ArrayDeque<>();
     private Map<String, Object> ctxVariables = new HashMap<>();
-    private List<Import> imports = new ArrayList<>();
+    private final ImportBuffer imports = new ImportBuffer();
     private final Set<Long> rejectedNodeIds = new HashSet<>();
     private final Set<Long> ignoredNodeIds = new HashSet<>();
 
@@ -326,160 +323,11 @@ public class TranslatorContext {
     }
 
     /**
-     * Откладывает импорт, который понадобился рендереру по ходу отрисовки: о некоторых
-     * импортах становится известно только тогда (например, Python-структуре нужен
-     * {@code from dataclasses import dataclass}). Забирает отложенное тот, кто отрисовывает
-     * шапку программы, — обычно через {@link #prependPreservedImports}.
+     * Импорты, отложенные до отрисовки шапки программы. Собственного состояния у контекста
+     * здесь нет — он только владеет буфером на время одной трансляции.
      */
-    public void preserveImport(Import importNode) {
-        imports.add(importNode);
-    }
-
-    /**
-     * Вынимает импорты верхнего уровня из {@code nodes} и откладывает их в тот же буфер, что и
-     * {@link #preserveImport}: так шапка программы ({@link #prependPreservedImports}) забирает
-     * из одного места и импорты, явно стоявшие в дереве, и те, что обнаружились по ходу отрисовки, —
-     * с общей дедупликацией через {@link #coversImport}.
-     *
-     * @param nodes список узлов одного уровня тела программы
-     * @return тот же список без узлов-импортов верхнего уровня
-     */
-    public List<Node> bufferTopLevelImports(List<? extends Node> nodes) {
-        List<Node> rest = new ArrayList<>(nodes.size());
-        for (Node node : nodes) {
-            if (node instanceof Import importNode) {
-                preserveImport(importNode);
-            } else {
-                rest.add(node);
-            }
-        }
-        return rest;
-    }
-
-    /**
-     * Убирает из буфера все импорты, подошедшие под {@code matcher}. Сравнение — на усмотрение вызывающего: например, по модулю
-     * (без учёта конкретных членов) или по языковому подтипу.
-     *
-     * @return true, если хотя бы один узел был убран
-     */
-    public boolean removeBufferedImports(Predicate<Import> matcher) {
-        return imports.removeIf(matcher);
-    }
-
-    /**
-     * Снимок буфера без изъятия — в отличие от {@link #flushImports}/{@link #flushMissingImports},
-     * не расходует содержимое. Пригодится для отладки или для проверки "а что там вообще отложено"
-     * перед принятием решения (например, перед {@link #removeBufferedImports}).
-     */
-    public List<Import> peekImports() {
-        return List.copyOf(imports);
-    }
-
-    /** Сколько импортов сейчас в буфере — без построения снимка, когда нужно только число. */
-    public int bufferedImportCount() {
-        return imports.size();
-    }
-
-    public List<Import> flushImports() {
-        var dump = List.copyOf(imports);
-        imports.clear();
-        return dump;
-    }
-
-    /**
-     * Забирает отложенные импорты, которых еще нет среди {@code existingNodes}, попутно
-     * отсеивая повторы внутри самой пачки: один и тот же импорт мог отложиться столько раз,
-     * сколько в программе конструкций, которым он нужен.
-     */
-    public List<Import> flushMissingImports(Collection<? extends Node> existingNodes) {
-        List<Import> missing = new ArrayList<>();
-        for (Import preserved : flushImports()) {
-            if (isImportCovered(preserved, missing) || isImportCovered(preserved, existingNodes)) {
-                continue;
-            }
-            missing.add(preserved);
-        }
-        return missing;
-    }
-
-    /**
-     * Дописывает перед готовым телом программы импорты, отложенные через
-     * {@link #preserveImport} и еще отсутствующие в {@code existingNodes}.
-     * <p>
-     * Отрисовка импорта передается вызывающим: у языка может быть свой путь диспетчеризации
-     * (в Python — с отступом), а импорт обязан пройти именно по нему, иначе он не попадет в
-     * source map наравне с остальными узлами.
-     *
-     * @param body          уже отрисованное тело программы
-     * @param existingNodes узлы этого тела: по ним проверяется, что импорта еще нет
-     * @param linePrefix    отступ, с которого начинается строка на этом уровне
-     * @param render        отрисовка одного импорта
-     * @return тело с шапкой из недостающих импортов
-     */
-    public String prependPreservedImports(String body,
-                                          Collection<? extends Node> existingNodes,
-                                          String linePrefix,
-                                          Function<Import, String> render) {
-        List<Import> missing = flushMissingImports(existingNodes);
-        if (missing.isEmpty()) {
-            return body;
-        }
-        List<String> lines = new ArrayList<>();
-        for (Import missingImport : missing) {
-            lines.add(linePrefix + render.apply(missingImport));
-        }
-        lines.add(body);
-        return String.join("\n", lines);
-    }
-
-    /**
-     * Проверяет, покрыт ли {@code required} каким-либо импортом из {@code nodes}.
-     */
-    public static boolean isImportCovered(Import required, Collection<? extends Node> nodes) {
-        return nodes.stream().anyMatch(node -> node instanceof Import existing && coversImport(existing, required));
-    }
-
-    /**
-     * Делает ли импорт {@code existing} ненужным импорт {@code required}.
-     * <p>
-     * Это не эквивалентность (не {@code equals}), а одностороннее отношение "покрытия": например,
-     * {@code from module import *} покрывает {@code from module import x}, но не наоборот, а
-     * импорт всего модуля покрывает лишь точно такой же импорт всего модуля. Оба узла при этом
-     * могут быть равны и через {@link Node#equals} (метка {@link Label#REMAPPED} — stealth, см.
-     * {@link Node#remap}, — и на равенство не влияет), но для дедупликации нужна именно семантика
-     * покрытия, а не совпадение содержимого.
-     */
-    public static boolean coversImport(Import existing, Import required) {
-        // #include стоит особняком: он не именует модуль, а подключает файл, поэтому
-        // покрывает только точно такое же подключение того же файла в той же форме
-        if (existing instanceof Include || required instanceof Include) {
-            return existing instanceof Include a && required instanceof Include b
-                    && a.getIncludeType() == b.getIncludeType()
-                    && a.getFileName().getUnescapedValue().equals(b.getFileName().getUnescapedValue());
-        }
-        if (!(existing instanceof ImportModule from) || !(required instanceof ImportModule needed)) {
-            return false;
-        }
-        if (!from.getModuleName().internalRepresentation()
-                .equals(needed.getModuleName().internalRepresentation())) {
-            return false;
-        }
-        if (!(needed instanceof ImportMembersFromModule requiredMembers)) {
-            // Импорт модуля целиком заменяется только таким же импортом модуля целиком
-            return existing.getClass().equals(required.getClass());
-        }
-        if (existing instanceof ImportAllFromModule) {
-            return true;
-        }
-        if (!(existing instanceof ImportMembersFromModule presentMembers)) {
-            return false;
-        }
-        Set<String> present = presentMembers.getMembers().stream()
-                .map(Identifier::internalRepresentation)
-                .collect(Collectors.toSet());
-        return requiredMembers.getMembers().stream()
-                .map(Identifier::internalRepresentation)
-                .allMatch(present::contains);
+    public ImportBuffer imports() {
+        return imports;
     }
 
     public BodyConstructor createNodeBody(boolean newScope) {
