@@ -654,8 +654,10 @@ public class PythonViewer extends LanguageViewer {
         } else if (getConfigParameter("translationUnitMode").equalsValue("full") && entryPointIf != null) {
             nodes.add(entryPointIf);
         }
-        String body = nodeListToString(nodes, tab);
-        return ctx.prependPreservedImports(body, nodes, tab.toString(), imp -> toString(imp, tab));
+        boolean hadTopLevelNodes = !nodes.isEmpty();
+        List<Node> bodyNodes = ctx.bufferTopLevelImports(nodes);
+        String body = nodeListToString(bodyNodes, tab, !hadTopLevelNodes);
+        return ctx.prependPreservedImports(body, bodyNodes, tab.toString(), imp -> toString(imp, tab));
     }
 
     /**
@@ -1316,8 +1318,18 @@ public class PythonViewer extends LanguageViewer {
     }
 
     private String nodeListToString(List<Node> nodes, Tab tab) {
+        return nodeListToString(nodes, tab, true);
+    }
+
+    /**
+     * @param padWithPass печатать ли {@code pass} для пустого списка. Ложь нужна, когда список
+     *                     опустел из-за того, что импорты verhнего уровня вынесены в буфер
+     *                     ({@link TranslatorContext#bufferTopLevelImports}) — тогда пустое тело
+     *                     не значит пустую программу, и {@code pass} был бы лишним.
+     */
+    private String nodeListToString(List<Node> nodes, Tab tab, boolean padWithPass) {
         if (nodes.isEmpty()) {
-            return "pass";
+            return padWithPass ? "pass" : "";
         }
         var overloads = groupsOverloads()
                 ? PythonOverloadDispatcher.plan(nodes)

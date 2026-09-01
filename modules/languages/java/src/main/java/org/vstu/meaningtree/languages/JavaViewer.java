@@ -2520,13 +2520,16 @@ public class JavaViewer extends LanguageViewer {
             return makeSimpleProgram(entryPoint);
         }
 
-        var constructor = ctx.viewingIterateBody(entryPoint);
+        // Импорты верхнего уровня уходят в общий буфер вместе с отложенными по ходу отрисовки
+        // (см. libraryClass) — единая дедуплицированная шапка вместо печати по месту
+        List<Node> bodyNodes = ctx.bufferTopLevelImports(nodes);
+        var constructor = ctx.viewingIterateBody(bodyNodes);
         for (Node node : constructor) {
             constructor.appendString(toString(node));
         }
 
         String body = String.join("\n", constructor.stringBuffer()) + "\n";
-        return ctx.prependPreservedImports(body, nodes, "", this::toString);
+        return ctx.prependPreservedImports(body, bodyNodes, "", this::toString);
     }
 
     public String toStringScopedIdentifier(ScopedIdentifier scopedIdent) {

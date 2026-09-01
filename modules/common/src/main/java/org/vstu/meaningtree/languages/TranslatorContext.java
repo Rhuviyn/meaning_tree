@@ -20,6 +20,7 @@ import org.vstu.meaningtree.utils.scopes.ScopeTable;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class TranslatorContext {
@@ -333,6 +334,51 @@ public class TranslatorContext {
         imports.add(importNode);
     }
 
+    /**
+     * Вынимает импорты верхнего уровня из {@code nodes} и откладывает их в тот же буфер, что и
+     * {@link #preserveImport}: так шапка программы ({@link #prependPreservedImports}) забирает
+     * из одного места и импорты, явно стоявшие в дереве, и те, что обнаружились по ходу отрисовки, —
+     * с общей дедупликацией через {@link #coversImport}.
+     *
+     * @param nodes список узлов одного уровня тела программы
+     * @return тот же список без узлов-импортов верхнего уровня
+     */
+    public List<Node> bufferTopLevelImports(List<? extends Node> nodes) {
+        List<Node> rest = new ArrayList<>(nodes.size());
+        for (Node node : nodes) {
+            if (node instanceof Import importNode) {
+                preserveImport(importNode);
+            } else {
+                rest.add(node);
+            }
+        }
+        return rest;
+    }
+
+    /**
+     * Убирает из буфера все импорты, подошедшие под {@code matcher}. Сравнение — на усмотрение вызывающего: например, по модулю
+     * (без учёта конкретных членов) или по языковому подтипу.
+     *
+     * @return true, если хотя бы один узел был убран
+     */
+    public boolean removeBufferedImports(Predicate<Import> matcher) {
+        return imports.removeIf(matcher);
+    }
+
+    /**
+     * Снимок буфера без изъятия — в отличие от {@link #flushImports}/{@link #flushMissingImports},
+     * не расходует содержимое. Пригодится для отладки или для проверки "а что там вообще отложено"
+     * перед принятием решения (например, перед {@link #removeBufferedImports}).
+     */
+    public List<Import> peekImports() {
+        return List.copyOf(imports);
+    }
+
+    /** Сколько импортов сейчас в буфере — без построения снимка, когда нужно только число. */
+    public int bufferedImportCount() {
+        return imports.size();
+    }
+
     public List<Import> flushImports() {
         var dump = List.copyOf(imports);
         imports.clear();
@@ -395,9 +441,12 @@ public class TranslatorContext {
     /**
      * Делает ли импорт {@code existing} ненужным импорт {@code required}.
      * <p>
-     * Сравнение идет по содержимому, а не через {@code equals} узлов: у отложенного импорта
-     * есть метка {@link Label#REMAPPED}, которую {@link Node#equals} учитывает, поэтому
-     * одинаковые по смыслу импорты равными не окажутся.
+     * Это не эквивалентность (не {@code equals}), а одностороннее отношение "покрытия": например,
+     * {@code from module import *} покрывает {@code from module import x}, но не наоборот, а
+     * импорт всего модуля покрывает лишь точно такой же импорт всего модуля. Оба узла при этом
+     * могут быть равны и через {@link Node#equals} (метка {@link Label#REMAPPED} — stealth, см.
+     * {@link Node#remap}, — и на равенство не влияет), но для дедупликации нужна именно семантика
+     * покрытия, а не совпадение содержимого.
      */
     public static boolean coversImport(Import existing, Import required) {
         // #include стоит особняком: он не именует модуль, а подключает файл, поэтому

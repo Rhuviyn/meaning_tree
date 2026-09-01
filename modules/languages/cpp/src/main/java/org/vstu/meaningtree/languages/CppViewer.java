@@ -1523,11 +1523,15 @@ public class CppViewer extends LanguageViewer {
             preserveSystemInclude("stdlib.h", entryPoint);
         }
         List<Node> nodes = entryPoint.getBody();
+        // #include верхнего уровня уходят в тот же буфер, что и системные подключения,
+        // отложенные по ходу отрисовки (preserveSystemInclude), — единая шапка с дедупликацией,
+        // а не печать по месту вперемешку с добавленной сверху
+        List<Node> bodyNodes = ctx.bufferTopLevelImports(nodes);
         if (getConfigParameter("translationUnitMode").equalsValue("full") && !entryPoint.hasEntryPoint()) {
-            return withPreservedIncludes(makeSimpleProgram(nodes), nodes);
+            return withPreservedIncludes(makeSimpleProgram(bodyNodes), bodyNodes);
         }
 
-        var constructor = ctx.viewingIterateBody(entryPoint);
+        var constructor = ctx.viewingIterateBody(bodyNodes);
         for (Node node : constructor) {
             constructor.appendString(toString(node));
         }
@@ -1542,7 +1546,7 @@ public class CppViewer extends LanguageViewer {
             body = (body.isEmpty() ? "" : body + "\n") + synthesizeMainCallingEntryPoint(entryPoint.getEntryPoint());
         }
 
-        return withPreservedIncludes(body, nodes) + "\n";
+        return withPreservedIncludes(body, bodyNodes) + "\n";
     }
 
     private boolean hasOwnMainFunction(Node entryPointNode) {
