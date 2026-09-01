@@ -1615,10 +1615,22 @@ public class CppViewer extends LanguageViewer {
         return isLibraryImport(importNode) && libraryHeadersOf(importNode).isEmpty();
     }
 
+    /**
+     * Системное подключение, недопустимое в чистом Си. Проверяется положительно — по списку
+     * Си-заголовков: перечислять C++-заголовки нельзя, их множество открытое, и всё
+     * неперечисленное молча проезжало в C-вывод.
+     * <p>
+     * C++-написание Си-заголовка ({@code <cstdio>}) недопустимым не считается: оно переписывается
+     * в Си-написание при печати, см. {@link #toStringInclude}.
+     */
     private boolean isInvalidForCMode(Import importNode) {
-        return importNode instanceof Include include
-                && include.getIncludeType() == Include.IncludeType.POINTY_BRACKETS_FORM
-                && CppLibraryImportRegistry.isCppOnlyHeader(include.getFileName().getUnescapedValue());
+        if (!(importNode instanceof Include include)
+                || include.getIncludeType() != Include.IncludeType.POINTY_BRACKETS_FORM) {
+            return false;
+        }
+        String header = include.getFileName().getUnescapedValue();
+        return !CppLibraryImportRegistry.isCStandardHeader(header)
+                && CppLibraryImportRegistry.cSpellingOf(header).isEmpty();
     }
 
     private boolean requiresCStandardLibrary(ProgramEntryPoint entryPoint) {
@@ -1927,9 +1939,15 @@ public class CppViewer extends LanguageViewer {
 
     private String toStringInclude(Include include) {
         String fileName = include.getFileName().getUnescapedValue();
-        return include.getIncludeType() == Include.IncludeType.POINTY_BRACKETS_FORM
-                ? "#include <%s>".formatted(fileName)
-                : "#include \"%s\"".formatted(fileName);
+        if (include.getIncludeType() != Include.IncludeType.POINTY_BRACKETS_FORM) {
+            return "#include \"%s\"".formatted(fileName);
+        }
+        // <cstdio> и <stdio.h> — один и тот же заголовок, но под первым именем в Си его нет.
+        // Переписываем, а не выбрасываем: содержимое коду по-прежнему нужно.
+        if (isCMode()) {
+            fileName = CppLibraryImportRegistry.cSpellingOf(fileName).orElse(fileName);
+        }
+        return "#include <%s>".formatted(fileName);
     }
 
     /**

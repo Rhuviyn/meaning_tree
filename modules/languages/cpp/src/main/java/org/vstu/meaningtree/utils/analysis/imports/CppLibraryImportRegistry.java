@@ -83,16 +83,30 @@ public final class CppLibraryImportRegistry {
     );
 
     /**
-     * Заголовки, которых не существует в чистом Си — только сама эта библиотека C++, без
-     * привязки к конкретному типу или функции узнавшего её кода. Собран из тех же заголовков,
-     * что и {@link #FUNCTION_HEADERS}/{@link #headerForType}, плюс явно перечисленные
-     * контейнерные — единственное место, куда нужно дописать новый заголовок, если появится
-     * поддержка ещё одной C++-only библиотеки.
+     * Заголовки стандартной библиотеки Си (C17). Список закрытый и полный — в этом и смысл:
+     * решать, допустимо ли подключение в C-режиме, перечислением C++-заголовков нельзя, их
+     * множество открытое и растёт с каждой ревизией стандарта. Всё, чего здесь нет, Си-заголовком
+     * не является.
      */
-    private static final Set<String> CPP_ONLY_HEADERS = Stream.concat(
-            FUNCTION_HEADERS.values().stream(),
-            Stream.of("string", "vector", "set", "map", "unordered_map", "array")
-    ).collect(Collectors.toUnmodifiableSet());
+    private static final Set<String> C_STANDARD_HEADERS = Set.of(
+            "assert.h", "complex.h", "ctype.h", "errno.h", "fenv.h", "float.h", "inttypes.h",
+            "iso646.h", "limits.h", "locale.h", "math.h", "setjmp.h", "signal.h", "stdalign.h",
+            "stdarg.h", "stdatomic.h", "stdbool.h", "stddef.h", "stdint.h", "stdio.h", "stdlib.h",
+            "stdnoreturn.h", "string.h", "tgmath.h", "threads.h", "time.h", "uchar.h", "wchar.h",
+            "wctype.h"
+    );
+
+    /**
+     * C++-написания Си-заголовков: {@code <cstdio>} — это тот же {@code <stdio.h>}, недоступный
+     * под этим именем в Си. Такое подключение не выбрасывается, а переписывается: содержимое
+     * заголовка коду по-прежнему нужно.
+     */
+    private static final Map<String, String> C_HEADER_SPELLINGS = C_STANDARD_HEADERS.stream()
+            .filter(header -> !Set.of("stdalign.h", "stdatomic.h", "stdbool.h", "stdnoreturn.h",
+                    "threads.h", "iso646.h").contains(header))
+            .collect(Collectors.toUnmodifiableMap(
+                    header -> "c" + header.substring(0, header.length() - ".h".length()),
+                    header -> header));
 
     /**
      * Заголовок, без которого не соберётся тип, напечатанный вьюером.
@@ -135,11 +149,25 @@ public final class CppLibraryImportRegistry {
     }
 
     /**
-     * Заголовок недопустим для чистого Си (например, {@code <string>} после того, как
-     * {@code std::string} превратился в {@code char *}) — неважно, был ли он в исходнике
-     * буквально или отложен по ходу отрисовки.
+     * Допустим ли заголовок в чистом Си.
+     * <p>
+     * Проверка положительная — по списку Си-заголовков, а не по перечню запрещённых
+     * C++-заголовков. Прежний чёрный список собирался из тех заголовков, которые этот реестр сам
+     * умеет выдавать, поэтому в C-вывод беспрепятственно проходили {@code <iostream>},
+     * {@code <memory>}, {@code <sstream>}, {@code <thread>} и любой другой заголовок, о котором
+     * реестр не знает: получался Си-файл, который не собирается.
      */
-    public static boolean isCppOnlyHeader(String header) {
-        return CPP_ONLY_HEADERS.contains(header);
+    public static boolean isCStandardHeader(String header) {
+        return C_STANDARD_HEADERS.contains(header);
+    }
+
+    /**
+     * Си-написание заголовка, если это C++-написание Си-заголовка ({@code cstdio} →
+     * {@code stdio.h}).
+     *
+     * @return пусто, если заголовок не имеет Си-эквивалента
+     */
+    public static Optional<String> cSpellingOf(String header) {
+        return Optional.ofNullable(C_HEADER_SPELLINGS.get(header));
     }
 }

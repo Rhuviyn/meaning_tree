@@ -179,6 +179,40 @@ class CppCModeTests {
         assertFalse(generated.contains("auto*"));
     }
 
+    /**
+     * Допустимость системного заголовка в C-режиме проверяется по списку Си-заголовков, а не по
+     * перечню запрещённых C++-заголовков. Прежний чёрный список содержал только те заголовки,
+     * которые реестр умеет выдавать сам, поэтому в Си-вывод проходили {@code <iostream>},
+     * {@code <memory>}, {@code <sstream>}, {@code <thread>} — файл с ними не собирается.
+     */
+    @Test
+    void dropsCppOnlyHeadersTheRegistryNeverEmits() {
+        for (String header : new String[] {"iostream", "memory", "sstream", "thread", "optional"}) {
+            String generated = translate(
+                    "#include <%s>\nint main() { return 0; }".formatted(header), C_MODE);
+            assertFalse(generated.contains(header), () -> header + " остался в C-выводе: " + generated);
+        }
+    }
+
+    /** Настоящий Си-заголовок остаётся: выбрасывать его не за что. */
+    @Test
+    void keepsCStandardHeaders() {
+        String generated = translate("#include <stdio.h>\nint main() { return 0; }", C_MODE);
+        assertTrue(generated.contains("#include <stdio.h>"), generated);
+    }
+
+    /**
+     * {@code <cstdio>} — это C++-написание {@code <stdio.h>}: тот же заголовок, недоступный под
+     * этим именем в Си. Он переписывается, а не выбрасывается — содержимое коду нужно.
+     */
+    @Test
+    void rewritesCppSpellingsOfCHeaders() {
+        assertTrue(translate("#include <cstdio>\nint main() { return 0; }", C_MODE)
+                .contains("#include <stdio.h>"));
+        assertTrue(translate("#include <cmath>\nint main() { return 0; }", C_MODE)
+                .contains("#include <math.h>"));
+    }
+
     private static String translate(String source, Map<String, Object> config) {
         CppTranslator translator = new CppTranslator(config);
         return translator.getCode(translator.getMeaningTree(source));
