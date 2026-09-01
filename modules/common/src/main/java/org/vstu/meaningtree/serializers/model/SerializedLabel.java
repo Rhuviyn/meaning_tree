@@ -10,6 +10,9 @@ public class SerializedLabel extends AbstractSerializedNode {
     public SerializedLabel(Label label) {
         super(new HashMap<>());
         values.put("id", label.getId());
+        if (label.isStealth()) {
+            values.put("stealth", true);
+        }
         if (label.hasAttribute()) {
             values.put("attr", label.getAttribute());
         }
@@ -18,6 +21,9 @@ public class SerializedLabel extends AbstractSerializedNode {
     public SerializedLabel(Map<String, Object> valueMap) {
         super(new HashMap<>());
         values.put("id", valueMap.getOrDefault("id", Short.MAX_VALUE));
+        if (Boolean.TRUE.equals(valueMap.get("stealth"))) {
+            values.put("stealth", true);
+        }
         if (valueMap.containsKey("attr")) {
             values.put("attr", valueMap.get("attr"));
         }
@@ -29,8 +35,13 @@ public class SerializedLabel extends AbstractSerializedNode {
     }
 
     public Label toObject() {
-        Integer val = (Integer) values.getOrDefault("id", Short.MAX_VALUE);
-        return new Label(val.shortValue(),
-                values.getOrDefault("attr", null));
+        // Number, а не Integer: конструктор от Label кладёт сюда short, а разбор внешнего
+        // представления — Integer, и приведение к одному из двух ломало вторую половину.
+        Number val = (Number) values.getOrDefault("id", Short.MAX_VALUE);
+        boolean stealth = Boolean.TRUE.equals(values.get("stealth"));
+        Object attr = values.getOrDefault("attr", null);
+        return attr == null
+                ? new Label(val.shortValue(), stealth)
+                : new Label(val.shortValue(), attr, stealth);
     }
 }

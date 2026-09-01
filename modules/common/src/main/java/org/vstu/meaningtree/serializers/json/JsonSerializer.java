@@ -711,6 +711,11 @@ public class JsonSerializer implements Serializer<JsonObject> {
     private JsonObject serializeLabel(Label label) {
         JsonObject json = new JsonObject();
         json.addProperty("id", label.getId());
+        // Поле пишется только у невидимых меток: без него JSON остаётся таким же, как до
+        // появления флага, и старые файлы читаются без изменений.
+        if (label.isStealth()) {
+            json.addProperty("stealth", true);
+        }
         if (label.hasAttribute()) {
             Object attr = label.getAttribute();
 

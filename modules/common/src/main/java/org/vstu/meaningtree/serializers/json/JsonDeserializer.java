@@ -1881,9 +1881,10 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
 
     private Label deserializeLabel(JsonObject json) {
         short id = json.get("id").getAsShort();
+        boolean stealth = json.has("stealth") && json.get("stealth").getAsBoolean();
 
         if (!json.has("attr") || json.get("attr").isJsonNull()) {
-            return new Label(id);
+            return new Label(id, stealth);
         }
 
         JsonElement el = json.get("attr");
@@ -1910,7 +1911,7 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
             attr = el;
         }
 
-        return new Label(id, attr);
+        return new Label(id, attr, stealth);
     }
 
     /**
