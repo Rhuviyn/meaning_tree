@@ -40,6 +40,7 @@ import org.vstu.meaningtree.nodes.interfaces.HasVariableDeclaration;
 import org.vstu.meaningtree.nodes.io.*;
 import org.vstu.meaningtree.nodes.memory.MemoryAllocationCall;
 import org.vstu.meaningtree.nodes.memory.MemoryFreeCall;
+import org.vstu.meaningtree.nodes.modules.ImportResolverMetadata;
 import org.vstu.meaningtree.nodes.modules.Include;
 import org.vstu.meaningtree.nodes.statements.CompoundStatement;
 import org.vstu.meaningtree.nodes.statements.ExpressionStatement;
@@ -224,10 +225,16 @@ public class CppParser extends LanguageParser {
             String fileName = rawPath.length() >= 2 && rawPath.startsWith("<") && rawPath.endsWith(">")
                     ? rawPath.substring(1, rawPath.length() - 1)
                     : rawPath;
-            return new Include(
+            // Библиотечность угловой формы видна по самому синтаксису, без обращения к
+            // файловой системе, — как и для java/python (см. JavaParser/PythonParser), метка
+            // ставится сразу при разборе, а не только при резолве с контекстом проекта, чтобы
+            // другой язык мог опознать и почистить этот импорт даже без withSourceContext.
+            Include include = new Include(
                     StringLiteral.fromUnescaped(fileName, StringLiteral.Type.NONE),
                     Include.IncludeType.POINTY_BRACKETS_FORM
             );
+            include.setResolverMetadata(ImportResolverMetadata.library());
+            return include;
         }
         return new Include((StringLiteral) parseTSNode(path), Include.IncludeType.QUOTED_FORM);
     }

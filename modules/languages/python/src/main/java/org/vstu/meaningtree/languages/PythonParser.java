@@ -59,9 +59,11 @@ import org.vstu.meaningtree.nodes.types.user.Class;
 import org.vstu.meaningtree.nodes.types.user.Structure;
 import org.vstu.meaningtree.utils.analysis.imports.ImportResolver;
 import org.vstu.meaningtree.utils.analysis.imports.PythonImportResolver;
+import org.vstu.meaningtree.utils.analysis.imports.PythonLibraryImportRegistry;
 import org.vstu.meaningtree.utils.analysis.types.PythonTypeConversionSemantics;
 import org.vstu.meaningtree.utils.analysis.types.SimpleTypeInferrer;
 import org.vstu.meaningtree.utils.analysis.types.conversion.TypeConversionSemantics;
+import org.vstu.meaningtree.utils.modules.ImportPathConverter;
 import org.vstu.meaningtree.utils.scopes.OverloadSemantics;
 import org.vstu.meaningtree.utils.scopes.ScopeLookupMode;
 
@@ -297,14 +299,14 @@ public class PythonParser extends LanguageParser {
                 currentChild = currentChild.getNextNamedSibling();
             }
             if (scopes.size() == 1) {
-                return new ImportModule(scopes.getFirst());
+                return tagIfLibraryImport(new ImportModule(scopes.getFirst()), scopes);
             } else {
-                return new ImportModules(scopes);
+                return tagIfLibraryImport(new ImportModules(scopes), scopes);
             }
         } else if (node.getType().equals("import_from_statement")) {
             Identifier scope = (Identifier) parseTSNode(node.getChildByFieldName("module_name"));
             if (node.getNamedChild(1).getType().equals("wildcard_import")) {
-                return new ImportAllFromModule(scope);
+                return tagIfLibraryImport(new ImportAllFromModule(scope), List.of(scope));
             }
             List<Identifier> members = new ArrayList<>();
             TSNode currentChild = node.getChildByFieldName("name");
@@ -312,10 +314,29 @@ public class PythonParser extends LanguageParser {
                 members.add((Identifier) parseTSNode(currentChild));
                 currentChild = currentChild.getNextNamedSibling();
             }
-            return new ImportMembersFromModule(scope, members);
+            return tagIfLibraryImport(new ImportMembersFromModule(scope, members), List.of(scope));
         } else {
             return parseTSNode(node);
         }
+    }
+
+    /**
+     * Отмечает библиотечный импорт сразу при разборе, а не только после
+     * {@link ImportResolver#resolve}: тот требует контекст проекта
+     * ({@code LanguageTranslator.withSourceContext}), которого при переводе одиночного файла
+     * обычно нет, — а без него другой язык не отличит {@code os}/{@code java.util.ArrayList} от
+     * локального файла проекта и печатает вместо заголовка/импорта мусорный путь.
+     * Принадлежность стандартной библиотеке видна по одному имени пакета, без обращения к
+     * файловой системе, поэтому её можно проставить сразу; полноценный резолвинг проекта, если
+     * он всё же запустится, эту метку просто перезапишет.
+     */
+    private <T extends Import> T tagIfLibraryImport(T importNode, List<Identifier> scopes) {
+        boolean allLibrary = !scopes.isEmpty() && scopes.stream()
+                .allMatch(scope -> PythonLibraryImportRegistry.isLibraryModule(ImportPathConverter.dottedName(scope)));
+        if (allLibrary) {
+            importNode.setResolverMetadata(ImportResolverMetadata.library());
+        }
+        return importNode;
     }
 
     private Range rangeFromFunction(FunctionCall call) {

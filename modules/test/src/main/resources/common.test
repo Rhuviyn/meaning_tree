@@ -2659,3 +2659,108 @@ group: Other
                     run();
                 }
             };
+
+group: ForeignLibraryImports
+    case[translationUnitMode="procedural"]: JavaLibraryImportBecomesCppHeader
+        main java:
+            import java.util.ArrayList;
+            class Helper {
+                static void useList() {
+                    ArrayList<Integer> a = new ArrayList<>();
+                }
+            }
+
+        c++:
+            #include <vector>
+            class Helper
+            {
+                static void useList()
+                {
+                    ArrayList<int> a = new ArrayList<>();
+                }
+            };
+
+        python:
+            class Helper:
+                @staticmethod
+                def useList() -> None:
+                    a: ArrayList[int] = ArrayList[]()
+
+    case[translationUnitMode="procedural"]: JavaLibraryImportBecomesCppUnorderedMapHeader
+        main java:
+            import java.util.HashMap;
+            class Helper {
+                static void useMap() {
+                    HashMap<String, Integer> m;
+                }
+            }
+
+        c++:
+            #include <unordered_map>
+            #include <string>
+            class Helper
+            {
+                static void useMap()
+                {
+                    HashMap<std::string, int> m;
+                }
+            };
+
+    case[translationUnitMode="procedural"]: PythonLibraryImportBecomesCppHeader
+        main python:
+            import random
+            x = random.random()
+
+        c++:
+            #include <random>
+            auto x = random.random();
+
+    case[translationUnitMode="procedural"]: JavaUnresolvedImportStaysLocalPath
+        main java:
+            import com.mycompany.Foo;
+            class Helper {
+                static void useFoo() {
+                    Foo f;
+                }
+            }
+
+        c++:
+            #include "com/mycompany/Foo.h"
+            class Helper
+            {
+                static void useFoo()
+                {
+                    Foo f;
+                }
+            };
+
+    case[translationUnitMode="procedural"]: PythonOwnLibraryImportsRoundTrip
+        python:
+            import os
+            import random
+            from mypkg.util import helper
+
+            x = os.getcwd()
+
+        python:
+            import os
+            import random
+            from mypkg.util import helper
+
+            x = os.getcwd()
+
+    case[translationUnitMode="procedural"]: PythonLibraryImportDroppedInJava
+        main python:
+            import random
+            x = random.random()
+
+        java:
+            var x = random.random();
+
+    case[translationUnitMode="procedural"]: UnmappedLibraryImportLeavesNoBlankLineInCpp
+        main python:
+            import json
+            x = json.dumps({})
+
+        c++:
+            auto x = json.dumps({});

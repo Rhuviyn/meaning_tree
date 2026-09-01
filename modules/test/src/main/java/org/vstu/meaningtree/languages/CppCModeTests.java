@@ -43,6 +43,26 @@ class CppCModeTests {
     }
 
     @Test
+    void dropsCppOnlyIncludesLeftOverFromTheSource() {
+        // #include <string> и <vector> из исходника не собрались бы в чистом Си, а сама
+        // std::string уже переписана в char * — заголовок ей больше не нужен
+        String source = """
+                #include <string>
+                #include <vector>
+                int main() {
+                    std::string text = "ok";
+                    return 0;
+                }
+                """;
+
+        String generated = translate(source, C_MODE);
+
+        assertFalse(generated.contains("#include <string>"), generated);
+        assertFalse(generated.contains("#include <vector>"), generated);
+        assertTrue(generated.contains("char * text = \"ok\";"), generated);
+    }
+
+    @Test
     void usesCMainForSyntheticEntryPointAndPreservesExplicitArguments() {
         String synthetic = translate("int helper(int value) { return value; }", C_MODE);
         assertTrue(synthetic.contains("int main(void)"));

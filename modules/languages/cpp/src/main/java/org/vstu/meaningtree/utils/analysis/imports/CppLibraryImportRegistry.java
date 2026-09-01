@@ -6,6 +6,9 @@ import org.vstu.meaningtree.nodes.types.containers.*;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Заголовки стандартной библиотеки C++, без которых сгенерированный код не соберётся.
@@ -80,6 +83,18 @@ public final class CppLibraryImportRegistry {
     );
 
     /**
+     * Заголовки, которых не существует в чистом Си — только сама эта библиотека C++, без
+     * привязки к конкретному типу или функции узнавшего её кода. Собран из тех же заголовков,
+     * что и {@link #FUNCTION_HEADERS}/{@link #headerForType}, плюс явно перечисленные
+     * контейнерные — единственное место, куда нужно дописать новый заголовок, если появится
+     * поддержка ещё одной C++-only библиотеки.
+     */
+    private static final Set<String> CPP_ONLY_HEADERS = Stream.concat(
+            FUNCTION_HEADERS.values().stream(),
+            Stream.of("string", "vector", "set", "map", "unordered_map", "array")
+    ).collect(Collectors.toUnmodifiableSet());
+
+    /**
      * Заголовок, без которого не соберётся тип, напечатанный вьюером.
      * <p>
      * Разбор идёт от частного к общему ровно в том же порядке, в котором {@code CppViewer}
@@ -117,5 +132,14 @@ public final class CppLibraryImportRegistry {
      */
     public static Optional<String> headerForLibraryModule(String dottedName) {
         return Optional.ofNullable(LIBRARY_MODULE_HEADERS.get(dottedName));
+    }
+
+    /**
+     * Заголовок недопустим для чистого Си (например, {@code <string>} после того, как
+     * {@code std::string} превратился в {@code char *}) — неважно, был ли он в исходнике
+     * буквально или отложен по ходу отрисовки.
+     */
+    public static boolean isCppOnlyHeader(String header) {
+        return CPP_ONLY_HEADERS.contains(header);
     }
 }

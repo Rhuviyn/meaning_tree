@@ -14,12 +14,14 @@ import org.vstu.meaningtree.nodes.Node;
 import org.vstu.meaningtree.nodes.expressions.identifiers.SelfReference;
 import org.vstu.meaningtree.nodes.expressions.identifiers.SimpleIdentifier;
 import org.vstu.meaningtree.nodes.expressions.identifiers.SuperClassReference;
+import org.vstu.meaningtree.nodes.modules.*;
 import org.vstu.meaningtree.utils.InternalNode;
 import org.vstu.meaningtree.utils.Label;
 import org.vstu.meaningtree.utils.ParenthesesFiller;
 import org.vstu.meaningtree.utils.hooks.HookHandle;
 import org.vstu.meaningtree.utils.hooks.HookOrder;
 import org.vstu.meaningtree.utils.hooks.HookPhase;
+import org.vstu.meaningtree.utils.modules.ImportPathConverter;
 import org.vstu.meaningtree.utils.tokens.OperatorToken;
 
 import java.util.*;
@@ -62,6 +64,24 @@ abstract public class LanguageViewer extends TranslatorComponent {
                 text -> ctx.requireTokenizer().hasOperatorWithText(text)
         );
         registerReservedKeywordGuard();
+    }
+
+    /**
+     * Точечные имена, которые называет импорт (без обращения к резолверу/файловой системе —
+     * то же наивное имя, что видит {@link org.vstu.meaningtree.utils.analysis.imports.ImportResolver}).
+     * <p>
+     * Общая для всех вьюеров: извлечение имени не зависит от целевого языка, только от формы
+     * узла — в отличие от того, что каждый вьюер потом с этим именем делает (своя таблица
+     * "своих" модулей у Java/Python, таблица заголовков у C++), это осталось у них.
+     */
+    protected List<String> moduleNamesOf(Import importNode) {
+        return switch (importNode) {
+            case ImportMembersFromModule members -> List.of(ImportPathConverter.dottedName(members.getModuleName()));
+            case ImportAllFromModule all -> List.of(ImportPathConverter.dottedName(all.getModuleName()));
+            case ImportModules modules -> modules.getModulesNames().stream().map(ImportPathConverter::dottedName).toList();
+            case ImportModule module -> List.of(ImportPathConverter.dottedName(module.getModuleName()));
+            default -> List.of();
+        };
     }
 
     /**

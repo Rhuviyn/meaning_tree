@@ -58,6 +58,7 @@ import org.vstu.meaningtree.nodes.types.builtin.*;
 import org.vstu.meaningtree.nodes.types.containers.*;
 import org.vstu.meaningtree.nodes.types.containers.components.Shape;
 import org.vstu.meaningtree.utils.Label;
+import org.vstu.meaningtree.utils.analysis.imports.PythonLibraryImportRegistry;
 import org.vstu.meaningtree.utils.modules.ImportPathConverter;
 import org.vstu.meaningtree.utils.tokens.OperatorToken;
 
@@ -656,8 +657,29 @@ public class PythonViewer extends LanguageViewer {
         }
         boolean hadTopLevelNodes = !nodes.isEmpty();
         List<Node> bodyNodes = ctx.bufferTopLevelImports(nodes);
+        // Библиотечный импорт чужого языка (java.util.ArrayList и т.п.) не имеет питоновского
+        // соответствия — в отличие от C++, тут нет таблицы замен, поэтому его просто убираем,
+        // а не печатаем как несуществующий модуль (см. isUnrenderableImport)
+        ctx.removeBufferedImports(this::isUnrenderableImport);
         String body = nodeListToString(bodyNodes, tab, !hadTopLevelNodes);
         return ctx.prependPreservedImports(body, bodyNodes, tab.toString(), imp -> toString(imp, tab));
+    }
+
+    /**
+     * Импорт, которому в Python нечего соответствовать: C++-only {@code #include <...>} (см.
+     * {@link #isLibraryInclude}), либо библиотечный импорт другого языка (Java), чьё имя не
+     * значится в {@link PythonLibraryImportRegistry} — то есть родом не из Python. Метка
+     * "библиотечный" ставится либо резолвером с контекстом проекта, либо сразу при разборе
+     * (см. {@code JavaParser}/{@code PythonParser}), так что проверка работает и без него.
+     */
+    private boolean isUnrenderableImport(Import importNode) {
+        if (importNode instanceof Include include) {
+            return isLibraryInclude(include);
+        }
+        if (!importNode.getResolverMetadata().map(ImportResolverMetadata::isLibrary).orElse(false)) {
+            return false;
+        }
+        return moduleNamesOf(importNode).stream().noneMatch(PythonLibraryImportRegistry::isLibraryModule);
     }
 
     /**

@@ -65,8 +65,10 @@ import org.vstu.meaningtree.nodes.types.user.GenericClass;
 import org.vstu.meaningtree.nodes.types.user.Interface;
 import org.vstu.meaningtree.utils.analysis.imports.ImportResolver;
 import org.vstu.meaningtree.utils.analysis.imports.JavaImportResolver;
+import org.vstu.meaningtree.utils.analysis.imports.JavaLibraryImportRegistry;
 import org.vstu.meaningtree.utils.analysis.types.JavaTypeConversionSemantics;
 import org.vstu.meaningtree.utils.analysis.types.conversion.TypeConversionSemantics;
+import org.vstu.meaningtree.utils.modules.ImportPathConverter;
 import org.vstu.meaningtree.utils.scopes.ScopeLookupMode;
 
 import java.util.*;
@@ -601,13 +603,30 @@ public class JavaParser extends LanguageParser {
         }
         else if (isWildcardImport(importDeclaration)) {
             Identifier scope = fromIdentifierTSNode(scopeNode);
-            return new ImportAllFromModule(scope);
+            return tagIfLibraryImport(new ImportAllFromModule(scope), scope);
         }
         else {
             Identifier scope = fromIdentifierTSNode(scopeNode.getChildByFieldName("scope"));
             Identifier member = fromIdentifierTSNode(scopeNode.getChildByFieldName("name"));
-            return new ImportMembersFromModule(scope, member);
+            return tagIfLibraryImport(new ImportMembersFromModule(scope, member), scope);
         }
+    }
+
+    /**
+     * Отмечает библиотечный импорт сразу при разборе, а не только после
+     * {@link ImportResolver#resolve}: тот требует контекст проекта
+     * ({@code LanguageTranslator.withSourceContext}), которого при переводе одиночного файла
+     * обычно нет, — а без него другой язык не отличит {@code java.util.ArrayList} от локального
+     * файла проекта и печатает вместо заголовка/импорта мусорный путь. Принадлежность
+     * стандартной библиотеке видна по одному имени пакета, без обращения к файловой системе,
+     * поэтому её можно проставить сразу; полноценный резолвинг проекта, если он всё же
+     * запустится, эту метку просто перезапишет.
+     */
+    private <T extends Import> T tagIfLibraryImport(T importNode, Identifier scope) {
+        if (JavaLibraryImportRegistry.isLibraryModule(ImportPathConverter.dottedName(scope))) {
+            importNode.setResolverMetadata(ImportResolverMetadata.library());
+        }
+        return importNode;
     }
 
     private Node fromNullLiteralTSNode(TSNode nullLiteral) {

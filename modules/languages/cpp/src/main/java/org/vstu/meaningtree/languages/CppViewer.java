@@ -1590,11 +1590,35 @@ public class CppViewer extends LanguageViewer {
      * результата), иначе он утечёт в следующий рендер того же контекста.
      */
     private String withPreservedIncludes(String body, List<Node> nodes) {
+        // Убираем ещё до печати, а не полагаемся на то, что toStringImport напечатает пустую
+        // строку для непереводимого импорта, — иначе от него в шапке остаётся пустая строка
+        ctx.removeBufferedImports(this::isUnrenderableImport);
         if (getConfigParameter("translationUnitMode").equalsValue("simple")) {
             ctx.flushImports();
             return body;
         }
         return ctx.prependPreservedImports(body, nodes, "", this::toString);
+    }
+
+    /**
+     * Импорт, которому в C++ нечего соответствовать: C++-only заголовок (например,
+     * {@code <string>} после того, как {@code std::string} превратился в {@code char *}) в
+     * C-режиме, либо библиотечный импорт другого языка (Python {@code json} и т. п.), для
+     * которого в {@link CppLibraryImportRegistry} нет заголовка. Метка "библиотечный" ставится
+     * либо резолвером с контекстом проекта, либо сразу при разборе (см.
+     * {@code JavaParser}/{@code PythonParser}), так что проверка работает и без него.
+     */
+    private boolean isUnrenderableImport(Import importNode) {
+        if (isCMode() && isInvalidForCMode(importNode)) {
+            return true;
+        }
+        return isLibraryImport(importNode) && libraryHeadersOf(importNode).isEmpty();
+    }
+
+    private boolean isInvalidForCMode(Import importNode) {
+        return importNode instanceof Include include
+                && include.getIncludeType() == Include.IncludeType.POINTY_BRACKETS_FORM
+                && CppLibraryImportRegistry.isCppOnlyHeader(include.getFileName().getUnescapedValue());
     }
 
     private boolean requiresCStandardLibrary(ProgramEntryPoint entryPoint) {

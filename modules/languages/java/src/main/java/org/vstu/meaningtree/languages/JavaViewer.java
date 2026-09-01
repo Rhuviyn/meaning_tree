@@ -1012,6 +1012,24 @@ public class JavaViewer extends LanguageViewer {
     }
 
     /**
+     * Импорт, которому в Java нечего соответствовать: C++-only {@code #include <...>} (см.
+     * {@link #isLibraryInclude}), либо библиотечный импорт другого языка (Python {@code random}
+     * и т. п.), чьё имя не значится в {@link JavaLibraryImportRegistry} — то есть родом не из
+     * Java. Метка "библиотечный" ставится либо резолвером с контекстом проекта, либо сразу при
+     * разборе (см. {@code JavaParser}/{@code PythonParser}), так что проверка работает и без
+     * него.
+     */
+    private boolean isUnrenderableImport(Import importNode) {
+        if (importNode instanceof Include include) {
+            return isLibraryInclude(include);
+        }
+        if (!importNode.getResolverMetadata().map(ImportResolverMetadata::isLibrary).orElse(false)) {
+            return false;
+        }
+        return moduleNamesOf(importNode).stream().noneMatch(JavaLibraryImportRegistry::isLibraryModule);
+    }
+
+    /**
      * Алиасинг импорта ({@code import x as y}) Java не поддерживает, поэтому от алиаса
      * остаётся только настоящее имя — тихая, но неизбежная потеря.
      */
@@ -2403,8 +2421,10 @@ public class JavaViewer extends LanguageViewer {
      * внутри синтетического {@code main}, где Java их не принимает.
      */
     private String withProgramImports(String body, List<Node> nodes) {
-        List<Node> header = new ArrayList<>(getImports(nodes));
-        header.addAll(ctx.flushMissingImports(nodes));
+        List<Node> header = new ArrayList<>(getImports(nodes).stream()
+                .filter(node -> !isUnrenderableImport((Import) node))
+                .toList());
+        header.addAll(ctx.flushMissingImports(nodes).stream().filter(imp -> !isUnrenderableImport(imp)).toList());
         if (header.isEmpty()) {
             return body;
         }
@@ -2523,6 +2543,9 @@ public class JavaViewer extends LanguageViewer {
         // Импорты верхнего уровня уходят в общий буфер вместе с отложенными по ходу отрисовки
         // (см. libraryClass) — единая дедуплицированная шапка вместо печати по месту
         List<Node> bodyNodes = ctx.bufferTopLevelImports(nodes);
+        // Библиотечный импорт чужого языка (python random и т. п.) не имеет соответствия в
+        // Java — печатать его как несуществующий import было бы мусором, поэтому убираем
+        ctx.removeBufferedImports(this::isUnrenderableImport);
         var constructor = ctx.viewingIterateBody(bodyNodes);
         for (Node node : constructor) {
             constructor.appendString(toString(node));
