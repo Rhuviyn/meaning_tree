@@ -322,6 +322,45 @@ class ImportResolverTests {
         assertEquals(ImportKind.LIBRARY, resolved.getFirst().kind());
     }
 
+    /**
+     * {@code import math, local_module} — это два независимых импорта в одной строке с разной
+     * судьбой: первый библиотечный, второй локальный. Резолвер разбирал их одним списком
+     * кандидатов и выдавал один вердикт, приписывая узлу путь к {@code local_module}, — то есть
+     * объявлял {@code math} файлом проекта.
+     */
+    @Test
+    void multiImportWithDifferentOutcomesIsMarkedMixed(@TempDir Path projectRoot) throws IOException {
+        write(projectRoot, "local_module.py", "");
+        write(projectRoot, "main.py", "");
+
+        List<ImportResolverMetadata> resolved = resolveAll(
+                new PythonTranslator(CONFIG),
+                projectRoot,
+                Path.of("main.py"),
+                "import math, local_module"
+        );
+
+        assertEquals(1, resolved.size());
+        assertEquals(ImportKind.MIXED, resolved.getFirst().kind());
+        assertTrue(resolved.getFirst().resolvedFile().isEmpty(),
+                "у смешанного импорта не может быть одного файла");
+    }
+
+    /** Когда все модули строки библиотечные, вердикт по-прежнему один и определённый. */
+    @Test
+    void multiImportOfLibraryModulesStaysLibrary(@TempDir Path projectRoot) throws IOException {
+        write(projectRoot, "main.py", "");
+
+        List<ImportResolverMetadata> resolved = resolveAll(
+                new PythonTranslator(CONFIG),
+                projectRoot,
+                Path.of("main.py"),
+                "import math, os"
+        );
+
+        assertEquals(ImportKind.LIBRARY, resolved.getFirst().kind());
+    }
+
     private List<ImportResolverMetadata> resolveAll(LanguageTranslator translator,
                                                     Path projectRoot,
                                                     Path currentFileRelPath,

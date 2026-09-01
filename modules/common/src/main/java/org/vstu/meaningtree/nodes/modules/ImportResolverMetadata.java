@@ -19,7 +19,14 @@ public record ImportResolverMetadata(ImportKind kind, Optional<Path> resolvedFil
         /** Похоже на локальный импорт, но файла в проекте нет. */
         LOCAL_UNRESOLVED,
         /** Импорт из библиотеки: файла в проекте нет и быть не должно. */
-        LIBRARY
+        LIBRARY,
+        /**
+         * Одна строка импорта называет несколько модулей, и разрешились они по-разному:
+         * {@code import math, local_module} — библиотечный и локальный одновременно. Одного
+         * вердикта у такого узла нет, и приписывать ему любой из двух значило бы соврать про
+         * второй.
+         */
+        MIXED
     }
 
     public ImportResolverMetadata {
@@ -29,6 +36,10 @@ public record ImportResolverMetadata(ImportKind kind, Optional<Path> resolvedFil
 
     public static ImportResolverMetadata library() {
         return new ImportResolverMetadata(ImportKind.LIBRARY, Optional.empty());
+    }
+
+    public static ImportResolverMetadata mixed() {
+        return new ImportResolverMetadata(ImportKind.MIXED, Optional.empty());
     }
 
     public static ImportResolverMetadata unresolved() {

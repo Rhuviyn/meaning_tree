@@ -343,10 +343,18 @@ public class PythonParser extends LanguageParser {
      * он всё же запустится, эту метку просто перезапишет.
      */
     private <T extends Import> T tagIfLibraryImport(T importNode, List<Identifier> scopes) {
-        boolean allLibrary = !scopes.isEmpty() && scopes.stream()
-                .allMatch(scope -> PythonLibraryImportRegistry.isLibraryModule(ImportPathConverter.dottedName(scope)));
-        if (allLibrary) {
+        if (scopes.isEmpty()) {
+            return importNode;
+        }
+        long libraryCount = scopes.stream()
+                .filter(scope -> PythonLibraryImportRegistry.isLibraryModule(ImportPathConverter.dottedName(scope)))
+                .count();
+        if (libraryCount == scopes.size()) {
             importNode.setResolverMetadata(ImportResolverMetadata.library());
+        } else if (libraryCount > 0 && importNode instanceof ImportModules) {
+            // import math, local_module: одна строка, два независимых импорта с разной судьбой.
+            // Метка на весь узел здесь была бы неверна для одной из половин.
+            importNode.setResolverMetadata(ImportResolverMetadata.mixed());
         }
         return importNode;
     }

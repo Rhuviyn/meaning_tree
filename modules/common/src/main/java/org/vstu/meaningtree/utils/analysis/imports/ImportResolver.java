@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -68,12 +69,43 @@ public abstract class ImportResolver {
                                                    MeaningTree tree,
                                                    Path projectRoot,
                                                    Path currentFileRelPath) {
-        List<String> candidates = candidateDottedNames(importNode);
+        List<List<String>> targets = importTargets(importNode);
+        if (targets.isEmpty()) {
+            return null;
+        }
+        Optional<Path> exactRoot = exactSearchRoot(tree, projectRoot, currentFileRelPath);
+
+        List<ImportResolverMetadata> perTarget = new ArrayList<>();
+        for (List<String> candidates : targets) {
+            ImportResolverMetadata resolved = resolveTarget(candidates, projectRoot, exactRoot);
+            if (resolved == null) {
+                return null;
+            }
+            perTarget.add(resolved);
+        }
+        return mergeTargets(perTarget);
+    }
+
+    /**
+     * Сводит вердикты по отдельным целям к одному, который несёт узел.
+     * <p>
+     * Одинаковые вердикты сливаются; расходящиеся дают {@link ImportKind#MIXED}. Выбрать любой
+     * из них нельзя: {@code import math, local_module} — это библиотечный импорт и локальный
+     * одновременно, и приписав узлу путь к {@code local_module}, резолвер объявил бы
+     * {@code math} локальным файлом проекта.
+     */
+    private ImportResolverMetadata mergeTargets(List<ImportResolverMetadata> perTarget) {
+        ImportResolverMetadata first = perTarget.getFirst();
+        return perTarget.stream().allMatch(first::equals) ? first : ImportResolverMetadata.mixed();
+    }
+
+    /** Вердикт для одной цели импорта; {@code candidates} — её равноправные написания. */
+    private ImportResolverMetadata resolveTarget(List<String> candidates,
+                                                 Path projectRoot,
+                                                 Optional<Path> exactRoot) {
         if (candidates.isEmpty()) {
             return null;
         }
-
-        Optional<Path> exactRoot = exactSearchRoot(tree, projectRoot, currentFileRelPath);
         // Точный поиск раньше реестра там, где язык допускает затенение: в Python файл
         // random.py рядом с текущим делает `import random` обращением к нему, а не к stdlib.
         // Только точный поиск, не перебор по проекту: одноимённый файл где-то в другом каталоге
@@ -81,30 +113,42 @@ public abstract class ImportResolver {
         if (allowsLocalShadowing() && exactRoot.isPresent()) {
             Optional<Path> shadowing = findFirstExact(exactRoot.get(), candidates);
             if (shadowing.isPresent()) {
-                return ImportResolverMetadata.resolved(
-                        ImportResolverMetadata.ImportKind.LOCAL_RESOLVED_EXACT, shadowing.get());
+                return ImportResolverMetadata.resolved(ImportResolverMetadata.ImportKind.LOCAL_RESOLVED_EXACT, shadowing.get());
             }
         }
-
         if (candidates.stream().allMatch(this::isLibraryModule)) {
             return ImportResolverMetadata.library();
         }
-
         if (exactRoot.isPresent()) {
             Optional<Path> resolved = findFirstExact(exactRoot.get(), candidates);
             if (resolved.isPresent()) {
-                return ImportResolverMetadata.resolved(
-                        ImportResolverMetadata.ImportKind.LOCAL_RESOLVED_EXACT, resolved.get());
+                return ImportResolverMetadata.resolved(ImportResolverMetadata.ImportKind.LOCAL_RESOLVED_EXACT, resolved.get());
             }
         }
         for (String candidate : candidates) {
             Optional<Path> resolved = findAnywhere(projectRoot, candidate);
             if (resolved.isPresent()) {
-                return ImportResolverMetadata.resolved(
-                        ImportResolverMetadata.ImportKind.LOCAL_RESOLVED_FALLBACK, resolved.get());
+                return ImportResolverMetadata.resolved(ImportResolverMetadata.ImportKind.LOCAL_RESOLVED_FALLBACK, resolved.get());
             }
         }
         return ImportResolverMetadata.unresolved();
+    }
+
+    /**
+     * Цели импорта, каждая со своим списком равноправных написаний.
+     * <p>
+     * Целей больше одной у {@code import a, b}: это два независимых импорта в одной строке, и
+     * разрешать их надо порознь. У остальных форм цель одна, а список написаний описывает
+     * неоднозначность самой этой цели (см. {@link #candidateDottedNames}).
+     */
+    protected List<List<String>> importTargets(Import importNode) {
+        if (importNode instanceof ImportModules modules) {
+            return modules.getModulesNames().stream()
+                    .map(module -> List.of(ImportPathConverter.dottedName(module)))
+                    .collect(Collectors.toList());
+        }
+        List<String> candidates = candidateDottedNames(importNode);
+        return candidates.isEmpty() ? List.of() : List.of(candidates);
     }
 
     /**

@@ -1304,7 +1304,13 @@ export type ImportResolverKind =
     | "local_resolved_exact"
     | "local_resolved_fallback"
     | "local_unresolved"
-    | "library";
+    | "library"
+    /**
+     * Одна строка импорта называет несколько модулей, и разрешились они по-разному
+     * (`import math, local_module`). Одного вердикта у такого узла нет; `resolved_file`
+     * отсутствует.
+     */
+    | "mixed";
 
 /**
  * Результат резолвинга импорта (`ImportResolverMetadata`).
@@ -1314,7 +1320,7 @@ export type ImportResolverKind =
  */
 export interface ImportResolverMetadataRef {
     kind: ImportResolverKind;
-    /** Путь к резолвнутому файлу; отсутствует для `library` и `local_unresolved`. */
+    /** Путь к резолвнутому файлу; отсутствует для `library`, `local_unresolved` и `mixed`. */
     resolved_file: string | null;
 }
 
