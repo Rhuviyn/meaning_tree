@@ -238,19 +238,9 @@ final class TypeConversionSiteAnalyzer {
                 analyzer.compatibility(source, target, kind, siteKind, value, scope)));
     }
 
+    /** Проверки выполняются в области самого места преобразования, а не там, где его нашёл обход. */
     private <T> T withSiteScope(NodeInfo info, Supplier<T> action) {
-        long previousScopeId = scope.currentScopeId();
-        Long siteScopeId = nearestScopeId(info);
-        if (siteScopeId != null && scope.findScope(siteScopeId).isPresent()) {
-            scope.setCurrentScope(siteScopeId);
-        }
-        try {
-            return action.get();
-        } finally {
-            if (scope.findScope(previousScopeId).isPresent()) {
-                scope.setCurrentScope(previousScopeId);
-            }
-        }
+        return scope.inScope(nearestScopeId(info), action);
     }
 
     private Long nearestScopeId(NodeInfo info) {

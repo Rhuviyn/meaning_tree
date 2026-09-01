@@ -357,19 +357,9 @@ public final class OverloadCallResolver {
         return expression == null ? new UnknownType() : SimpleTypeInferrer.inference(expression, scope);
     }
 
+    /** Разрешение кандидатов идёт в области самого вызова, а не там, где его нашёл обход. */
     private <T> T withSiteScope(NodeInfo info, java.util.function.Supplier<T> action) {
-        long previousScopeId = scope.currentScopeId();
-        Long siteScopeId = nearestScopeId(info);
-        if (siteScopeId != null && scope.findScope(siteScopeId).isPresent()) {
-            scope.setCurrentScope(siteScopeId);
-        }
-        try {
-            return action.get();
-        } finally {
-            if (scope.findScope(previousScopeId).isPresent()) {
-                scope.setCurrentScope(previousScopeId);
-            }
-        }
+        return scope.inScope(nearestScopeId(info), action);
     }
 
     private Long nearestScopeId(NodeInfo info) {

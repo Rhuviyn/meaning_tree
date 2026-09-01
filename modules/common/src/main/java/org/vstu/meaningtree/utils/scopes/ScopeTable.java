@@ -18,6 +18,7 @@ import org.vstu.meaningtree.nodes.types.UserType;
 
 import java.io.Serializable;
 import java.util.*;
+import java.util.function.Supplier;
 
 /**
  * {@code TypeScope} управляет стеком областей видимости типов,
@@ -165,6 +166,47 @@ public class ScopeTable implements Serializable {
             throw new IllegalArgumentException("Unknown scope id: " + id);
         }
         current = scope;
+    }
+
+    /**
+     * Выполняет действие так, как если бы текущей была область {@code scopeId}, и возвращает
+     * курсор на место.
+     * <p>
+     * Курсор — общее состояние таблицы, поэтому каждый, кто его двигал, обязан был вернуть на
+     * место сам: пять проходов анализа держали один и тот же {@code try/finally} вокруг пары
+     * {@link #setCurrentScope}. Достаточно забыть {@code finally} в одном из них — и все
+     * следующие поиски пойдут не из той области, причём молча.
+     * <p>
+     * Неизвестная область — не ошибка, а штатный случай: дерево могло прийти из десериализации
+     * или быть собрано в обход разбора, и тогда у тела нет привязанной области. Тогда действие
+     * выполняется в текущей области — ровно то, что делали все вызывающие руками.
+     *
+     * @param scopeId область, в которой нужно выполнить действие; {@code null} или неизвестный
+     *                идентификатор означает «остаться в текущей»
+     */
+    public <T> T inScope(@Nullable Long scopeId, @NotNull Supplier<T> action) {
+        long previousScopeId = current.getId();
+        boolean switched = scopeId != null && scopes.containsKey(scopeId);
+        if (switched) {
+            setCurrentScope(scopeId);
+        }
+        try {
+            return action.get();
+        } finally {
+            // Область могла исчезнуть, пока действие выполнялось: возвращаться некуда, и
+            // падать на выходе из finally нельзя — оно затёрло бы исходное исключение.
+            if (switched && scopes.containsKey(previousScopeId)) {
+                setCurrentScope(previousScopeId);
+            }
+        }
+    }
+
+    /** {@link #inScope} для действия без результата. */
+    public void runInScope(@Nullable Long scopeId, @NotNull Runnable action) {
+        inScope(scopeId, () -> {
+            action.run();
+            return null;
+        });
     }
 
     public void setCurrentScopeOwner(@Nullable Node owner) {

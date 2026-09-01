@@ -177,14 +177,8 @@ public final class SymbolResolver {
         if (assignment.getRValue() == null) {
             return new UnknownType();
         }
-        Optional<Long> scopeId = findNearestScopeId(nodeInfo);
-        long previousScopeId = scopeTable.currentScopeId();
-        try {
-            scopeId.ifPresent(scopeTable::setCurrentScope);
-            return SimpleTypeInferrer.inference(assignment.getRValue(), scopeTable);
-        } finally {
-            scopeTable.setCurrentScope(previousScopeId);
-        }
+        return scopeTable.inScope(findNearestScopeId(nodeInfo).orElse(null),
+                () -> SimpleTypeInferrer.inference(assignment.getRValue(), scopeTable));
     }
 
     Optional<Long> findNearestScopeId(NodeInfo nodeInfo) {

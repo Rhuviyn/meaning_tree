@@ -1,6 +1,7 @@
 package org.vstu.meaningtree.utils.analysis.types;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.vstu.meaningtree.nodes.*;
 import org.vstu.meaningtree.nodes.declarations.*;
 import org.vstu.meaningtree.nodes.declarations.components.DeclarationArgument;
@@ -518,10 +519,7 @@ public class SimpleTypeInferrer {
     }
 
     public static void inference(@NotNull CompoundStatement compoundStatement, @NotNull ScopeTable scope) {
-        long previousScopeId = scope.currentScopeId();
-        boolean scopeSwitched = enterBoundScope(compoundStatement, scope);
-
-        try {
+        scope.runInScope(boundScopeId(compoundStatement), () -> {
             for (var node : compoundStatement.getNodes()) {
 
                 if (node instanceof Statement statement) {
@@ -531,36 +529,18 @@ public class SimpleTypeInferrer {
                     inference(expression, scope);
                 }
             }
-        }
-        finally {
-            if (scopeSwitched) {
-                scope.setCurrentScope(previousScopeId);
-            }
-        }
+        });
     }
 
     /**
-     * Переключает таблицу областей видимости на область, привязанную к данному телу.
-     * Новая область не создается: используется только та, что уже была построена
-     * при разборе тела, иначе вывод остается в текущей области.
-     *
-     * @return {@code true}, если переключение произошло и область нужно вернуть обратно
+     * Область, привязанная к данному телу при разборе, либо {@code null}, если её нет.
+     * Новая область здесь не создается: {@link ScopeTable#runInScope} на {@code null} оставит
+     * вывод в текущей области, и это верное поведение для тела, которое до анализа не дошло.
      */
-    private static boolean enterBoundScope(
-            @NotNull CompoundStatement compoundStatement,
-            @NotNull ScopeTable scope) {
+    @Nullable
+    private static Long boundScopeId(@NotNull CompoundStatement compoundStatement) {
         OptionalLong boundScopeId = compoundStatement.getScopeId();
-        if (boundScopeId.isEmpty()) {
-            return false;
-        }
-
-        long scopeId = boundScopeId.getAsLong();
-        if (scopeId == scope.currentScopeId() || scope.findScope(scopeId).isEmpty()) {
-            return false;
-        }
-
-        scope.setCurrentScope(scopeId);
-        return true;
+        return boundScopeId.isPresent() ? boundScopeId.getAsLong() : null;
     }
 
     public static void inference(@NotNull IfStatement ifStatement, @NotNull ScopeTable scope) {
@@ -730,23 +710,17 @@ public class SimpleTypeInferrer {
                 ? compoundStatement
                 : null;
 
-        long previousScopeId = scope.currentScopeId();
-        boolean scopeSwitched = body != null
-                && headerBelongsToBodyScope(hasBodyStatement)
-                && enterBoundScope(body, scope);
+        Long headerScopeId = body != null && headerBelongsToBodyScope(hasBodyStatement)
+                ? boundScopeId(body)
+                : null;
 
-        try {
+        scope.runInScope(headerScopeId, () -> {
             inferenceHeader(hasBodyStatement, scope);
 
             if (body != null) {
                 inference(body, scope);
             }
-        }
-        finally {
-            if (scopeSwitched) {
-                scope.setCurrentScope(previousScopeId);
-            }
-        }
+        });
     }
 
     /**

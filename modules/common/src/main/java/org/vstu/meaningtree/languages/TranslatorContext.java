@@ -392,14 +392,10 @@ public class TranslatorContext {
             return;
         }
 
-        long previousScopeId = scope.currentScopeId();
-        scope.setCurrentScope(scopeId.getAsLong());
-        try {
+        scope.runInScope(scopeId.getAsLong(), () -> {
             unregisterFromScope(previous);
             registerInScope(replacement);
-        } finally {
-            scope.setCurrentScope(previousScopeId);
-        }
+        });
     }
 
     public void enterNewScope() {
