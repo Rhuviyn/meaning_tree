@@ -17,7 +17,6 @@ import org.vstu.meaningtree.nodes.types.UnknownType;
 
 import java.io.Serializable;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Lexical scope frame. Program-wide declarations, imports and type registries
@@ -25,8 +24,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * extensions and links to parent frames.
  */
 public class ScopeTableElement implements Serializable {
-    private static final AtomicLong ID_GENERATOR = new AtomicLong();
-
     private final long id;
 
     @Nullable
@@ -63,7 +60,6 @@ public class ScopeTableElement implements Serializable {
 
     public ScopeTableElement(long id, @Nullable ScopeTableElement parent, @Nullable Node owner) {
         this.id = id;
-        ID_GENERATOR.updateAndGet(current -> Math.max(current, id));
         this.parent = parent;
         this.variables = new HashMap<>();
         this.variableDeclarations = new HashMap<>();
@@ -72,14 +68,6 @@ public class ScopeTableElement implements Serializable {
         this.typeDeclarations = new HashMap<>();
         this.overloadGroups = new ArrayList<>();
         setOwner(owner);
-    }
-
-    public ScopeTableElement(@Nullable ScopeTableElement parent, @Nullable Node owner) {
-        this(ID_GENERATOR.incrementAndGet(), parent, owner);
-    }
-
-    public ScopeTableElement(@Nullable ScopeTableElement parent) {
-        this(parent, null);
     }
 
     public long getId() {
