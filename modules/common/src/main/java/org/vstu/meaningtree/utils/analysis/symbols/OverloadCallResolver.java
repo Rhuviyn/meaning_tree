@@ -24,6 +24,8 @@ import org.vstu.meaningtree.nodes.types.UserType;
 import org.vstu.meaningtree.utils.analysis.types.SimpleTypeInferrer;
 import org.vstu.meaningtree.utils.analysis.types.conversion.ConversionKind;
 import org.vstu.meaningtree.utils.analysis.types.conversion.TypeConversionAnalyzer;
+import org.vstu.meaningtree.nodes.expressions.identifiers.SimpleIdentifier;
+import org.vstu.meaningtree.utils.scopes.OverloadSemantics;
 import org.vstu.meaningtree.utils.scopes.ScopeTable;
 
 import java.util.*;
@@ -46,18 +48,28 @@ public final class OverloadCallResolver {
     private final MeaningTree tree;
     private final ScopeTable scope;
     private final TypeConversionAnalyzer conversions;
+    private final OverloadSemantics semantics;
+
+    /**
+     * Все callable-декларации дерева. Используются, только когда таблица не проиндексирована —
+     * см. {@link #candidates}.
+     */
     private final List<FunctionDeclaration> callableDeclarations = new ArrayList<>();
 
     /**
      * @param conversions правила преобразований исходного языка; по ним отбираются кандидаты,
      *                    которым аргумент подходит без явного приведения
+     * @param semantics   правила языка о перегрузках; по ним ранжируются равно допустимые
+     *                    кандидаты
      */
     public OverloadCallResolver(@NotNull MeaningTree tree,
                                 @NotNull ScopeTable scope,
-                                @NotNull TypeConversionAnalyzer conversions) {
+                                @NotNull TypeConversionAnalyzer conversions,
+                                @NotNull OverloadSemantics semantics) {
         this.tree = Objects.requireNonNull(tree);
         this.scope = Objects.requireNonNull(scope);
         this.conversions = Objects.requireNonNull(conversions);
+        this.semantics = Objects.requireNonNull(semantics);
         indexCallables();
     }
 
@@ -89,10 +101,7 @@ public final class OverloadCallResolver {
         }
 
         List<FunctionDeclaration> applicable = new ArrayList<>();
-        for (FunctionDeclaration declaration : callableDeclarations) {
-            if (!matchesCall(info, declaration)) {
-                continue;
-            }
+        for (FunctionDeclaration declaration : candidates(info)) {
             if (mapArguments(call.getArguments(), declaration.getArguments()) != null) {
                 applicable.add(declaration);
             }
@@ -129,7 +138,61 @@ public final class OverloadCallResolver {
                 .filter(declaration -> allArgumentsMatch(
                         call, argumentTypes, declaration, this::isImplicitlyCompatible))
                 .toList();
-        return convertible.size() == 1 ? Optional.of(convertible.getFirst()) : Optional.empty();
+        if (convertible.size() <= 1) {
+            return convertible.isEmpty() ? Optional.empty() : Optional.of(convertible.getFirst());
+        }
+        return mostSpecific(call, argumentTypes, convertible);
+    }
+
+    /**
+     * Выбирает кандидата, чьи преобразования аргументов язык считает не хуже, чем у любого
+     * другого, и хотя бы для одного аргумента строго лучше.
+     * <p>
+     * Без этого шага {@code f(1)} при перегрузках {@code f(long)} и {@code f(double)} оставался бы
+     * неразрешённым: оба преобразования допустимы, и «допустим» — это всё, что о них было
+     * известно. Если строго лучшего кандидата нет, вызов остаётся несвязанным: выбор порядком
+     * объявления был бы догадкой.
+     */
+    private Optional<FunctionDeclaration> mostSpecific(Callable call,
+                                                       List<Type> argumentTypes,
+                                                       List<FunctionDeclaration> candidates) {
+        List<FunctionDeclaration> best = new ArrayList<>();
+        for (FunctionDeclaration candidate : candidates) {
+            boolean betterThanAll = candidates.stream()
+                    .filter(other -> other != candidate)
+                    .allMatch(other -> comparePreference(call, argumentTypes, candidate, other) < 0);
+            if (betterThanAll) {
+                best.add(candidate);
+            }
+        }
+        return best.size() == 1 ? Optional.of(best.getFirst()) : Optional.empty();
+    }
+
+    /**
+     * @return отрицательное, если {@code left} предпочтительнее {@code right} по всем аргументам
+     *         и строго лучше хотя бы по одному; иначе неотрицательное
+     */
+    private int comparePreference(Callable call,
+                                  List<Type> argumentTypes,
+                                  FunctionDeclaration left,
+                                  FunctionDeclaration right) {
+        List<Type> leftTargets = mapArguments(call.getArguments(), left.getArguments());
+        List<Type> rightTargets = mapArguments(call.getArguments(), right.getArguments());
+        if (leftTargets == null || rightTargets == null
+                || leftTargets.size() != argumentTypes.size()
+                || rightTargets.size() != argumentTypes.size()) {
+            return 0;
+        }
+        boolean strictlyBetterSomewhere = false;
+        for (int index = 0; index < argumentTypes.size(); index++) {
+            int verdict = semantics.compareConversions(
+                    argumentTypes.get(index), leftTargets.get(index), rightTargets.get(index));
+            if (verdict > 0) {
+                return verdict;
+            }
+            strictlyBetterSomewhere |= verdict < 0;
+        }
+        return strictlyBetterSomewhere ? -1 : 0;
     }
 
     private boolean allArgumentsMatch(Callable call,
@@ -169,6 +232,76 @@ public final class OverloadCallResolver {
         return resolveCall(info)
                 .map(declaration -> mapArguments(call.getArguments(), declaration.getArguments()))
                 .orElse(null);
+    }
+
+    /**
+     * Кандидаты этого места вызова: то, что действительно видно отсюда.
+     * <p>
+     * Свободные функции берутся из ближайшей видимой группы {@link ScopeTable}, а не перебором
+     * всех деклараций дерева по имени: перебор считал бы видимыми одновременно и вложенную
+     * функцию, и затенённую ею внешнюю, а заодно и декларации из соседних недоступных областей.
+     * Методы и конструкторы лексической видимости не имеют — они ищутся по владельцу и его
+     * предкам.
+     */
+    @NotNull
+    private List<FunctionDeclaration> candidates(NodeInfo info) {
+        if (scope.overloadGroups().isEmpty()) {
+            // Таблицу не индексировали (OverloadIndexer не запускали) — отбирать по видимости
+            // не из чего. Обход дерева здесь заведомо грубее, но лучше, чем отказ от разрешения
+            // всех вызовов: TypeConversionAnalyzer вызывается и напрямую, без конвейера.
+            return callableDeclarations.stream().filter(declaration -> matchesCall(info, declaration)).toList();
+        }
+
+        Node call = info.node();
+        if (call instanceof ConstructorCall constructorCall) {
+            return constructorsOf(constructorCall.getOwner());
+        }
+        if (call instanceof ObjectNewExpression newExpression) {
+            return constructorsOf(newExpression.getType());
+        }
+        if (call instanceof MethodCall methodCall) {
+            return infer(methodCall.getObject()) instanceof UserType receiver
+                    ? membersOf(receiver, methodCall.getFunctionName())
+                    : List.of();
+        }
+        if (call instanceof FunctionCall functionCall && functionCall.hasFunctionName()) {
+            SimpleIdentifier name = functionCall.getFunctionName();
+            List<FunctionDeclaration> result = new ArrayList<>();
+            // Вызов без получателя внутри класса — обращение к собственному методу.
+            ClassDefinition enclosingClass = nearestParent(info, ClassDefinition.class);
+            if (enclosingClass != null) {
+                result.addAll(membersOf(enclosingClass.getDeclaration().getTypeNode(), name));
+            }
+            scope.findVisibleFunctionGroup(name)
+                    .ifPresent(group -> result.addAll(group.declarations()));
+            return result;
+        }
+        return List.of();
+    }
+
+    /** Одноимённые члены типа и его предков: унаследованный метод тоже вызывается по этому имени. */
+    @NotNull
+    private List<FunctionDeclaration> membersOf(@Nullable Type owner, @Nullable SimpleIdentifier name) {
+        // Класс без типа-узла и вызов без имени — не повод искать: спрашивать таблицу не о чем.
+        if (!(owner instanceof UserType userType) || name == null) {
+            return List.of();
+        }
+        List<FunctionDeclaration> result = new ArrayList<>(scope.findMembers(userType, name));
+        for (UserType ancestor : scope.ancestors(userType)) {
+            result.addAll(scope.findMembers(ancestor, name));
+        }
+        return result;
+    }
+
+    /** Конструкторы владельца; наследование сюда не входит — конструктор не наследуется. */
+    @NotNull
+    private List<FunctionDeclaration> constructorsOf(@Nullable Type owner) {
+        if (!(owner instanceof UserType userType)) {
+            return List.of();
+        }
+        return scope.findMembers(userType).stream()
+                .filter(ObjectConstructorDeclaration.class::isInstance)
+                .toList();
     }
 
     private void indexCallables() {

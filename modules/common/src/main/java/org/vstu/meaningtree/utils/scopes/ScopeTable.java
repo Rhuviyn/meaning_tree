@@ -55,10 +55,6 @@ public class ScopeTable implements Serializable {
     @NotNull
     private final Map<UserType, Map<SimpleIdentifier, List<FunctionDeclaration>>> members;
 
-    /** Группы перегрузок в порядке построения. */
-    @NotNull
-    private final List<OverloadGroup> overloadGroups;
-
     /**
      * Обратный индекс «декларация — её группа».
      * <p>
@@ -85,7 +81,6 @@ public class ScopeTable implements Serializable {
         this.imports = new ImportIndex();
         this.scopes = new LinkedHashMap<>();
         this.members = new LinkedHashMap<>();
-        this.overloadGroups = new ArrayList<>();
         this.groupByDeclaration = new IdentityHashMap<>();
         this.nextScopeId = 1;
         this.current = createScope(null, null);
@@ -486,7 +481,11 @@ public class ScopeTable implements Serializable {
                                                @Nullable UserType owner,
                                                @NotNull List<FunctionDeclaration> declarations) {
         OverloadGroup group = new OverloadGroup(scopeId, name, kind, owner, declarations);
-        overloadGroups.add(group);
+        // Группа принадлежит своей области видимости, а не таблице: только так поиск может идти
+        // вверх по родителям и учитывать затенение. Область, которой уже нет, не должна ронять
+        // индексацию, поэтому осиротевшая группа уходит в корень.
+        ScopeTableElement home = scopes.getOrDefault(scopeId, scopes.get(rootScopeId()));
+        home.registerOverloadGroup(group);
         for (FunctionDeclaration declaration : group.declarations()) {
             groupByDeclaration.put(declaration, group);
         }
@@ -504,14 +503,24 @@ public class ScopeTable implements Serializable {
         return Optional.ofNullable(groupByDeclaration.get(declaration));
     }
 
-    /** Все построенные группы перегрузок. */
+    /** Все построенные группы перегрузок, собранные по всем областям видимости. */
     public List<OverloadGroup> overloadGroups() {
-        return List.copyOf(overloadGroups);
+        return scopes.values().stream().flatMap(scope -> scope.overloadGroups().stream()).toList();
     }
 
     /** Группы, в которых имя действительно перегружено, то есть несёт больше одной сигнатуры. */
     public List<OverloadGroup> overloadedGroups() {
-        return overloadGroups.stream().filter(OverloadGroup::isOverloaded).toList();
+        return overloadGroups().stream().filter(OverloadGroup::isOverloaded).toList();
+    }
+
+    /**
+     * Ближайшая видимая из текущей области группа свободных функций с этим именем.
+     * <p>
+     * Это и есть отбор кандидатов по видимости: вложенная декларация затеняет внешнюю, а
+     * декларация из соседней недоступной области кандидатом не становится вовсе.
+     */
+    public Optional<OverloadGroup> findVisibleFunctionGroup(@NotNull SimpleIdentifier name) {
+        return current.findVisibleFunctionGroup(name);
     }
 
     /** Глобальные декларации: имя — все одноимённые декларации в порядке регистрации. */

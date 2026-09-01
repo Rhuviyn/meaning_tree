@@ -67,8 +67,10 @@ public final class AnalysisPipeline {
         new OverrideResolver(tree, scope).resolve();
         new SymbolResolver(tree, scope).resolve();
         new OverloadIndexer(tree, scope, translator.getOverloadSemantics()).index();
-        TypeConversionAnalyzer typeConversionAnalyzer = new TypeConversionAnalyzer(translator.getTypeConversionSemantics());
-        new OverloadCallResolver(tree, scope, typeConversionAnalyzer).resolveAll();
+        TypeConversionAnalyzer typeConversionAnalyzer = new TypeConversionAnalyzer(
+                translator.getTypeConversionSemantics(), translator.getOverloadSemantics());
+        new OverloadCallResolver(tree, scope, typeConversionAnalyzer, translator.getOverloadSemantics())
+                .resolveAll();
         typeConversionReport = typeConversionAnalyzer.analyze(tree, scope);
         ExpressionValueEvaluator evaluator = new ExpressionValueEvaluator(tree, scope);
         evaluator.analyze();

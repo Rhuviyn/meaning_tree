@@ -6,6 +6,7 @@ import org.vstu.meaningtree.iterators.utils.NodeInfo;
 import org.vstu.meaningtree.languages.CppTranslator;
 import org.vstu.meaningtree.languages.JavaTranslator;
 import org.vstu.meaningtree.languages.LanguageTranslator;
+import org.vstu.meaningtree.languages.PythonTranslator;
 import org.vstu.meaningtree.nodes.declarations.FunctionDeclaration;
 import org.vstu.meaningtree.nodes.expressions.calls.FunctionCall;
 import org.vstu.meaningtree.nodes.expressions.newexpr.ObjectNewExpression;
@@ -86,8 +87,35 @@ class OverloadCallResolverTests {
                 "точное совпадение типа выигрывает у расширяющего преобразования");
     }
 
+    /**
+     * И Java, и C++ предпочитают меньшее расширение: {@code int -> long} выигрывает у
+     * {@code int -> double}. Пока допустимые преобразования считались равнозначными, такой
+     * вызов оставался несвязанным, хотя язык различает кандидатов однозначно.
+     */
     @Test
-    void leavesAmbiguousCallUnresolved() {
+    void prefersSmallerWideningConversion() {
+        MeaningTree tree = parse(new JavaTranslator(), """
+                public class Ov {
+                    static int f(long a) { return 1; }
+                    static int f(double a) { return 2; }
+                    static void use() {
+                        f(1);
+                    }
+                }
+                """);
+
+        FunctionDeclaration declaration = resolved(callsNamed(tree, "f").getFirst());
+        assertInstanceOf(IntType.class, declaration.getArguments().getFirst().getType(),
+                "должна выбраться перегрузка long, а не double");
+    }
+
+    /**
+     * Тип аргумента не выведен — сравнивать нечего, и вызов остаётся несвязанным. Это пробел
+     * вывода типов, а не правило разрешения перегрузок: тот же вызов с литералом выбирает
+     * кандидата (см. {@link #prefersSmallerWideningConversion()}).
+     */
+    @Test
+    void leavesCallWithUninferredArgumentUnresolved() {
         MeaningTree tree = parse(new JavaTranslator(), """
                 public class Ov {
                     static int f(long a) { return 1; }
@@ -99,9 +127,29 @@ class OverloadCallResolverTests {
                 """);
 
         for (Callable call : callsNamed(tree, "f")) {
-            assertNull(call.getResolvedDeclaration(),
-                    "оба кандидата подходят по преобразованию и ни один не точен");
+            assertNull(call.getResolvedDeclaration(), "тип value не выведен, ранжировать нечем");
         }
+    }
+
+    /**
+     * Внутренняя декларация затеняет внешнюю целиком. Отбор кандидатов перебором всех деклараций
+     * дерева по имени считал обе видимыми одновременно, и вызов оставался несвязанным.
+     */
+    @Test
+    void nestedDeclarationShadowsTheOuterOne() {
+        MeaningTree tree = parse(new PythonTranslator(), """
+                def f(a):
+                    return a
+
+                def outer():
+                    def f(a, b):
+                        return a
+                    return f(1, 2)
+                """);
+
+        FunctionDeclaration declaration = resolved(callsNamed(tree, "f").getFirst());
+        assertEquals(2, declaration.getArguments().size(),
+                "должна выбраться вложенная f, а не затенённая внешняя");
     }
 
     @Test

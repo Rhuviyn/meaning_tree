@@ -7,6 +7,7 @@ import org.vstu.meaningtree.nodes.Expression;
 import org.vstu.meaningtree.nodes.Type;
 import org.vstu.meaningtree.nodes.types.UnknownType;
 import org.vstu.meaningtree.nodes.types.builtin.*;
+import org.vstu.meaningtree.utils.scopes.OverloadSemantics;
 import org.vstu.meaningtree.utils.scopes.ScopeTable;
 
 import java.util.Objects;
@@ -15,12 +16,31 @@ import java.util.Objects;
 public class TypeConversionAnalyzer {
     private final TypeConversionSemantics semantics;
 
+    /**
+     * Правила перегрузок нужны не самой проверке типов, а разрешению вызова, без которого не
+     * узнать тип параметра в месте аргумента. Держать их здесь дешевле, чем требовать от каждого
+     * вызывающего собирать те же правила отдельно.
+     */
+    private final OverloadSemantics overloadSemantics;
+
     public TypeConversionAnalyzer() {
         this(TypeConversionSemantics.common());
     }
 
     public TypeConversionAnalyzer(@NotNull TypeConversionSemantics semantics) {
+        this(semantics, OverloadSemantics.bySignature());
+    }
+
+    public TypeConversionAnalyzer(@NotNull TypeConversionSemantics semantics,
+                                  @NotNull OverloadSemantics overloadSemantics) {
         this.semantics = Objects.requireNonNull(semantics, "semantics must not be null");
+        this.overloadSemantics = Objects.requireNonNull(overloadSemantics, "overloadSemantics must not be null");
+    }
+
+    /** Правила перегрузок, с которыми построен анализатор. */
+    @NotNull
+    public OverloadSemantics overloadSemantics() {
+        return overloadSemantics;
     }
 
     /**

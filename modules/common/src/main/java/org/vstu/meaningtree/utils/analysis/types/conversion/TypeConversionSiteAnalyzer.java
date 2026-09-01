@@ -49,7 +49,7 @@ final class TypeConversionSiteAnalyzer {
         this.analyzer = analyzer;
         this.tree = tree;
         this.scope = scope;
-        this.callResolver = new OverloadCallResolver(tree, scope, analyzer);
+        this.callResolver = new OverloadCallResolver(tree, scope, analyzer, analyzer.overloadSemantics());
     }
 
     TypeConversionReport analyze() {

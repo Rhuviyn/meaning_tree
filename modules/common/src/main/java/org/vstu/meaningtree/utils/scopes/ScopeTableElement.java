@@ -50,6 +50,17 @@ public class ScopeTableElement implements Serializable {
     @NotNull
     private final Map<Type, Declaration> typeDeclarations;
 
+    /**
+     * Группы перегрузок, объявленные именно в этой области.
+     * <p>
+     * Хранятся у области, а не общим списком таблицы, потому что видимость имени лексическая:
+     * поиск обязан идти от места вызова вверх по родителям и останавливаться на ближайшей
+     * области, где имя объявлено. Общий список не даёт затенению работать — вложенная функция
+     * и одноимённая глобальная выглядели бы в нём видимыми одновременно.
+     */
+    @NotNull
+    private final List<OverloadGroup> overloadGroups;
+
     public ScopeTableElement(long id, @Nullable ScopeTableElement parent, @Nullable Node owner) {
         this.id = id;
         ID_GENERATOR.updateAndGet(current -> Math.max(current, id));
@@ -59,6 +70,7 @@ public class ScopeTableElement implements Serializable {
         this.localDeclarations = new DeclarationBucket();
         this.declaredTypes = new HashMap<>();
         this.typeDeclarations = new HashMap<>();
+        this.overloadGroups = new ArrayList<>();
         setOwner(owner);
     }
 
@@ -352,5 +364,34 @@ public class ScopeTableElement implements Serializable {
             sb.setLength(sb.length() - 2);
         }
         return sb.toString();
+    }
+
+    void registerOverloadGroup(@NotNull OverloadGroup group) {
+        overloadGroups.add(group);
+    }
+
+    /** Группы, объявленные непосредственно в этой области. */
+    @NotNull
+    public List<OverloadGroup> overloadGroups() {
+        return List.copyOf(overloadGroups);
+    }
+
+    /**
+     * Ближайшая видимая отсюда группа свободных функций с этим именем.
+     * <p>
+     * Поиск останавливается на первой области, где имя объявлено: внутренняя декларация затеняет
+     * внешнюю целиком, а не дополняет её. Перегрузками считаются только одноимённые декларации
+     * одной области — именно так устроена видимость в Java и C++.
+     */
+    @NotNull
+    public Optional<OverloadGroup> findVisibleFunctionGroup(@NotNull SimpleIdentifier name) {
+        for (ScopeTableElement current = this; current != null; current = current.parent) {
+            for (OverloadGroup group : current.overloadGroups) {
+                if (group.kind() == OverloadKind.FUNCTION && group.name().equals(name)) {
+                    return Optional.of(group);
+                }
+            }
+        }
+        return Optional.empty();
     }
 }
