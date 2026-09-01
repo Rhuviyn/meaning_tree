@@ -492,6 +492,12 @@ public class TranslatorContext {
      * наполнение тела через {@link BodyConstructor}, и замена уже добавленного узла
      * ({@link #substituteNode}): разойдись эти два пути, таблица после замены описывала бы
      * узел не так, как при первичной регистрации.
+     * <p>
+     * У этой диспетчеризации есть независимая копия в
+     * {@code org.vstu.meaningtree.utils.analysis.ScopeTableBuilder} (сборщик {@code ScopeTable}
+     * отдельным проходом по готовому дереву, не связанный с парсингом намеренно). Копия сделана
+     * специально, а не как общая зависимость — но при изменении этого метода её нужно обновить
+     * вручную, иначе построенная им таблица разойдётся с той, что собирается здесь.
      */
     void registerInScope(@NotNull Node node) {
         if (node instanceof ClassDefinition def) {
