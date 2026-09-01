@@ -65,6 +65,7 @@ import org.vstu.meaningtree.utils.analysis.types.SimpleTypeInferrer;
 import org.vstu.meaningtree.utils.analysis.types.conversion.TypeConversionSemantics;
 import org.vstu.meaningtree.utils.modules.ImportPathConverter;
 import org.vstu.meaningtree.utils.scopes.OverloadSemantics;
+import org.vstu.meaningtree.utils.scopes.ScopePolicy;
 import org.vstu.meaningtree.utils.scopes.ScopeLookupMode;
 
 import java.lang.reflect.InvocationTargetException;
@@ -91,6 +92,17 @@ public class PythonParser extends LanguageParser {
     @Override
     protected OverloadSemantics getOverloadSemantics() {
         return OverloadSemantics.shadowing();
+    }
+
+    /**
+     * В Python область видимости открывает только определение: имя, присвоенное внутри
+     * {@code if}, {@code for}, {@code while} или {@code try}, остаётся локальным именем функции
+     * или модуля и доступно после блока. Разбор следует тому же правилу — тела операторов
+     * собираются {@code fromCompoundTSNode(node, false)}.
+     */
+    @Override
+    protected ScopePolicy getScopePolicy() {
+        return ScopePolicy.definitionScoped();
     }
 
     private void configureTsNodeHandlers() {

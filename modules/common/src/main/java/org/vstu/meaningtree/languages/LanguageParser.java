@@ -18,6 +18,7 @@ import org.vstu.meaningtree.utils.hooks.HookHandle;
 import org.vstu.meaningtree.utils.hooks.HookOrder;
 import org.vstu.meaningtree.utils.hooks.HookPhase;
 import org.vstu.meaningtree.utils.scopes.OverloadSemantics;
+import org.vstu.meaningtree.utils.scopes.ScopePolicy;
 import org.vstu.meaningtree.utils.scopes.ScopeTable;
 
 import java.util.*;
@@ -109,6 +110,14 @@ abstract public class LanguageParser extends TranslatorComponent {
      */
     protected OverloadSemantics getOverloadSemantics() {
         return OverloadSemantics.bySignature();
+    }
+
+    /**
+     * Границы областей видимости этого языка. По умолчанию блочные: так устроено большинство
+     * языков, а тот, где область открывает только определение, переопределяет метод.
+     */
+    protected ScopePolicy getScopePolicy() {
+        return ScopePolicy.blockScoped();
     }
 
     /** Language-specific primitive conversion rules; the default uses only common semantics. */

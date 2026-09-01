@@ -18,6 +18,7 @@ import org.vstu.meaningtree.utils.analysis.imports.ImportResolver;
 import org.vstu.meaningtree.utils.analysis.types.conversion.TypeConversionReport;
 import org.vstu.meaningtree.utils.analysis.types.conversion.TypeConversionSemantics;
 import org.vstu.meaningtree.utils.scopes.OverloadSemantics;
+import org.vstu.meaningtree.utils.scopes.ScopePolicy;
 import org.vstu.meaningtree.utils.scopes.ScopeTable;
 import org.vstu.meaningtree.utils.tokens.Token;
 import org.vstu.meaningtree.utils.tokens.TokenGroup;
@@ -266,6 +267,11 @@ public abstract class LanguageTranslator implements Cloneable {
      */
     public OverloadSemantics getOverloadSemantics() {
         return _language.getOverloadSemantics();
+    }
+
+    /** Границы областей видимости языка этого транслятора; см. {@link LanguageParser#getScopePolicy()}. */
+    public ScopePolicy getScopePolicy() {
+        return _language.getScopePolicy();
     }
 
     public TypeConversionSemantics getTypeConversionSemantics() {

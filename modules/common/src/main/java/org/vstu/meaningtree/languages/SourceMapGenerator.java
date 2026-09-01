@@ -105,7 +105,7 @@ public class SourceMapGenerator {
      * см. {@link #process(MeaningTree)}.
      */
     private ScopeTable analyzedScope(MeaningTree tree) {
-        ScopeTable scope = ScopeTableBuilder.build(tree);
+        ScopeTable scope = ScopeTableBuilder.build(tree, translator.getScopePolicy());
         new AnalysisPipeline(tree, scope, translator).run();
         return scope;
     }

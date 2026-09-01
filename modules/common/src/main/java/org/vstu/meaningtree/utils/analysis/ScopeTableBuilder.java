@@ -4,6 +4,7 @@ import org.vstu.meaningtree.MeaningTree;
 import org.vstu.meaningtree.iterators.utils.NodeInfo;
 import org.vstu.meaningtree.nodes.Node;
 import org.vstu.meaningtree.nodes.statements.CompoundStatement;
+import org.vstu.meaningtree.utils.scopes.ScopePolicy;
 import org.vstu.meaningtree.utils.scopes.ScopeTable;
 
 import java.util.ArrayList;
@@ -17,14 +18,16 @@ import java.util.Map;
  * {@code TranslatorContext.registerInScope}). Поэтому работает на любом дереве: только что
  * распарсенном, десериализованном из JSON или собранном программно/тестом.
  * <p>
- * Универсальное правило границы области видимости — {@code every CompoundStatement — scope} —
- * не зависит от языка и чинит пробел, который есть у попутной сборки сегодня: C++ строит тела
- * классов и единицу трансляции в обход {@code BodyConstructor} (см.
- * {@code CppParser.fromTranslationUnit}, class/struct/interface body), поэтому эти
- * {@code CompoundStatement} никогда не получают {@code scope}, и свободные функции/методы
- * попадают в {@code ScopeTable} только благодаря fallback на корневую область в
- * {@code OverloadIndexer}. Проход по готовому дереву применяет правило равномерно для всех
- * языков.
+ * Границы областей задаёт {@link ScopePolicy} языка, из которого дерево получено: единого
+ * правила здесь быть не может, потому что в Java и C++ область открывает любой блок, а в Python
+ * только определение. Политика передаётся явно, без умолчания, — иначе проход молча приписывал
+ * бы дереву чужие правила видимости.
+ * <p>
+ * Проход по готовому дереву заодно закрывает пробел попутной сборки: C++ строит тела классов и
+ * единицу трансляции в обход {@code BodyConstructor} (см. {@code CppParser.fromTranslationUnit},
+ * class/struct/interface body), поэтому эти {@code CompoundStatement} никогда не получают
+ * {@code scope}, и свободные функции/методы попадают в {@code ScopeTable} только благодаря
+ * fallback на корневую область в {@code OverloadIndexer}.
  * <p>
  * Диспетчеризация "как зарегистрировать узел по его типу" живёт в
  * {@link ScopeTable#register(Node)} и общая с попутным наполнением при разборе, поэтому два
@@ -41,11 +44,11 @@ public final class ScopeTableBuilder {
     private ScopeTableBuilder() {
     }
 
-    public static ScopeTable build(MeaningTree tree) {
+    public static ScopeTable build(MeaningTree tree, ScopePolicy policy) {
         ScopeTable scope = new ScopeTable();
         Map<Long, List<NodeInfo>> childrenByParentId = groupByParent(tree.iterate());
         NodeInfo root = tree.getNodeById(tree.getRootNode().getId());
-        visit(root, scope, childrenByParentId);
+        visit(root, scope, childrenByParentId, policy);
         return scope;
     }
 
@@ -61,15 +64,17 @@ public final class ScopeTableBuilder {
         return childrenByParentId;
     }
 
-    private static void visit(NodeInfo info, ScopeTable scope, Map<Long, List<NodeInfo>> childrenByParentId) {
+    private static void visit(NodeInfo info, ScopeTable scope,
+                              Map<Long, List<NodeInfo>> childrenByParentId, ScopePolicy policy) {
         scope.register(info.node());
 
-        boolean entered = info.node() instanceof CompoundStatement;
+        boolean entered = info.node() instanceof CompoundStatement body
+                && policy.opensScope(body, info.parent() == null ? null : info.parent().node());
         if (entered) {
             scope.enter(info.node());
         }
         for (NodeInfo child : childrenByParentId.getOrDefault(info.id(), List.of())) {
-            visit(child, scope, childrenByParentId);
+            visit(child, scope, childrenByParentId, policy);
         }
         if (entered) {
             scope.leave();
