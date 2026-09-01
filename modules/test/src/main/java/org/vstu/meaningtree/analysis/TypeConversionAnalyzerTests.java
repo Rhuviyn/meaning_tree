@@ -124,6 +124,7 @@ public class TypeConversionAnalyzerTests {
                         wide = small;
                         widen(small);
                         int narrowed = (int) wide;
+                        byte truncated = wide;
                     }
                 }
                 """);
@@ -135,13 +136,50 @@ public class TypeConversionAnalyzerTests {
 
         assertEquals(EnumSet.allOf(ConversionSiteKind.class), kinds);
         assertTrue(report.checks().stream()
-                .anyMatch(check -> check.siteKind() == ConversionSiteKind.ARGUMENT && check.compatible()));
+                .anyMatch(check -> check.siteKind() == ConversionSiteKind.ARGUMENT && isCompatible(check)));
         assertTrue(report.checks().stream()
-                .anyMatch(check -> check.siteKind() == ConversionSiteKind.RETURN && check.compatible()),
+                .anyMatch(check -> check.siteKind() == ConversionSiteKind.RETURN && isCompatible(check)),
                 report.checks().toString());
+        // byte small = 1 — сужение константного выражения при инициализации (JLS 5.2): Java его
+        // допускает, и раньше отчёт называл этот допустимый код несовместимым.
         assertTrue(report.checks().stream()
-                .anyMatch(check -> check.siteKind() == ConversionSiteKind.INITIALIZER && !check.compatible()));
+                .anyMatch(check -> check.siteKind() == ConversionSiteKind.INITIALIZER && isCompatible(check)));
+        // byte truncated = wide — то же сужение, но не от константы: вот это запрещено.
+        assertTrue(report.incompatibleChecks().stream()
+                .anyMatch(check -> check.siteKind() == ConversionSiteKind.INITIALIZER),
+                report.checks().toString());
         assertFalse(report.isCompatible());
+    }
+
+    /**
+     * {@code ObjectNewExpression} — тоже {@code Callable} и тоже резолвится, но в разбор мест
+     * преобразования не входил, поэтому аргументы обычного {@code new Point(...)} не попадали в
+     * отчёт вовсе.
+     */
+    @Test
+    void constructorArgumentsOfNewExpressionAreAnalyzed() {
+        JavaTranslator translator = new JavaTranslator(JAVA_CONFIG);
+
+        translator.getMeaningTree("""
+                class Point {
+                    Point(int x, long y) {}
+                }
+                class Main {
+                    void test() { Point p = new Point(1, 2); }
+                }
+                """);
+
+        List<TypeConversionCheck> arguments = translator.getLatestTypeConversionReport().orElseThrow()
+                .checks().stream()
+                .filter(check -> check.siteKind() == ConversionSiteKind.ARGUMENT)
+                .toList();
+
+        assertEquals(2, arguments.size(), arguments.toString());
+        assertTrue(arguments.stream().allMatch(TypeConversionAnalyzerTests::isCompatible), arguments.toString());
+    }
+
+    private static boolean isCompatible(TypeConversionCheck check) {
+        return check.compatibility() == ConversionCompatibility.COMPATIBLE;
     }
 
     @Test
@@ -157,18 +195,26 @@ public class TypeConversionAnalyzerTests {
         assertTrue(translator.getLatestTypeConversionReport().isEmpty());
     }
 
+    /**
+     * Цель вызова не найдена — значит про преобразование ничего не известно. Раньше отчёт называл
+     * это доказанной несовместимостью: «тип параметра неизвестен» и «язык запрещает такой
+     * переход» — разные факты, и путать их для статического анализатора опасно.
+     */
     @Test
-    void unresolvedCallArgumentsAreReportedAsIncompatible() {
+    void unresolvedCallArgumentsAreReportedAsUnknown() {
         JavaTranslator translator = new JavaTranslator(JAVA_CONFIG);
 
         translator.getMeaningTree("class Main { void test() { unknown(1); } }");
 
-        TypeConversionCheck check = translator.getLatestTypeConversionReport().orElseThrow()
-                .checks().stream()
+        TypeConversionReport report = translator.getLatestTypeConversionReport().orElseThrow();
+        TypeConversionCheck check = report.checks().stream()
                 .filter(item -> item.siteKind() == ConversionSiteKind.ARGUMENT)
                 .findFirst()
                 .orElseThrow();
         assertInstanceOf(UnknownType.class, check.targetType());
-        assertFalse(check.compatible());
+        assertEquals(ConversionCompatibility.UNKNOWN, check.compatibility());
+        assertTrue(report.unresolvedChecks().contains(check));
+        assertFalse(report.incompatibleChecks().contains(check),
+                "пробел анализа не должен попадать в найденные несовместимости");
     }
 }

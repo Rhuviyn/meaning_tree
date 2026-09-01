@@ -1,7 +1,9 @@
 package org.vstu.meaningtree.utils.analysis.types.conversion;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.vstu.meaningtree.MeaningTree;
+import org.vstu.meaningtree.nodes.Expression;
 import org.vstu.meaningtree.nodes.Type;
 import org.vstu.meaningtree.nodes.types.UnknownType;
 import org.vstu.meaningtree.nodes.types.builtin.*;
@@ -21,6 +23,12 @@ public class TypeConversionAnalyzer {
         this.semantics = Objects.requireNonNull(semantics, "semantics must not be null");
     }
 
+    /**
+     * Доказано ли, что преобразование допустимо.
+     * <p>
+     * Неизвестный ответ здесь равен {@code false}: «не доказано допустимо». Там, где важно
+     * отличить пробел анализа от запрета языка, нужен {@link #compatibility}.
+     */
     public boolean isCompatible(
             @NotNull Type source,
             @NotNull Type target,
@@ -33,12 +41,34 @@ public class TypeConversionAnalyzer {
             @NotNull Type target,
             @NotNull ConversionKind kind,
             @NotNull ScopeTable scope) {
+        return compatibility(source, target, kind, null, null, scope) == ConversionCompatibility.COMPATIBLE;
+    }
+
+    /**
+     * Полный ответ о преобразовании: разрешено, запрещено или неизвестно.
+     *
+     * @param siteKind место преобразования либо {@code null} при проверке вне конкретного места
+     * @param value    преобразуемое выражение либо {@code null}, если оно недоступно
+     */
+    @NotNull
+    public ConversionCompatibility compatibility(
+            @NotNull Type source,
+            @NotNull Type target,
+            @NotNull ConversionKind kind,
+            @Nullable ConversionSiteKind siteKind,
+            @Nullable Expression value,
+            @NotNull ScopeTable scope) {
         Objects.requireNonNull(source, "source must not be null");
         Objects.requireNonNull(target, "target must not be null");
         Objects.requireNonNull(kind, "kind must not be null");
         Objects.requireNonNull(scope, "scope must not be null");
 
-        return semantics.overrideCompatibility(source, target, kind, scope)
+        // Неизвестный тип отсекается до языковых правил: ни одно из них не может обоснованно
+        // высказаться о типе, которого анализ не вывел.
+        if (source instanceof UnknownType || target instanceof UnknownType) {
+            return ConversionCompatibility.UNKNOWN;
+        }
+        return semantics.overrideCompatibility(source, target, kind, siteKind, value, scope)
                 .orElseGet(() -> commonCompatibility(source, target, kind));
     }
 
@@ -49,10 +79,13 @@ public class TypeConversionAnalyzer {
         return new TypeConversionSiteAnalyzer(this, tree, scope).analyze();
     }
 
-    private boolean commonCompatibility(Type source, Type target, ConversionKind kind) {
-        if (source instanceof UnknownType || target instanceof UnknownType) {
-            return false;
-        }
+    private ConversionCompatibility commonCompatibility(Type source, Type target, ConversionKind kind) {
+        return commonlyAllowed(source, target, kind)
+                ? ConversionCompatibility.COMPATIBLE
+                : ConversionCompatibility.INCOMPATIBLE;
+    }
+
+    private boolean commonlyAllowed(Type source, Type target, ConversionKind kind) {
         if (source.equals(target)) {
             return true;
         }

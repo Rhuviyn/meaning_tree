@@ -6,7 +6,12 @@ import org.vstu.meaningtree.nodes.Type;
 import java.util.Objects;
 import java.util.OptionalInt;
 
-/** One conversion discovered in a meaning tree. */
+/**
+ * Одно преобразование, найденное в дереве.
+ * <p>
+ * Результат — {@link ConversionCompatibility}, а не {@code boolean}: неразрешённый вызов и
+ * запрещённый языком переход — разные находки, и потребитель обязан их различать.
+ */
 public record TypeConversionCheck(
         Node relatedNode,
         ConversionSiteKind siteKind,
@@ -14,7 +19,7 @@ public record TypeConversionCheck(
         Type sourceType,
         Type targetType,
         ConversionKind conversionKind,
-        boolean compatible) {
+        ConversionCompatibility compatibility) {
 
     public TypeConversionCheck {
         Objects.requireNonNull(relatedNode, "relatedNode must not be null");
@@ -23,6 +28,7 @@ public record TypeConversionCheck(
         Objects.requireNonNull(sourceType, "sourceType must not be null");
         Objects.requireNonNull(targetType, "targetType must not be null");
         Objects.requireNonNull(conversionKind, "conversionKind must not be null");
+        Objects.requireNonNull(compatibility, "compatibility must not be null");
     }
 
     public TypeConversionCheck(
@@ -31,7 +37,7 @@ public record TypeConversionCheck(
             Type sourceType,
             Type targetType,
             ConversionKind conversionKind,
-            boolean compatible) {
-        this(relatedNode, siteKind, OptionalInt.empty(), sourceType, targetType, conversionKind, compatible);
+            ConversionCompatibility compatibility) {
+        this(relatedNode, siteKind, OptionalInt.empty(), sourceType, targetType, conversionKind, compatibility);
     }
 }

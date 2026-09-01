@@ -14,6 +14,7 @@ import org.vstu.meaningtree.nodes.expressions.calls.ConstructorCall;
 import org.vstu.meaningtree.nodes.expressions.calls.FunctionCall;
 import org.vstu.meaningtree.nodes.expressions.calls.MethodCall;
 import org.vstu.meaningtree.nodes.expressions.identifiers.SimpleIdentifier;
+import org.vstu.meaningtree.nodes.expressions.newexpr.ObjectNewExpression;
 import org.vstu.meaningtree.nodes.expressions.other.AssignmentExpression;
 import org.vstu.meaningtree.nodes.expressions.other.CastTypeExpression;
 import org.vstu.meaningtree.nodes.statements.CompoundStatement;
@@ -68,7 +69,8 @@ final class TypeConversionSiteAnalyzer {
                     ConversionSiteKind.CAST,
                     infer(cast.getValue()),
                     cast.getCastType(),
-                    ConversionKind.EXPLICIT);
+                    ConversionKind.EXPLICIT,
+                    cast.getValue());
             case VariableDeclarator declarator -> analyzeVariableInitializer(info, declarator);
             case DeclarationArgument argument -> analyzeDefaultArgument(argument);
             case AssignmentStatement assignment -> addCheck(
@@ -76,14 +78,19 @@ final class TypeConversionSiteAnalyzer {
                     ConversionSiteKind.ASSIGNMENT,
                     knownOrInfer(assignment.getRealType(), assignment.getRValue()),
                     infer(assignment.getLValue()),
-                    ConversionKind.IMPLICIT);
+                    ConversionKind.IMPLICIT,
+                    assignment.getRValue());
             case AssignmentExpression assignment -> addCheck(
                     assignment,
                     ConversionSiteKind.ASSIGNMENT,
                     knownOrInfer(assignment.getRealType(), assignment.getRValue()),
                     infer(assignment.getLValue()),
-                    ConversionKind.IMPLICIT);
+                    ConversionKind.IMPLICIT,
+                    assignment.getRValue());
             case ChainedAssignmentStatement assignment -> analyzeChainedAssignment(assignment);
+            // ObjectNewExpression тоже Callable и тоже резолвится: без него аргументы обычного
+            // new Point(...) не попадали в отчёт вовсе.
+            case ObjectNewExpression call -> analyzeCall(info, call, call.getArguments());
             case ConstructorCall call -> analyzeCall(info, call, call.getArguments());
             case MethodCall call -> analyzeCall(info, call, call.getArguments());
             case FunctionCall call -> analyzeCall(info, call, call.getArguments());
@@ -105,7 +112,8 @@ final class TypeConversionSiteAnalyzer {
                 ConversionSiteKind.INITIALIZER,
                 knownOrInfer(declarator.getRealType(), declarator.getRValue()),
                 declaration.getType(),
-                ConversionKind.IMPLICIT);
+                ConversionKind.IMPLICIT,
+                declarator.getRValue());
     }
 
     private void analyzeDefaultArgument(DeclarationArgument argument) {
@@ -117,7 +125,8 @@ final class TypeConversionSiteAnalyzer {
                 ConversionSiteKind.INITIALIZER,
                 infer(argument.getInitialExpression()),
                 argument.getType(),
-                ConversionKind.IMPLICIT);
+                ConversionKind.IMPLICIT,
+                argument.getInitialExpression());
     }
 
     private void analyzeChainedAssignment(ChainedAssignmentStatement assignment) {
@@ -129,7 +138,8 @@ final class TypeConversionSiteAnalyzer {
                     index,
                     source,
                     infer(assignment.getTargets().get(index)),
-                    ConversionKind.IMPLICIT);
+                    ConversionKind.IMPLICIT,
+                    assignment.getValue());
         }
     }
 
@@ -144,7 +154,8 @@ final class TypeConversionSiteAnalyzer {
                     index,
                     infer(value),
                     target,
-                    ConversionKind.IMPLICIT);
+                    ConversionKind.IMPLICIT,
+                    value);
         }
     }
 
@@ -170,7 +181,8 @@ final class TypeConversionSiteAnalyzer {
                 ConversionSiteKind.RETURN,
                 source,
                 target,
-                ConversionKind.IMPLICIT);
+                ConversionKind.IMPLICIT,
+                returnStatement.getExpression());
     }
 
     private Expression argumentValue(Expression argument) {
@@ -192,14 +204,9 @@ final class TypeConversionSiteAnalyzer {
             ConversionSiteKind siteKind,
             Type source,
             Type target,
-            ConversionKind kind) {
-        checks.add(new TypeConversionCheck(
-                node,
-                siteKind,
-                source,
-                target,
-                kind,
-                analyzer.isCompatible(source, target, kind, scope)));
+            ConversionKind kind,
+            Expression value) {
+        addCheck(node, siteKind, OptionalInt.empty(), source, target, kind, value);
     }
 
     private void addCheck(
@@ -208,15 +215,27 @@ final class TypeConversionSiteAnalyzer {
             int valueIndex,
             Type source,
             Type target,
-            ConversionKind kind) {
+            ConversionKind kind,
+            Expression value) {
+        addCheck(node, siteKind, OptionalInt.of(valueIndex), source, target, kind, value);
+    }
+
+    private void addCheck(
+            Node node,
+            ConversionSiteKind siteKind,
+            OptionalInt valueIndex,
+            Type source,
+            Type target,
+            ConversionKind kind,
+            Expression value) {
         checks.add(new TypeConversionCheck(
                 node,
                 siteKind,
-                OptionalInt.of(valueIndex),
+                valueIndex,
                 source,
                 target,
                 kind,
-                analyzer.isCompatible(source, target, kind, scope)));
+                analyzer.compatibility(source, target, kind, siteKind, value, scope)));
     }
 
     private <T> T withSiteScope(NodeInfo info, Supplier<T> action) {
