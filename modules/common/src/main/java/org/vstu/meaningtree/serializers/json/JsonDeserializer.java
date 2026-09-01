@@ -90,7 +90,7 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
      * разрешается одним проходом, когда рекурсия {@link #deserialize(JsonObject)} возвращается
      * на верхний уровень.
      */
-    private final Map<MethodDeclaration, Long> pendingOverriddenFrom = new LinkedHashMap<>();
+    private final Map<MethodDeclaration, List<Long>> pendingOverriddenFrom = new LinkedHashMap<>();
 
     /**
      * Отложенные ссылки {@code resolved_declaration_id}. Откладываются по той же причине, что и
@@ -1822,26 +1822,39 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
         if (!(node instanceof MethodDeclaration method)) {
             return;
         }
-        JsonElement overriddenFromId = json.get("overridden_from_id");
-        if (overriddenFromId == null || overriddenFromId.isJsonNull()) {
+        List<Long> ids = new ArrayList<>();
+        JsonElement overriddenFromIds = json.get("overridden_from_ids");
+        if (overriddenFromIds != null && overriddenFromIds.isJsonArray()) {
+            overriddenFromIds.getAsJsonArray().forEach(id -> ids.add(id.getAsLong()));
+        } else {
+            // Деревья, записанные до появления множественной связи, несут один id.
+            JsonElement single = json.get("overridden_from_id");
+            if (single != null && !single.isJsonNull()) {
+                ids.add(single.getAsLong());
+            }
+        }
+        if (ids.isEmpty()) {
             return;
         }
-        pendingOverriddenFrom.put(method, overriddenFromId.getAsLong());
+        pendingOverriddenFrom.put(method, ids);
     }
 
     /**
      * Разрешает {@code overridden_from_id}, отложенные до завершения разбора всего дерева
-     * (см. {@link #pendingOverriddenFrom}). Если предок так и не появился в {@link #nodeCache},
-     * ссылка остаётся {@code null} — так же, как делает {@link #restoreParentDeclaration}.
+     * (см. {@link #pendingOverriddenFrom}). Предки, которых не оказалось в {@link #nodeCache},
+     * в список не попадают — так же, как делает {@link #restoreParentDeclaration}.
      */
     private void flushPendingOverriddenFrom() {
         if (pendingOverriddenFrom.isEmpty()) {
             return;
         }
-        for (Map.Entry<MethodDeclaration, Long> entry : pendingOverriddenFrom.entrySet()) {
-            if (nodeCache.get(entry.getValue()) instanceof MethodDeclaration ancestor) {
-                entry.getKey().setOverriddenFrom(ancestor);
-            }
+        for (Map.Entry<MethodDeclaration, List<Long>> entry : pendingOverriddenFrom.entrySet()) {
+            List<MethodDeclaration> ancestors = entry.getValue().stream()
+                    .map(nodeCache::get)
+                    .filter(MethodDeclaration.class::isInstance)
+                    .map(MethodDeclaration.class::cast)
+                    .toList();
+            entry.getKey().setOverriddenFrom(ancestors);
         }
         pendingOverriddenFrom.clear();
     }

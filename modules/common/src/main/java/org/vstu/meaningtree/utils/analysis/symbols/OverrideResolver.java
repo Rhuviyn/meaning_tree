@@ -44,9 +44,9 @@ public final class OverrideResolver {
         Map<UserType, ClassDefinition> classesInFragment = findClassDefinitionsByType();
         for (ClassDefinition classDefinition : classesInFragment.values()) {
             for (MethodDeclaration method : findResolvableMethods(classDefinition)) {
-                // Присваивается всегда, в том числе null: если после правки дерева совпадения
-                // больше нет, старая ссылка обязана исчезнуть, а не пережить повторный проход.
-                method.setOverriddenFrom(findOverriddenAncestorMethod(
+                // Присваивается всегда, в том числе пустым списком: если после правки дерева
+                // совпадения больше нет, старая связь обязана исчезнуть, а не пережить проход.
+                method.setOverriddenFrom(findOverriddenAncestorMethods(
                         classDefinition, method, classesInFragment
                 ));
             }
@@ -81,40 +81,54 @@ public final class OverrideResolver {
                 && !method.getModifiers().contains(DeclarationModifier.STATIC);
     }
 
-    private MethodDeclaration findOverriddenAncestorMethod(ClassDefinition owner,
-                                                           MethodDeclaration method,
-                                                           Map<UserType, ClassDefinition> classesInFragment) {
-        Deque<UserType> queue = new ArrayDeque<>();
+    /**
+     * Методы предков, которые этот метод переопределяет.
+     * <p>
+     * Обход идёт по уровням иерархии, а не общей очередью: выигрывает ближайший предок, но если
+     * на одном расстоянии сигнатуру объявляют несколько предков — метод реализует одинаковую
+     * сигнатуру двух интерфейсов, или в C++ её объявляют две прямые базы, — возвращаются все.
+     * Прежний обход отдавал первого встреченного, то есть выдавал за факт порядок объявления
+     * родителей.
+     *
+     * @return пустой список, если совпадений нет
+     */
+    private List<MethodDeclaration> findOverriddenAncestorMethods(ClassDefinition owner,
+                                                                  MethodDeclaration method,
+                                                                  Map<UserType, ClassDefinition> classesInFragment) {
         Set<UserType> visited = new HashSet<>();
         // Класс не может быть предком самому себе — в корректном дереве такого не бывает, но
-        // цикл в иерархии (испорченный/некорректно построенный AST) не должен заставить BFS
+        // цикл в иерархии (испорченный/некорректно построенный AST) не должен заставить обход
         // сравнить метод сам с собой.
         visited.add(owner.getDeclaration().getTypeNode());
-        enqueueParents(owner.getDeclaration().getParents(), queue, visited);
+        List<UserType> level = nextLevel(owner.getDeclaration().getParents(), visited);
 
-        while (!queue.isEmpty()) {
-            UserType ancestorType = queue.poll();
-            ClassDefinition ancestor = resolveClassDefinition(ancestorType, classesInFragment);
-            if (ancestor == null) {
-                continue;
+        while (!level.isEmpty()) {
+            List<MethodDeclaration> matches = new ArrayList<>();
+            List<Type> nextParents = new ArrayList<>();
+            for (UserType ancestorType : level) {
+                ClassDefinition ancestor = resolveClassDefinition(ancestorType, classesInFragment);
+                if (ancestor == null) {
+                    continue;
+                }
+                matches.addAll(findMatchingMethods(ancestor, method));
+                nextParents.addAll(ancestor.getDeclaration().getParents());
             }
-
-            MethodDeclaration match = findMatchingMethod(ancestor, method);
-            if (match != null) {
-                return match;
+            if (!matches.isEmpty()) {
+                return matches;
             }
-
-            enqueueParents(ancestor.getDeclaration().getParents(), queue, visited);
+            level = nextLevel(nextParents, visited);
         }
-        return null;
+        return List.of();
     }
 
-    private void enqueueParents(List<Type> parents, Deque<UserType> queue, Set<UserType> visited) {
+    private List<UserType> nextLevel(List<Type> parents, Set<UserType> visited) {
+        List<UserType> level = new ArrayList<>();
         for (Type parent : parents) {
             if (parent instanceof UserType userType && visited.add(userType)) {
-                queue.add(userType);
+                level.add(userType);
             }
         }
+        return level;
     }
 
     private ClassDefinition resolveClassDefinition(UserType type, Map<UserType, ClassDefinition> classesInFragment) {
@@ -129,33 +143,49 @@ public final class OverrideResolver {
                 .orElse(null);
     }
 
-    private MethodDeclaration findMatchingMethod(ClassDefinition ancestor, MethodDeclaration method) {
+    /**
+     * Одноимённые методы предка с подходящей сигнатурой.
+     * <p>
+     * Совпадение по невыведенному типу используется только как запасной вариант: если хоть один
+     * кандидат совпал точно, приблизительные отбрасываются. Иначе перегруженное имя связывалось
+     * бы с произвольной перегрузкой предка — {@link UnknownType} совпадает с любым типом, и при
+     * нескольких перегрузках это не осторожность, а выбор наугад.
+     */
+    private List<MethodDeclaration> findMatchingMethods(ClassDefinition ancestor, MethodDeclaration method) {
+        List<MethodDeclaration> exact = new ArrayList<>();
+        List<MethodDeclaration> approximate = new ArrayList<>();
         for (MethodDeclaration candidate : findResolvableMethods(ancestor)) {
-            if (signaturesMatch(method, candidate)) {
-                return candidate;
+            switch (signatureMatch(method, candidate)) {
+                case EXACT -> exact.add(candidate);
+                case APPROXIMATE -> approximate.add(candidate);
+                case NONE -> { }
             }
         }
-        return null;
+        return exact.isEmpty() ? approximate : exact;
     }
 
-    private boolean signaturesMatch(MethodDeclaration method, MethodDeclaration candidate) {
+    /** Насколько уверенно сигнатуры совпали. */
+    private enum SignatureMatch { EXACT, APPROXIMATE, NONE }
+
+    private SignatureMatch signatureMatch(MethodDeclaration method, MethodDeclaration candidate) {
         if (!method.getName().equals(candidate.getName())) {
-            return false;
+            return SignatureMatch.NONE;
         }
         List<DeclarationArgument> methodArgs = method.getArguments();
         List<DeclarationArgument> candidateArgs = candidate.getArguments();
         if (methodArgs.size() != candidateArgs.size()) {
-            return false;
+            return SignatureMatch.NONE;
         }
+        boolean approximate = false;
         for (int i = 0; i < methodArgs.size(); i++) {
-            if (!argumentTypesMatch(methodArgs.get(i).getType(), candidateArgs.get(i).getType())) {
-                return false;
+            Type a = methodArgs.get(i).getType();
+            Type b = candidateArgs.get(i).getType();
+            if (a instanceof UnknownType || b instanceof UnknownType) {
+                approximate = true;
+            } else if (!Objects.equals(a, b)) {
+                return SignatureMatch.NONE;
             }
         }
-        return true;
-    }
-
-    private boolean argumentTypesMatch(Type a, Type b) {
-        return a instanceof UnknownType || b instanceof UnknownType || Objects.equals(a, b);
+        return approximate ? SignatureMatch.APPROXIMATE : SignatureMatch.EXACT;
     }
 }

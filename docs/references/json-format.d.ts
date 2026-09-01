@@ -1285,7 +1285,16 @@ export interface MethodDeclarationNode
     modifiers: DeclarationModifier[];
     arguments: DeclarationArgumentNode[];
     parent_decl_id?: AstId | null;
-    overridden_from_id?: AstId | null;
+    /**
+     * Методы предков, которые этот метод переопределяет или реализует. Список, а не одна ссылка:
+     * метод может реализовывать одинаковую сигнатуру нескольких интерфейсов, а в C++ её могут
+     * объявлять несколько прямых баз — более одного элемента означает, что выбора между ними
+     * язык не даёт.
+     *
+     * Пришло на смену полю `overridden_from_id`; прежнее поле читается как список из одного
+     * элемента.
+     */
+    overridden_from_ids?: AstId[];
 }
 
 export interface FunctionDeclarationNode extends NodeBase<"function_declaration"> {

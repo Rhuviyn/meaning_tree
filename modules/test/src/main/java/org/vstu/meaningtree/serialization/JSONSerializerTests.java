@@ -586,8 +586,8 @@ public class JSONSerializerTests {
         MethodDeclaration restoredChild = findMethodNode(restored, "speak", "Dog");
         MethodDeclaration restoredParent = findMethodNode(restored, "speak", "Animal");
 
-        assertNotNull(restoredChild.getOverriddenFrom());
-        assertEquals(restoredParent.getId(), restoredChild.getOverriddenFrom().getId());
+        assertNotNull(restoredChild.getOverriddenFromSingle());
+        assertEquals(restoredParent.getId(), restoredChild.getOverriddenFromSingle().getId());
     }
 
     @Test
@@ -607,8 +607,8 @@ public class JSONSerializerTests {
         MethodDeclaration restoredChild = findMethodNode(restored, "speak", "Dog");
         MethodDeclaration restoredParent = findMethodNode(restored, "speak", "Animal");
 
-        assertNotNull(restoredChild.getOverriddenFrom());
-        assertEquals(restoredParent.getId(), restoredChild.getOverriddenFrom().getId());
+        assertNotNull(restoredChild.getOverriddenFromSingle());
+        assertEquals(restoredParent.getId(), restoredChild.getOverriddenFromSingle().getId());
     }
 
     private static MethodDeclaration overrideRoundTripMethod(String ownerName, String methodName,

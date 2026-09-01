@@ -1,5 +1,6 @@
 package org.vstu.meaningtree.nodes.declarations;
 
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.vstu.meaningtree.nodes.Type;
 import org.vstu.meaningtree.nodes.declarations.components.DeclarationArgument;
@@ -16,14 +17,20 @@ public class MethodDeclaration extends FunctionDeclaration implements NestedDecl
     private ClassDeclaration parent;
 
     /**
-     * Ближайший метод предка (по классу или интерфейсу), который этот метод переопределяет
-     * или реализует. Заполняется {@code OverrideResolver} после парсинга, только если предок
-     * присутствует в том же фрагменте кода; иначе остаётся {@code null}. Ссылка не участвует
-     * в {@code equals}/{@code hashCode} и не копируется в {@link #clone()} — как и {@link #parent},
-     * она указывает на узел вверх по иерархии дерева, а не является его частью.
-     * После {@code freshClone()} ссылка продолжает указывать на узел исходного дерева.
+     * Методы предков (по классу или интерфейсу), которые этот метод переопределяет или
+     * реализует. Заполняется {@code OverrideResolver} после парсинга, только если предок
+     * присутствует в том же фрагменте кода; иначе список пуст.
+     * <p>
+     * Список, а не одна ссылка: метод может одновременно реализовывать одинаковую сигнатуру
+     * нескольких интерфейсов, а в C++ несколько прямых баз могут объявлять её на одном
+     * расстоянии. Выбирать из них по порядку родителей значило бы отдавать за факт порядок
+     * объявления; {@link #isOverrideAmbiguous()} говорит, что выбора не было.
+     * <p>
+     * Связи не участвуют в {@code equals}/{@code hashCode} и очищаются в {@link #clone()}: как и
+     * {@link #parent}, они указывают вверх по иерархии дерева, а не являются его частью, и у
+     * копии, ещё не прошедшей анализ, их быть не должно.
      */
-    private MethodDeclaration overriddenFrom;
+    private List<MethodDeclaration> overriddenFrom = List.of();
 
     public MethodDeclaration(UserType owner,
                              Identifier name,
@@ -55,17 +62,41 @@ public class MethodDeclaration extends FunctionDeclaration implements NestedDecl
         this.owner = owner;
     }
 
-    @Nullable
-    public MethodDeclaration getOverriddenFrom() {
+    /** Все найденные методы предков с этой сигнатурой; пусто, если связь не установлена. */
+    public List<MethodDeclaration> getOverriddenFrom() {
         return overriddenFrom;
     }
 
+    /**
+     * Единственный переопределяемый метод.
+     *
+     * @return пусто, если связь не установлена или кандидатов оказалось несколько — во втором
+     *         случае см. {@link #isOverrideAmbiguous()}
+     */
+    @Nullable
+    public MethodDeclaration getOverriddenFromSingle() {
+        return overriddenFrom.size() == 1 ? overriddenFrom.getFirst() : null;
+    }
+
     public void setOverriddenFrom(@Nullable MethodDeclaration overriddenFrom) {
-        this.overriddenFrom = overriddenFrom;
+        this.overriddenFrom = overriddenFrom == null ? List.of() : List.of(overriddenFrom);
+    }
+
+    public void setOverriddenFrom(@NotNull List<MethodDeclaration> overriddenFrom) {
+        this.overriddenFrom = List.copyOf(overriddenFrom);
     }
 
     public boolean isOverride() {
-        return overriddenFrom != null;
+        return !overriddenFrom.isEmpty();
+    }
+
+    /**
+     * Нашлось несколько методов предков с этой сигнатурой на одном расстоянии, и выбрать один
+     * правилами языка нельзя. Связь при этом сохранена целиком — потребитель видит все варианты
+     * и знает, что это не выбор, а неоднозначность.
+     */
+    public boolean isOverrideAmbiguous() {
+        return overriddenFrom.size() > 1;
     }
 
     @Override
@@ -84,6 +115,9 @@ public class MethodDeclaration extends FunctionDeclaration implements NestedDecl
         var clone = (MethodDeclaration) super.clone();
         clone.modifiers = List.copyOf(modifiers);
         clone.owner = owner.clone();
+        // Копия — ещё не проанализированный узел: связь с предком проставляет OverrideResolver,
+        // а указывать в чужое дерево она не должна.
+        clone.overriddenFrom = List.of();
         return clone;
     }
 

@@ -14,6 +14,7 @@ import org.vstu.meaningtree.nodes.expressions.identifiers.SimpleIdentifier;
 import org.vstu.meaningtree.nodes.statements.CompoundStatement;
 import org.vstu.meaningtree.nodes.types.UnknownType;
 import org.vstu.meaningtree.nodes.types.builtin.IntType;
+import org.vstu.meaningtree.nodes.types.builtin.StringType;
 import org.vstu.meaningtree.utils.scopes.ScopeTable;
 
 import java.util.List;
@@ -36,7 +37,7 @@ class OverrideResolverTests {
 
         resolve(parent, child);
 
-        assertSame(parentMethod, childMethod.getOverriddenFrom());
+        assertSame(parentMethod, childMethod.getOverriddenFromSingle());
     }
 
     @Test
@@ -53,7 +54,7 @@ class OverrideResolverTests {
 
         resolve(iface, impl);
 
-        assertSame(ifaceMethod, implMethod.getOverriddenFrom());
+        assertSame(ifaceMethod, implMethod.getOverriddenFromSingle());
     }
 
     @Test
@@ -75,7 +76,7 @@ class OverrideResolverTests {
 
         resolve(grandparent, parent, child);
 
-        assertSame(grandparentMethod, childMethod.getOverriddenFrom());
+        assertSame(grandparentMethod, childMethod.getOverriddenFromSingle());
     }
 
     @Test
@@ -98,7 +99,7 @@ class OverrideResolverTests {
 
         resolve(parent, child);
 
-        assertNull(childMethod.getOverriddenFrom());
+        assertNull(childMethod.getOverriddenFromSingle());
     }
 
     @Test
@@ -121,7 +122,7 @@ class OverrideResolverTests {
 
         resolve(parent, child);
 
-        assertSame(parentMethod, childMethod.getOverriddenFrom());
+        assertSame(parentMethod, childMethod.getOverriddenFromSingle());
     }
 
     @Test
@@ -134,7 +135,7 @@ class OverrideResolverTests {
 
         resolve(child);
 
-        assertNull(childMethod.getOverriddenFrom());
+        assertNull(childMethod.getOverriddenFromSingle());
     }
 
     @Test
@@ -161,8 +162,8 @@ class OverrideResolverTests {
 
         resolve(parent, child);
 
-        assertNull(childStatic.getOverriddenFrom());
-        assertNull(childCtor.getOverriddenFrom());
+        assertNull(childStatic.getOverriddenFromSingle());
+        assertNull(childCtor.getOverriddenFromSingle());
     }
 
     @Test
@@ -180,7 +181,87 @@ class OverrideResolverTests {
 
         assertTimeoutPreemptively(java.time.Duration.ofSeconds(5), () -> resolve(a, b));
 
-        assertNull(method.getOverriddenFrom());
+        assertNull(method.getOverriddenFromSingle());
+    }
+
+    /**
+     * Метод реализует одинаковую сигнатуру двух интерфейсов. Оба — предки на одном расстоянии,
+     * и выбирать между ними по порядку объявления родителей значило бы выдавать порядок за факт.
+     */
+    @Test
+    void keepsBothTargetsWhenTwoInterfacesDeclareTheSameSignature() {
+        InterfaceDeclaration firstDecl = new InterfaceDeclaration(List.of(), new SimpleIdentifier("Readable"));
+        MethodDeclaration firstMethod = method(firstDecl, "run", List.of(DeclarationModifier.ABSTRACT));
+        InterfaceDefinition first = new InterfaceDefinition(firstDecl, new CompoundStatement(firstMethod));
+
+        InterfaceDeclaration secondDecl = new InterfaceDeclaration(List.of(), new SimpleIdentifier("Runnable"));
+        MethodDeclaration secondMethod = method(secondDecl, "run", List.of(DeclarationModifier.ABSTRACT));
+        InterfaceDefinition second = new InterfaceDefinition(secondDecl, new CompoundStatement(secondMethod));
+
+        ClassDeclaration implDecl = new ClassDeclaration(
+                List.of(), new SimpleIdentifier("Task"), List.of(),
+                firstDecl.getTypeNode(), secondDecl.getTypeNode()
+        );
+        MethodDeclaration implMethod = method(implDecl, "run", List.of(DeclarationModifier.PUBLIC));
+        ClassDefinition impl = classDefinition(implDecl, new MethodDefinition(implMethod, body()));
+
+        resolve(first, second, impl);
+
+        assertTrue(implMethod.isOverride());
+        assertTrue(implMethod.isOverrideAmbiguous(), "оба интерфейса объявляют эту сигнатуру");
+        assertEquals(2, implMethod.getOverriddenFrom().size());
+        assertNull(implMethod.getOverriddenFromSingle(), "единственного предка здесь нет");
+    }
+
+    /**
+     * {@code UnknownType} совпадает с любым типом, поэтому при перегруженном имени приблизительное
+     * совпадение выбирало бы перегрузку предка наугад. Точное совпадение обязано выигрывать.
+     */
+    @Test
+    void exactSignatureWinsOverUnknownTypeMatch() {
+        ClassDeclaration parentDecl = new ClassDeclaration(new SimpleIdentifier("A"));
+        MethodDeclaration takesInt = method(
+                parentDecl, "run", List.of(DeclarationModifier.PUBLIC),
+                new DeclarationArgument(new IntType(), new SimpleIdentifier("x"), null)
+        );
+        MethodDeclaration takesString = method(
+                parentDecl, "run", List.of(DeclarationModifier.PUBLIC),
+                new DeclarationArgument(new StringType(), new SimpleIdentifier("x"), null)
+        );
+        ClassDefinition parent = classDefinition(parentDecl,
+                new MethodDefinition(takesInt, body()), new MethodDefinition(takesString, body()));
+
+        ClassDeclaration childDecl = new ClassDeclaration(
+                List.of(), new SimpleIdentifier("B"), List.of(), parentDecl.getTypeNode()
+        );
+        MethodDeclaration childMethod = method(
+                childDecl, "run", List.of(DeclarationModifier.PUBLIC),
+                new DeclarationArgument(new StringType(), new SimpleIdentifier("x"), null)
+        );
+        ClassDefinition child = classDefinition(childDecl, new MethodDefinition(childMethod, body()));
+
+        resolve(parent, child);
+
+        assertSame(takesString, childMethod.getOverriddenFromSingle());
+    }
+
+    /** Клон — ещё не проанализированный узел: связь с предком проставляет анализ, а не копирование. */
+    @Test
+    void cloneCarriesNoOverrideLink() {
+        ClassDeclaration parentDecl = new ClassDeclaration(new SimpleIdentifier("A"));
+        MethodDeclaration parentMethod = method(parentDecl, "run", List.of(DeclarationModifier.PUBLIC));
+        ClassDefinition parent = classDefinition(parentDecl, new MethodDefinition(parentMethod, body()));
+
+        ClassDeclaration childDecl = new ClassDeclaration(
+                List.of(), new SimpleIdentifier("B"), List.of(), parentDecl.getTypeNode()
+        );
+        MethodDeclaration childMethod = method(childDecl, "run", List.of(DeclarationModifier.PUBLIC));
+        ClassDefinition child = classDefinition(childDecl, new MethodDefinition(childMethod, body()));
+
+        resolve(parent, child);
+
+        assertTrue(childMethod.isOverride());
+        assertFalse(childMethod.clone().isOverride(), "клон не должен ссылаться в исходное дерево");
     }
 
     private static void resolve(ClassDefinition... classes) {

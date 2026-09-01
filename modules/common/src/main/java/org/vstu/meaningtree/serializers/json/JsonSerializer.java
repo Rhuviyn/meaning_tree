@@ -2473,8 +2473,10 @@ public class JsonSerializer implements Serializer<JsonObject> {
         for (var t : decl.getArguments()) targets.add(serialize(t));
         json.add("arguments", targets);
         json.addProperty("parent_decl_id", decl.getParentDeclaration() == null ? null : decl.getParentDeclaration().getId());
-        if (decl.getOverriddenFrom() != null) {
-            json.addProperty("overridden_from_id", decl.getOverriddenFrom().getId());
+        if (decl.isOverride()) {
+            JsonArray overridden = new JsonArray();
+            decl.getOverriddenFrom().forEach(ancestor -> overridden.add(ancestor.getId()));
+            json.add("overridden_from_ids", overridden);
         }
         return json;
     }
