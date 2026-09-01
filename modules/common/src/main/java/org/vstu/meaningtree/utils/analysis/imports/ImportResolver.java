@@ -4,14 +4,19 @@ import org.vstu.meaningtree.MeaningTree;
 import org.vstu.meaningtree.iterators.utils.NodeInfo;
 import org.vstu.meaningtree.nodes.expressions.Identifier;
 import org.vstu.meaningtree.nodes.modules.*;
+import org.vstu.meaningtree.nodes.modules.ImportResolverMetadata.ImportKind;
 import org.vstu.meaningtree.utils.modules.ImportPathConverter;
 
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -30,6 +35,9 @@ import java.util.stream.Stream;
  * различимы потребителем.
  */
 public abstract class ImportResolver {
+    /** Индекс файлов проекта на время одного {@link #resolve}; вне прогона — {@code null}. */
+    private ProjectIndex projectIndex;
+
     /**
      * Насколько глубоко fallback-поиск спускается по дереву проекта. Ограничение нужно, чтобы
      * один нерезолвящийся импорт не обошёл весь диск: на такой глубине лежит любой разумный
@@ -48,10 +56,18 @@ public abstract class ImportResolver {
     );
 
     public final void resolve(MeaningTree tree, Path projectRoot, Path currentFileRelPath) {
-        for (NodeInfo info : tree) {
-            if (info.node() instanceof Import importNode) {
-                importNode.setResolverMetadata(resolveImport(importNode, tree, projectRoot, currentFileRelPath));
+        Path root = projectRoot.toAbsolutePath().normalize();
+        // Индекс строится один раз на прогон, а не на каждый импорт: прежний обход стоил
+        // imports x candidates x файлы проекта.
+        projectIndex = new ProjectIndex(root);
+        try {
+            for (NodeInfo info : tree) {
+                if (info.node() instanceof Import importNode) {
+                    importNode.setResolverMetadata(resolveImport(importNode, tree, root, currentFileRelPath));
+                }
             }
+        } finally {
+            projectIndex = null;
         }
     }
 
@@ -113,7 +129,7 @@ public abstract class ImportResolver {
         if (allowsLocalShadowing() && exactRoot.isPresent()) {
             Optional<Path> shadowing = findFirstExact(exactRoot.get(), candidates);
             if (shadowing.isPresent()) {
-                return ImportResolverMetadata.resolved(ImportResolverMetadata.ImportKind.LOCAL_RESOLVED_EXACT, shadowing.get());
+                return insideProject(projectRoot, shadowing.get(), ImportKind.LOCAL_RESOLVED_EXACT);
             }
         }
         if (candidates.stream().allMatch(this::isLibraryModule)) {
@@ -122,13 +138,18 @@ public abstract class ImportResolver {
         if (exactRoot.isPresent()) {
             Optional<Path> resolved = findFirstExact(exactRoot.get(), candidates);
             if (resolved.isPresent()) {
-                return ImportResolverMetadata.resolved(ImportResolverMetadata.ImportKind.LOCAL_RESOLVED_EXACT, resolved.get());
+                return insideProject(projectRoot, resolved.get(), ImportKind.LOCAL_RESOLVED_EXACT);
             }
         }
         for (String candidate : candidates) {
-            Optional<Path> resolved = findAnywhere(projectRoot, candidate);
-            if (resolved.isPresent()) {
-                return ImportResolverMetadata.resolved(ImportResolverMetadata.ImportKind.LOCAL_RESOLVED_FALLBACK, resolved.get());
+            List<Path> matches = findAllByPath(projectRoot, ImportPathConverter.dottedNameToPath(candidate));
+            if (matches.size() == 1) {
+                return insideProject(projectRoot, matches.getFirst(), ImportKind.LOCAL_RESOLVED_FALLBACK);
+            }
+            if (matches.size() > 1) {
+                // Несколько файлов с подходящим хвостом пути — это не ответ. Выбрать первый
+                // значило бы выдать порядок обхода каталогов за результат резолвинга.
+                return ImportResolverMetadata.ambiguous();
             }
         }
         return ImportResolverMetadata.unresolved();
@@ -181,6 +202,22 @@ public abstract class ImportResolver {
     protected abstract Optional<Path> exactSearchRoot(MeaningTree tree,
                                                       Path projectRoot,
                                                       Path currentFileRelPath);
+
+    /**
+     * Метаданные для найденного файла — с путём относительно корня проекта.
+     * <p>
+     * Относительный, а не абсолютный: абсолютный путь попадает в сериализованное дерево, где он
+     * бесполезен на другой машине и заодно раскрывает её структуру. Файл вне корня проекта
+     * результатом не считается вовсе — {@code ..} в пути импорта или подменённый корень не
+     * должны выводить резолвинг за пределы заявленного проекта.
+     */
+    protected ImportResolverMetadata insideProject(Path projectRoot, Path file, ImportKind kind) {
+        Path normalized = file.toAbsolutePath().normalize();
+        if (!normalized.startsWith(projectRoot)) {
+            return ImportResolverMetadata.unresolved();
+        }
+        return ImportResolverMetadata.resolved(kind, projectRoot.relativize(normalized));
+    }
 
     /** Первый из кандидатов, найденный точным поиском от указанного корня. */
     private Optional<Path> findFirstExact(Path exactRoot, List<String> candidates) {
@@ -250,35 +287,82 @@ public abstract class ImportResolver {
     /**
      * То же, но по готовому относительному пути: в C++ импорт и так именует файл, и превращать
      * его в точечное имя, чтобы тут же развернуть обратно, значило бы испортить расширение.
+     * <p>
+     * Возвращает совпадение, только если оно единственное: несколько файлов с подходящим хвостом
+     * пути — это не найденный ответ, а неоднозначность, и выбирать из них первый попавшийся
+     * значило бы выдавать за факт порядок обхода каталогов.
      */
     protected Optional<Path> findAnywhereByPath(Path projectRoot, String relativePath) {
+        List<Path> matches = findAllByPath(projectRoot, relativePath);
+        return matches.size() == 1 ? Optional.of(matches.getFirst()) : Optional.empty();
+    }
+
+    /** Все файлы проекта, чей путь оканчивается на {@code relativePath} с расширением языка. */
+    protected List<Path> findAllByPath(Path projectRoot, String relativePath) {
         String suffix = relativePath.replace('\\', '/');
         List<String> wantedFiles = sourceExtensions().stream().map(extension -> suffix + extension).toList();
-        try (Stream<Path> walk = Files.walk(projectRoot, MAX_SEARCH_DEPTH)) {
-            return walk
-                    .filter(Files::isRegularFile)
-                    .filter(path -> !isInIgnoredDirectory(projectRoot, path))
-                    .filter(path -> {
-                        String normalized = projectRoot.relativize(path).toString().replace('\\', '/');
-                        return wantedFiles.stream().anyMatch(wanted ->
-                                normalized.equals(wanted) || normalized.endsWith("/" + wanted));
-                    })
-                    .findFirst();
-        } catch (IOException | SecurityException e) {
-            // Проект может быть недоступен на чтение целиком или частично: это повод не
-            // резолвить импорт, но не повод валить весь разбор файла
-            return Optional.empty();
+        return indexOf(projectRoot).files().stream()
+                .filter(path -> {
+                    String normalized = projectRoot.relativize(path).toString().replace('\\', '/');
+                    return wantedFiles.stream().anyMatch(wanted ->
+                            normalized.equals(wanted) || normalized.endsWith("/" + wanted));
+                })
+                .toList();
+    }
+
+    private ProjectIndex indexOf(Path projectRoot) {
+        ProjectIndex index = projectIndex;
+        // Индекса нет, если поиск вызван вне resolve() — тогда он строится на один вызов.
+        return index != null && index.root().equals(projectRoot) ? index : new ProjectIndex(projectRoot);
+    }
+
+    /**
+     * Список файлов проекта, построенный одним обходом.
+     * <p>
+     * Игнорируемые каталоги отсекаются в {@code preVisitDirectory} через {@code SKIP_SUBTREE},
+     * то есть в них не заходят вовсе. Прежний фильтр применялся к уже перечисленным файлам,
+     * поэтому {@code target}, {@code node_modules} и {@code .git} обходились целиком — вопреки
+     * комментарию, обещавшему обратное.
+     */
+    private record ProjectIndex(Path root, List<Path> files) {
+        ProjectIndex(Path root) {
+            this(root, scan(root));
+        }
+
+        private static List<Path> scan(Path root) {
+            List<Path> found = new ArrayList<>();
+            try {
+                Files.walkFileTree(root, Set.of(), MAX_SEARCH_DEPTH, new SimpleFileVisitor<>() {
+                    @Override
+                    public FileVisitResult preVisitDirectory(Path directory, BasicFileAttributes attributes) {
+                        return !directory.equals(root)
+                                && IGNORED_DIRECTORIES.contains(directory.getFileName().toString())
+                                ? FileVisitResult.SKIP_SUBTREE
+                                : FileVisitResult.CONTINUE;
+                    }
+
+                    @Override
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) {
+                        if (attributes.isRegularFile()) {
+                            found.add(file);
+                        }
+                        return FileVisitResult.CONTINUE;
+                    }
+
+                    @Override
+                    public FileVisitResult visitFileFailed(Path file, IOException failure) {
+                        // Нечитаемый файл или каталог — повод пропустить его, но не повод
+                        // прекращать обход проекта.
+                        return FileVisitResult.CONTINUE;
+                    }
+                });
+            } catch (IOException | SecurityException e) {
+                // Проект может быть недоступен на чтение целиком: это повод не резолвить
+                // импорты, но не повод валить разбор файла.
+                return List.of();
+            }
+            return found;
         }
     }
 
-    private boolean isInIgnoredDirectory(Path projectRoot, Path file) {
-        for (Path segment : projectRoot.relativize(file).getParent() == null
-                ? projectRoot.relativize(file)
-                : projectRoot.relativize(file).getParent()) {
-            if (IGNORED_DIRECTORIES.contains(segment.toString())) {
-                return true;
-            }
-        }
-        return false;
-    }
 }

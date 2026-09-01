@@ -64,19 +64,21 @@ public class CppImportResolver extends ImportResolver {
                 ? projectRoot
                 : projectRoot.resolve(currentFileRelPath.getParent()).normalize();
 
+        // insideProject, а не прямая сборка метаданных: путь из #include может содержать "..",
+        // и без проверки резолвинг уходил бы за пределы заявленного корня проекта.
         Path nearCurrentFile = currentDirectory.resolve(fileName).normalize();
         if (Files.isRegularFile(nearCurrentFile)) {
-            return ImportResolverMetadata.resolved(
-                    ImportResolverMetadata.ImportKind.LOCAL_RESOLVED_EXACT, nearCurrentFile);
+            return insideProject(projectRoot, nearCurrentFile,
+                    ImportResolverMetadata.ImportKind.LOCAL_RESOLVED_EXACT);
         }
         Path fromProjectRoot = projectRoot.resolve(fileName).normalize();
         if (Files.isRegularFile(fromProjectRoot)) {
-            return ImportResolverMetadata.resolved(
-                    ImportResolverMetadata.ImportKind.LOCAL_RESOLVED_EXACT, fromProjectRoot);
+            return insideProject(projectRoot, fromProjectRoot,
+                    ImportResolverMetadata.ImportKind.LOCAL_RESOLVED_EXACT);
         }
         return findAnywhereByPath(projectRoot, fileName)
-                .map(path -> ImportResolverMetadata.resolved(
-                        ImportResolverMetadata.ImportKind.LOCAL_RESOLVED_FALLBACK, path))
+                .map(path -> insideProject(projectRoot, path,
+                        ImportResolverMetadata.ImportKind.LOCAL_RESOLVED_FALLBACK))
                 .orElseGet(ImportResolverMetadata::unresolved);
     }
 

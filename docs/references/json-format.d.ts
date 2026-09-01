@@ -1312,6 +1312,11 @@ export interface FunctionDeclarationNode extends NodeBase<"function_declaration"
 export type ImportResolverKind =
     | "local_resolved_exact"
     | "local_resolved_fallback"
+    /**
+     * Перебор по проекту нашёл несколько файлов с подходящим хвостом пути; `resolved_file`
+     * отсутствует.
+     */
+    | "local_ambiguous"
     | "local_unresolved"
     | "library"
     /**
@@ -1329,7 +1334,13 @@ export type ImportResolverKind =
  */
 export interface ImportResolverMetadataRef {
     kind: ImportResolverKind;
-    /** Путь к резолвнутому файлу; отсутствует для `library`, `local_unresolved` и `mixed`. */
+    /**
+     * Путь к найденному файлу **относительно корня проекта**; отсутствует для `library`,
+     * `local_unresolved`, `local_ambiguous` и `mixed`.
+     *
+     * Относительный, а не абсолютный: абсолютный путь бесполезен на другой машине и раскрывает
+     * её структуру каталогов. Файл вне корня проекта результатом не считается вовсе.
+     */
     resolved_file: string | null;
 }
 

@@ -11,11 +11,22 @@ import java.util.Optional;
  * выдуманными: догадка о файле хуже, чем её отсутствие.
  */
 public record ImportResolverMetadata(ImportKind kind, Optional<Path> resolvedFile) {
+    /*
+     * resolvedFile — путь относительно корня проекта: абсолютный попадал бы в сериализованное
+     * дерево, где он бесполезен на другой машине и раскрывает её структуру.
+     */
+
     public enum ImportKind {
         /** Файл найден по точно вычисленному корню исходников (Java: package + путь файла). */
         LOCAL_RESOLVED_EXACT,
-        /** Файл найден перебором по всему проекту — совпадение возможно не единственное. */
+        /** Файл найден перебором по всему проекту, и он единственный подходящий. */
         LOCAL_RESOLVED_FALLBACK,
+        /**
+         * Перебор по проекту нашёл несколько файлов с подходящим хвостом пути. Выбрать один из
+         * них правилами языка нельзя, а выбрать по порядку обхода каталогов значило бы выдать
+         * его за результат резолвинга.
+         */
+        LOCAL_AMBIGUOUS,
         /** Похоже на локальный импорт, но файла в проекте нет. */
         LOCAL_UNRESOLVED,
         /** Импорт из библиотеки: файла в проекте нет и быть не должно. */
@@ -40,6 +51,10 @@ public record ImportResolverMetadata(ImportKind kind, Optional<Path> resolvedFil
 
     public static ImportResolverMetadata mixed() {
         return new ImportResolverMetadata(ImportKind.MIXED, Optional.empty());
+    }
+
+    public static ImportResolverMetadata ambiguous() {
+        return new ImportResolverMetadata(ImportKind.LOCAL_AMBIGUOUS, Optional.empty());
     }
 
     public static ImportResolverMetadata unresolved() {

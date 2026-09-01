@@ -61,7 +61,7 @@ class ImportResolverTests {
         assertEquals(1, resolved.size());
         assertEquals(ImportKind.LOCAL_RESOLVED_EXACT, resolved.getFirst().kind());
         assertEquals(
-                projectRoot.resolve("src/main/java/app/util/Helper.java"),
+                Path.of("src/main/java/app/util/Helper.java"),
                 resolved.getFirst().resolvedFile().orElseThrow()
         );
     }
@@ -98,7 +98,7 @@ class ImportResolverTests {
         assertEquals(1, resolved.size());
         assertEquals(ImportKind.LOCAL_RESOLVED_FALLBACK, resolved.getFirst().kind());
         assertEquals(
-                projectRoot.resolve("somewhere/deep/app/util/Helper.java"),
+                Path.of("somewhere/deep/app/util/Helper.java"),
                 resolved.getFirst().resolvedFile().orElseThrow()
         );
     }
@@ -135,7 +135,7 @@ class ImportResolverTests {
 
         assertEquals(1, resolved.size());
         assertEquals(ImportKind.LOCAL_RESOLVED_EXACT, resolved.getFirst().kind());
-        assertEquals(projectRoot.resolve("pkg/other.py"), resolved.getFirst().resolvedFile().orElseThrow());
+        assertEquals(Path.of("pkg/other.py"), resolved.getFirst().resolvedFile().orElseThrow());
     }
 
     @Test
@@ -155,7 +155,7 @@ class ImportResolverTests {
 
         assertEquals(1, resolved.size());
         assertEquals(ImportKind.LOCAL_RESOLVED_EXACT, resolved.getFirst().kind());
-        assertEquals(projectRoot.resolve("pkg/name.py"), resolved.getFirst().resolvedFile().orElseThrow());
+        assertEquals(Path.of("pkg/name.py"), resolved.getFirst().resolvedFile().orElseThrow());
     }
 
     @Test
@@ -187,7 +187,7 @@ class ImportResolverTests {
 
         assertEquals(1, resolved.size());
         assertEquals(ImportKind.LOCAL_RESOLVED_EXACT, resolved.getFirst().kind());
-        assertEquals(projectRoot.resolve("src/util/helper.h"), resolved.getFirst().resolvedFile().orElseThrow());
+        assertEquals(Path.of("src/util/helper.h"), resolved.getFirst().resolvedFile().orElseThrow());
     }
 
     @Test
@@ -285,7 +285,7 @@ class ImportResolverTests {
 
         assertEquals(1, resolved.size());
         assertEquals(ImportKind.LOCAL_RESOLVED_EXACT, resolved.getFirst().kind());
-        assertEquals(projectRoot.resolve("random.py"), resolved.getFirst().resolvedFile().orElseThrow());
+        assertEquals(Path.of("random.py"), resolved.getFirst().resolvedFile().orElseThrow());
     }
 
     /** Без затеняющего файла тот же импорт остаётся библиотечным. */
@@ -359,6 +359,70 @@ class ImportResolverTests {
         );
 
         assertEquals(ImportKind.LIBRARY, resolved.getFirst().kind());
+    }
+
+    /**
+     * Путь из {@code #include} может содержать {@code ..}. Резолвинг обязан оставаться внутри
+     * заявленного корня проекта: найденный за его пределами файл — не результат, а выход за
+     * границы, которые задал вызывающий.
+     */
+    @Test
+    void includeEscapingProjectRootIsNotResolved(@TempDir Path outer) throws IOException {
+        write(outer, "secret.h", "");
+        Path projectRoot = outer.resolve("project");
+        write(projectRoot, "src/main.cpp", "");
+
+        List<ImportResolverMetadata> resolved = resolveAll(
+                new CppTranslator(FULL_UNIT_CONFIG),
+                projectRoot,
+                Path.of("src/main.cpp"),
+                "#include \"../../secret.h\"\nint main() { return 0; }"
+        );
+
+        assertEquals(ImportKind.LOCAL_UNRESOLVED, resolved.getFirst().kind());
+        assertTrue(resolved.getFirst().resolvedFile().isEmpty());
+    }
+
+    /**
+     * Перебор по проекту нашёл несколько подходящих файлов — это неоднозначность, а не ответ.
+     * Прежний поиск отдавал первый попавшийся, то есть выдавал за результат порядок обхода.
+     */
+    @Test
+    void severalMatchesInFallbackSearchAreAmbiguous(@TempDir Path projectRoot) throws IOException {
+        write(projectRoot, "one/app/util/Helper.java", "class Helper {}");
+        write(projectRoot, "two/app/util/Helper.java", "class Helper {}");
+        write(projectRoot, "Main.java", "");
+
+        List<ImportResolverMetadata> resolved = resolveAll(
+                new JavaTranslator(CONFIG),
+                projectRoot,
+                Path.of("Main.java"),
+                "import app.util.Helper; class Main {}"
+        );
+
+        assertEquals(ImportKind.LOCAL_AMBIGUOUS, resolved.getFirst().kind());
+        assertTrue(resolved.getFirst().resolvedFile().isEmpty());
+    }
+
+    /**
+     * Игнорируемые каталоги не обходятся вовсе: совпадение в {@code target} или
+     * {@code node_modules} — это артефакт сборки или чужая зависимость, а не исходник проекта.
+     */
+    @Test
+    void ignoredDirectoriesAreNotSearched(@TempDir Path projectRoot) throws IOException {
+        write(projectRoot, "target/app/util/Helper.java", "class Helper {}");
+        write(projectRoot, "node_modules/app/util/Helper.java", "class Helper {}");
+        write(projectRoot, "Main.java", "");
+
+        List<ImportResolverMetadata> resolved = resolveAll(
+                new JavaTranslator(CONFIG),
+                projectRoot,
+                Path.of("Main.java"),
+                "import app.util.Helper; class Main {}"
+        );
+
+        assertEquals(ImportKind.LOCAL_UNRESOLVED, resolved.getFirst().kind(),
+                "найденное в target/node_modules не должно считаться исходником проекта");
     }
 
     private List<ImportResolverMetadata> resolveAll(LanguageTranslator translator,
