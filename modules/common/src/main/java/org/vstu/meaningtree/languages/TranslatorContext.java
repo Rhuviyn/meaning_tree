@@ -288,8 +288,9 @@ public class TranslatorContext {
         return translator.hasSourceContext();
     }
 
+    /** Тело без собственной области видимости; область открывает {@link #createNodeBody(boolean)}. */
     public BodyConstructor createNodeBody() {
-        return new BodyConstructor(this, getFlag("scopeForEachCompound").orElse(false));
+        return createNodeBody(false);
     }
 
     /**
