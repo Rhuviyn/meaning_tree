@@ -6,7 +6,9 @@ import org.vstu.meaningtree.iterators.utils.NodeIterable;
 import org.vstu.meaningtree.nodes.Node;
 import org.vstu.meaningtree.utils.Label;
 import org.vstu.meaningtree.utils.SourceMap;
+import org.vstu.meaningtree.utils.analysis.AnalysisPipeline;
 import org.vstu.meaningtree.utils.analysis.CyclomaticComplexityAnalyzer;
+import org.vstu.meaningtree.utils.analysis.ScopeTableBuilder;
 import org.vstu.meaningtree.utils.hooks.*;
 import org.vstu.meaningtree.utils.scopes.ScopeTable;
 
@@ -77,14 +79,35 @@ public class SourceMapGenerator {
 
     public SourceMap process(MeaningTree meaningTree) {
         String code = instrumentedCode(() -> translator.getCode(meaningTree));
-        globalScope = translator.getLatestScopeTable();
+        globalScope = translator.isSkipOptimizations()
+                ? translator.getLatestScopeTable()
+                : analyzedScope(meaningTree);
         return buildSourceMap(meaningTree, code);
     }
 
     public SourceMap process(Node root) {
         String code = instrumentedCode(() -> translator.getCode(root));
-        globalScope = translator.getLatestScopeTable();
+        globalScope = translator.isSkipOptimizations()
+                ? translator.getLatestScopeTable()
+                : analyzedScope(new MeaningTree(root));
         return buildSourceMap(root, code);
+    }
+
+    /**
+     * Строит {@link ScopeTable} для дерева заново и дополняет его метаданными
+     * {@link AnalysisPipeline} (перегрузки, преобразования типов, резолвинг импортов и т.д.).
+     * <p>
+     * {@code translator} здесь — целевой транслятор, а не тот, что разбирал исходник: его
+     * {@code getLatestScopeTable()} после рендеринга содержит только структурную таблицу
+     * рендеринга, без результатов анализа. Раз анализ не завязан на разбор (см.
+     * {@link AnalysisPipeline}), его можно выполнить здесь заново — на том же дереве и с
+     * языковыми правилами целевого языка. Вызывается только когда оптимизации не отключены —
+     * см. {@link #process(MeaningTree)}.
+     */
+    private ScopeTable analyzedScope(MeaningTree tree) {
+        ScopeTable scope = ScopeTableBuilder.build(tree);
+        new AnalysisPipeline(tree, scope, translator).run();
+        return scope;
     }
 
     /**
