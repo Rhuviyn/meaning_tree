@@ -27,6 +27,7 @@ import org.vstu.meaningtree.nodes.expressions.math.AddOp;
 import org.vstu.meaningtree.nodes.expressions.newexpr.ObjectNewExpression;
 import org.vstu.meaningtree.nodes.statements.CompoundStatement;
 import org.vstu.meaningtree.nodes.statements.ExpressionStatement;
+import org.vstu.meaningtree.nodes.statements.ResourceContextStatement;
 import org.vstu.meaningtree.nodes.statements.assignments.AssignmentStatement;
 import org.vstu.meaningtree.nodes.statements.assignments.ChainedAssignmentStatement;
 import org.vstu.meaningtree.nodes.statements.exceptions.ExceptionCatchStatement;
@@ -862,6 +863,86 @@ public class JSONSerializerTests {
                 "Traversal missed some children: " + names);
         assertEquals(1, nodesOf(statement, CatchClause.class).size());
         assertEquals(1, nodesOf(statement, org.vstu.meaningtree.nodes.types.user.Class.class).size());
+    }
+
+    @Test
+    void resourceContextStatementSurvivesRoundTrip() {
+        ResourceContextStatement statement = new ResourceContextStatement(
+                List.of(
+                        new VariableDeclaration(
+                                new org.vstu.meaningtree.nodes.types.user.Class(new SimpleIdentifier("FileReader")),
+                                new SimpleIdentifier("reader"),
+                                new SimpleIdentifier("source")
+                        ),
+                        new SimpleIdentifier("lock")
+                ),
+                new CompoundStatement(new ExpressionStatement(new SimpleIdentifier("body")))
+        );
+
+        ResourceContextStatement restored = assertInstanceOf(ResourceContextStatement.class,
+                new JsonDeserializer().deserialize(new JsonSerializer().serialize(statement)));
+
+        assertEquals(statement, statement.clone());
+        assertEquals(statement, restored);
+
+        assertEquals(2, restored.getResourceDeclarations().size());
+        assertEquals("reader", ResourceContextStatement.resourceName(
+                restored.getResourceDeclarations().getFirst()).getName());
+        // Ресурс без имени — обычное выражение, освобождать в C++ его не по чему
+        assertNull(ResourceContextStatement.resourceName(restored.getResourceDeclarations().get(1)));
+
+        List<String> names = nodesOf(statement, SimpleIdentifier.class).stream()
+                .map(SimpleIdentifier::getName)
+                .toList();
+        assertTrue(names.containsAll(List.of("reader", "source", "lock", "body")),
+                "Traversal missed some children: " + names);
+    }
+
+    @Test
+    void tryWithResourcesSurvivesRoundTrip() {
+        ExceptionCatchStatement statement = new ExceptionCatchStatement(
+                new CompoundStatement(new ExpressionStatement(new SimpleIdentifier("body"))),
+                List.of(new VariableDeclaration(
+                        new org.vstu.meaningtree.nodes.types.user.Class(new SimpleIdentifier("FileReader")),
+                        new SimpleIdentifier("reader"),
+                        new SimpleIdentifier("source")
+                )),
+                List.of(new CatchClause(
+                        new org.vstu.meaningtree.nodes.types.user.Class(new SimpleIdentifier("IOException")),
+                        new SimpleIdentifier("e"),
+                        new CompoundStatement()
+                )),
+                null,
+                null
+        );
+
+        ExceptionCatchStatement restored = assertInstanceOf(ExceptionCatchStatement.class,
+                new JsonDeserializer().deserialize(new JsonSerializer().serialize(statement)));
+
+        assertEquals(statement, statement.clone());
+        assertEquals(statement, restored);
+        assertTrue(restored.hasResourceDeclarations());
+        assertEquals(1, restored.getResourceDeclarations().size());
+
+        // Обычный try отличим от try-with-resources и после round trip
+        ExceptionCatchStatement plain = new ExceptionCatchStatement(new CompoundStatement(), List.of());
+        assertFalse(assertInstanceOf(ExceptionCatchStatement.class,
+                new JsonDeserializer().deserialize(new JsonSerializer().serialize(plain)))
+                .hasResourceDeclarations());
+
+        List<String> names = nodesOf(statement, SimpleIdentifier.class).stream()
+                .map(SimpleIdentifier::getName)
+                .toList();
+        assertTrue(names.containsAll(List.of("reader", "source", "body", "e")),
+                "Traversal missed some children: " + names);
+    }
+
+    @Test
+    void resourceContextRejectsNodesThatAreNeitherDeclarationNorExpression() {
+        assertThrows(IllegalArgumentException.class, () -> new ResourceContextStatement(
+                List.of(new ExpressionStatement(new SimpleIdentifier("stmt"))), new CompoundStatement()));
+        assertThrows(IllegalArgumentException.class,
+                () -> new ResourceContextStatement(List.of(), new CompoundStatement()));
     }
 
     @Test

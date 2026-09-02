@@ -3,6 +3,8 @@
 Описывает текущее поведение разбора и генерации для `ExceptionCatchStatement`,
 `CatchClause` и `RaiseExceptionStatement`. Сами узлы описаны в
 [node-types.md](node-types.md), JSON-форма — в [json-format.d.ts](json-format.d.ts).
+Java-try-with-resources — это тот же `ExceptionCatchStatement` с непустым списком ресурсов,
+см. [resource-context.md](resource-context.md).
 
 ## Что во что разбирается
 
@@ -40,6 +42,7 @@
 | ветвь без имени | подставляется `e` | имя не печатается | имя не печатается |
 | ветвь `else` | флаг + `if` после конструкции (`TryElseLowerer`) | `else:` | флаг + `if` после конструкции |
 | ветвь `finally` | `finally` | `finally:` | не поддерживается (`TryFinallyFeature`) |
+| владение ресурсами | `try (R r = e)` | `with` внутри `try` | объявление и `delete` в теле `try` |
 | возбуждение без значения | не поддерживается (`BareRaiseFeature`) | `raise` | `throw;` |
 
 `TryElseLowerer` взводит флаг последним оператором тела `try` и проверяет его в `if` после
@@ -60,7 +63,6 @@
 - `raise ... from ...` (Python): у узла нет поля причины, разбор отвергается
   `UnsupportedParsingException`.
 - `except*` и группы исключений (Python): разбор отвергается.
-- try-with-resources (Java): у узла нет списка ресурсов.
 - `throws` в сигнатуре (Java), `noexcept` (C++): это свойство декларации, а не данного узла.
 - Python `raise E("x")` разбирается как обычный вызов, а не создание объекта, поэтому в Java
   выводится `throw E("x")` без `new`. Это общее ограничение разбора Python, а не этой

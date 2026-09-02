@@ -994,6 +994,11 @@ export type CaseBlockNode =
 export interface ExceptionCatchStatementNode extends NodeBase<"exception_catch_statement"> {
     /** Тело `try`. */
     body: AnyNode;
+    /**
+     * Ресурсы java-try-with-resources в порядке захвата; пустой массив — обычный `try`.
+     * Устройство элементов — как у `ResourceContextStatementNode.resources`.
+     */
+    resources: AnyNode[];
     catch_clauses: CatchClauseNode[];
     /** Ветвь `else` (Python). Ключ в camelCase. */
     elseBranch?: AnyNode;
@@ -1015,6 +1020,20 @@ export interface CatchClauseNode extends NodeBase<"catch_clause"> {
 export interface RaiseExceptionStatementNode extends NodeBase<"raise_exception_statement"> {
     /** Отсутствует у повторного возбуждения (`raise` в Python, `throw;` в C++). */
     exception?: AnyNode;
+}
+
+/**
+ * Java try-with-resources без `catch` и `finally` и python-`with`. Та же конструкция с
+ * ветвями — это `exception_catch_statement` с непустым `resources`.
+ */
+export interface ResourceContextStatementNode extends NodeBase<"resource_context_statement"> {
+    /**
+     * Ресурсы в порядке захвата, минимум один. Каждый элемент — либо
+     * `variable_declaration` (`try (R r = e)`, `with e as r`), либо выражение без имени
+     * (`try (existing)`, `with lock:`).
+     */
+    resources: AnyNode[];
+    body: AnyNode;
 }
 
 /* --- Циклы -------------------------------------------------------------- */
@@ -1541,6 +1560,7 @@ export type NodeTypeName =
     | "exception_catch_statement"
     | "catch_clause"
     | "raise_exception_statement"
+    | "resource_context_statement"
     | "general_for_loop"
     | "range_for_loop"
     | "for_each_loop"
@@ -1733,6 +1753,7 @@ export type AnyNode =
     | SwitchStatementNode
     | CaseBlockNode
     | ExceptionCatchStatementNode
+    | ResourceContextStatementNode
     | CatchClauseNode
     | RaiseExceptionStatementNode
     | GeneralForLoopNode

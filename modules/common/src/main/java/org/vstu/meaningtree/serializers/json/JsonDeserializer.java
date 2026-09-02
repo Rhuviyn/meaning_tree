@@ -1141,7 +1141,12 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
                         ? (Statement) deserialize(json.getAsJsonObject("elseBranch")) : null;
                 Statement finallyBranch = json.has("finallyBranch") && !json.get("finallyBranch").isJsonNull()
                         ? (Statement) deserialize(json.getAsJsonObject("finallyBranch")) : null;
-                yield new ExceptionCatchStatement(body, catchClauses, elseBranch, finallyBranch);
+                yield new ExceptionCatchStatement(
+                        body, deserializeResources(json), catchClauses, elseBranch, finallyBranch);
+            }
+            case "resource_context_statement" -> {
+                Statement body = (Statement) deserialize(json.getAsJsonObject("body"));
+                yield new ResourceContextStatement(deserializeResources(json), body);
             }
             case "catch_clause" -> {
                 List<Type> exceptionTypes = new ArrayList<>();
@@ -1579,6 +1584,21 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
     /* -----------------------------
     |    Node deserialization helpers |
     ------------------------------ */
+
+    /**
+     * Ресурсы записаны обычными узлами — объявлением переменной или выражением, — поэтому
+     * восстанавливаются общим {@code deserialize}, а не отдельной веткой на каждый вид.
+     */
+    private List<Node> deserializeResources(JsonObject json) {
+        if (!json.has("resources") || json.get("resources").isJsonNull()) {
+            return List.of();
+        }
+        List<Node> resources = new ArrayList<>();
+        for (JsonElement elem : json.getAsJsonArray("resources")) {
+            resources.add(deserialize(elem.getAsJsonObject()));
+        }
+        return resources;
+    }
 
     private Expression deserializeExpression(JsonObject json) {
         return (Expression) deserialize(json);

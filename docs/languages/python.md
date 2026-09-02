@@ -136,6 +136,7 @@ String code = pythonViewer.toString(meaningTree);
   - `Pointerunpackop`
   - `Programentrypoint`
   - `Range`
+  - `Resourcecontextstatement`
   - `Returnstatement`
   - `Sizeofexpression`
   - `Switchstatement`
@@ -155,3 +156,7 @@ String code = pythonViewer.toString(meaningTree);
 - `raise ... from ...` и `except*` не поддерживаются: у узла нет поля причины, а групп
   исключений в модели нет. Подробности — в
   [docs/references/exception-handling.md](../references/exception-handling.md).
+
+- `async with` и распаковка кортежа в `as`-цели (`with a() as (x, y)`) не поддерживаются:
+  признака асинхронности у узла нет, а имя ресурса — один идентификатор. Подробности — в
+  [docs/references/resource-context.md](../references/resource-context.md).

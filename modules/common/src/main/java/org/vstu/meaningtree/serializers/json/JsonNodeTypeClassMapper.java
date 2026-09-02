@@ -205,6 +205,7 @@ public class JsonNodeTypeClassMapper {
         register("exception_catch_statement", ExceptionCatchStatement.class);
         register("catch_clause", CatchClause.class);
         register("raise_exception_statement", RaiseExceptionStatement.class);
+        register("resource_context_statement", ResourceContextStatement.class);
 
         // Loops
         register("general_for_loop", GeneralForLoop.class);

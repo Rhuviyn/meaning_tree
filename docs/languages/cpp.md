@@ -111,6 +111,7 @@ MeaningTree meaningTree = cppLanguage.getMeaningTree("int main() { int a = 10; }
 - `ExceptionCatchStatement`
 - `CatchClause`
 - `RaiseExceptionStatement`
+- `ResourceContextStatement`
 
 ## Текущие ограничения
 
@@ -123,6 +124,9 @@ MeaningTree meaningTree = cppLanguage.getMeaningTree("int main() { int a = 10; }
 - **Нет ветви `finally`**: вывод такой конструкции отвергается (`TryFinallyFeature`), а ветвь,
   перехватывающая несколько типов, размножается по одной на тип. Подробности — в
   [docs/references/exception-handling.md](../references/exception-handling.md).
+- **Нет владения ресурсами**: java-try-with-resources и python-`with` разворачиваются в плоский
+  блок с объявлением и `delete`; обратный разбор такого блока в узел не делается. Подробности —
+  в [docs/references/resource-context.md](../references/resource-context.md).
 
 # CppViewer
 

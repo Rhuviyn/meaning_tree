@@ -74,6 +74,7 @@ import org.vstu.meaningtree.utils.scopes.ScopeTable;
 import org.vstu.meaningtree.utils.scopes.ScopeTableElement;
 import org.vstu.meaningtree.utils.tokens.*;
 
+import java.util.List;
 import java.util.Collection;
 import java.util.Objects;
 
@@ -644,6 +645,7 @@ public class JsonSerializer implements Serializer<JsonObject> {
             case ConditionBranch stmt -> serializeConditionBranch(stmt);
             case ExceptionCatchStatement stmt -> serializeExceptionCatchStatement(stmt);
             case CatchClause clause -> serializeCatchClause(clause);
+            case ResourceContextStatement stmt -> serializeResourceContextStatement(stmt);
             case RaiseExceptionStatement stmt -> serializeRaiseExceptionStatement(stmt);
             case InfiniteLoop infLoop -> serializeInfiniteLoop(infLoop);
             case GeneralForLoop stmt -> serializeGeneralForLoop(stmt);
@@ -1414,6 +1416,7 @@ public class JsonSerializer implements Serializer<JsonObject> {
         json.addProperty("type", JsonNodeTypeClassMapper.getTypeForNode(stmt));
 
         json.add("body", serialize(stmt.getBody()));
+        json.add("resources", serializeResources(stmt.getResourceDeclarations()));
 
         JsonArray clauses = new JsonArray();
         for (var clause : stmt.getCatchClauses()) {
@@ -1428,6 +1431,26 @@ public class JsonSerializer implements Serializer<JsonObject> {
             json.add("finallyBranch", serialize(stmt.getFinallyBranch()));
         }
 
+        return json;
+    }
+
+    @NotNull
+    private JsonObject serializeResourceContextStatement(@NotNull ResourceContextStatement stmt) {
+        JsonObject json = new JsonObject();
+        json.addProperty("type", JsonNodeTypeClassMapper.getTypeForNode(stmt));
+
+        json.add("resources", serializeResources(stmt.getResourceDeclarations()));
+        json.add("body", serialize(stmt.getBody()));
+
+        return json;
+    }
+
+    @NotNull
+    private JsonArray serializeResources(@NotNull List<Node> resources) {
+        JsonArray json = new JsonArray();
+        for (Node resource : resources) {
+            json.add(serialize(resource));
+        }
         return json;
     }
 

@@ -3,8 +3,10 @@ package org.vstu.meaningtree.nodes.statements.exceptions;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.vstu.meaningtree.iterators.utils.TreeNode;
+import org.vstu.meaningtree.nodes.Node;
 import org.vstu.meaningtree.nodes.Statement;
 import org.vstu.meaningtree.nodes.statements.CompoundStatement;
+import org.vstu.meaningtree.nodes.statements.ResourceContextStatement;
 import org.vstu.meaningtree.nodes.statements.exceptions.components.CatchClause;
 
 import java.util.ArrayList;
@@ -18,9 +20,17 @@ import java.util.Objects;
  * Ветвь <code>elseBranch</code> выполняется, если тело <code>try</code> завершилось
  * без исключения (есть только в Python). Ветвь <code>finallyBranch</code> выполняется
  * в любом случае.
+ * <p>
+ * Непустой <code>resourceDeclarations</code> — это java-try-with-resources
+ * (<code>try (R r = ...) { } catch ... </code>): ресурсы захватываются перед телом и
+ * освобождаются перед ветвями, поэтому ошибку захвата ловят те же ветви. Та же конструкция
+ * без <code>catch</code> и <code>finally</code> — отдельный узел
+ * {@link ResourceContextStatement}.
  */
 public class ExceptionCatchStatement extends Statement {
     @TreeNode private Statement body;
+
+    @TreeNode private List<Node> resourceDeclarations;
 
     @TreeNode private List<CatchClause> catchClauses;
 
@@ -38,7 +48,20 @@ public class ExceptionCatchStatement extends Statement {
             @Nullable Statement elseBranch,
             @Nullable Statement finallyBranch
     ) {
+        this(body, List.of(), catchClauses, elseBranch, finallyBranch);
+    }
+
+    public ExceptionCatchStatement(
+            @NotNull Statement body,
+            @NotNull List<Node> resourceDeclarations,
+            @NotNull List<CatchClause> catchClauses,
+            @Nullable Statement elseBranch,
+            @Nullable Statement finallyBranch
+    ) {
         this.body = body;
+        this.resourceDeclarations = resourceDeclarations.isEmpty()
+                ? new ArrayList<>()
+                : ResourceContextStatement.validateResources(resourceDeclarations);
         this.catchClauses = new ArrayList<>(catchClauses);
         _elseBranch = elseBranch;
         _finallyBranch = finallyBranch;
@@ -50,6 +73,28 @@ public class ExceptionCatchStatement extends Statement {
 
     public Statement getBody() {
         return body;
+    }
+
+    public void setBody(@NotNull Statement body) {
+        this.body = body;
+    }
+
+    /**
+     * Ресурсы в порядке захвата; пустой список — обычный <code>try</code>. Устройство
+     * элементов описано у {@link ResourceContextStatement#getResourceDeclarations()}.
+     */
+    public List<Node> getResourceDeclarations() {
+        return List.copyOf(resourceDeclarations);
+    }
+
+    public boolean hasResourceDeclarations() {
+        return !resourceDeclarations.isEmpty();
+    }
+
+    public void setResourceDeclarations(@NotNull List<Node> resourceDeclarations) {
+        this.resourceDeclarations = resourceDeclarations.isEmpty()
+                ? new ArrayList<>()
+                : ResourceContextStatement.validateResources(resourceDeclarations);
     }
 
     public List<CatchClause> getCatchClauses() {
@@ -115,6 +160,7 @@ public class ExceptionCatchStatement extends Statement {
         if (!(o instanceof ExceptionCatchStatement nodeInfos)) return false;
         if (!super.equals(o)) return false;
         return Objects.equals(body, nodeInfos.body)
+                && Objects.equals(resourceDeclarations, nodeInfos.resourceDeclarations)
                 && Objects.equals(catchClauses, nodeInfos.catchClauses)
                 && Objects.equals(_elseBranch, nodeInfos._elseBranch)
                 && Objects.equals(_finallyBranch, nodeInfos._finallyBranch);
@@ -122,13 +168,14 @@ public class ExceptionCatchStatement extends Statement {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), body, catchClauses, _elseBranch, _finallyBranch);
+        return Objects.hash(super.hashCode(), body, resourceDeclarations, catchClauses, _elseBranch, _finallyBranch);
     }
 
     @Override
     public ExceptionCatchStatement clone() {
         var clone = (ExceptionCatchStatement) super.clone();
         clone.body = body.clone();
+        clone.resourceDeclarations = new ArrayList<>(resourceDeclarations.stream().map(Node::clone).toList());
         clone.catchClauses = new ArrayList<>(catchClauses.stream().map(CatchClause::clone).toList());
         clone._elseBranch = _elseBranch == null ? null : _elseBranch.clone();
         clone._finallyBranch = _finallyBranch == null ? null : _finallyBranch.clone();

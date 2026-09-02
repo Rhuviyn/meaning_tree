@@ -64,6 +64,7 @@ MeaningTree meaningTree = javaLanguage.getMeaningTree("String a = \"Hello, world
 - `This`
 - `ThrowStatement`
 - `TryStatement`
+- `TryWithResourcesStatement`
 - `True`
 - `UnaryExpression`
 - `UpdateExpression`
