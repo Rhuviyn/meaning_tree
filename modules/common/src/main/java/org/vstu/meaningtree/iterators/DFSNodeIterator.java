@@ -61,7 +61,34 @@ public class DFSNodeIterator extends AbstractNodeIterator {
             Node parentNode = frame.parentField == null ? null : frame.parentField.getOwner();
 
             if (!frame.visitedChildren) {
-                while (frame.fieldIterator.hasNext()) {
+                while (true) {
+                    // Начатая коллекция дочитывается до конца прежде, чем брать следующее
+                    // поле: обход возвращается сюда после каждого элемента, и переход к полю
+                    // раньше времени затёр бы её итератор — у узла с двумя полями-коллекциями
+                    // остаток первой из них выпал бы из обхода
+                    if (frame.nodeIterator != null) {
+                        while (frame.nodeIterator.hasNext()) {
+                            Node child = frame.nodeIterator.next();
+                            frame.fieldIndex++;
+                            if (child == null || !checkEnterCondition(child, parentNode)) {
+                                continue;
+                            }
+                            stack.push(new Frame(
+                                    child,
+                                    frame.currentField.withIndex(frame.fieldIndex),
+                                    frame.info,
+                                    frame.info.depth() + 1
+                            ));
+                            return next();
+                        }
+                        frame.nodeIterator = null;
+                    }
+
+                    if (!frame.fieldIterator.hasNext()) {
+                        frame.visitedChildren = true;
+                        break;
+                    }
+
                     FieldDescriptor fd = frame.fieldIterator.next();
                     frame.currentField = fd;
                     frame.fieldIndex = -1;
@@ -76,32 +103,12 @@ public class DFSNodeIterator extends AbstractNodeIterator {
                             return next(); // углубляемся дальше
                         } else if (fd instanceof ArrayFieldDescriptor afd) {
                             frame.nodeIterator = afd.iterator();
-                            frame.fieldIndex = -1;
-                            break;
                         } else if (fd instanceof CollectionFieldDescriptor cfd) {
                             frame.nodeIterator = cfd.iterator();
-                            frame.fieldIndex = -1;
-                            break;
                         }
                     } catch (IllegalAccessException e) {
                         // пропускаем поле
                     }
-                }
-
-                if (frame.nodeIterator != null) {
-                    while (frame.nodeIterator.hasNext()) {
-                        Node child = frame.nodeIterator.next();
-                        frame.fieldIndex++;
-                        if (child == null || !checkEnterCondition(child, parentNode)) {
-                            continue;
-                        }
-                        stack.push(new Frame(child, frame.currentField.withIndex(frame.fieldIndex), frame.info, frame.info.depth() + 1));
-                        return next();
-                    }
-                }
-
-                if (!(frame.fieldIterator != null && frame.fieldIterator.hasNext())) {
-                    frame.visitedChildren = true;
                 }
                 continue;
             }
