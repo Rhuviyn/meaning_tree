@@ -22,10 +22,16 @@ import org.vstu.meaningtree.nodes.enums.DeclarationModifier;
 import org.vstu.meaningtree.nodes.expressions.identifiers.SimpleIdentifier;
 import org.vstu.meaningtree.nodes.expressions.literals.IntegerLiteral;
 import org.vstu.meaningtree.nodes.expressions.literals.ListLiteral;
+import org.vstu.meaningtree.nodes.expressions.literals.StringLiteral;
 import org.vstu.meaningtree.nodes.expressions.math.AddOp;
+import org.vstu.meaningtree.nodes.expressions.newexpr.ObjectNewExpression;
 import org.vstu.meaningtree.nodes.statements.CompoundStatement;
+import org.vstu.meaningtree.nodes.statements.ExpressionStatement;
 import org.vstu.meaningtree.nodes.statements.assignments.AssignmentStatement;
 import org.vstu.meaningtree.nodes.statements.assignments.ChainedAssignmentStatement;
+import org.vstu.meaningtree.nodes.statements.exceptions.ExceptionCatchStatement;
+import org.vstu.meaningtree.nodes.statements.exceptions.RaiseExceptionStatement;
+import org.vstu.meaningtree.nodes.statements.exceptions.components.CatchClause;
 import org.vstu.meaningtree.nodes.types.UserType;
 import org.vstu.meaningtree.nodes.types.builtin.IntType;
 import org.vstu.meaningtree.serializers.json.JsonDeserializer;
@@ -759,6 +765,88 @@ public class JSONSerializerTests {
             assertEquals(expected.type, actual.type);
             assertEquals(expected.bytePos(), actual.bytePos());
         }
+    }
+
+    @Test
+    void exceptionCatchStatementSurvivesRoundTrip() {
+        ExceptionCatchStatement statement = new ExceptionCatchStatement(
+                new CompoundStatement(new ExpressionStatement(new SimpleIdentifier("risky"))),
+                List.of(
+                        new CatchClause(
+                                List.of(
+                                        new org.vstu.meaningtree.nodes.types.user.Class(new SimpleIdentifier("IOException")),
+                                        new org.vstu.meaningtree.nodes.types.user.Class(new SimpleIdentifier("SQLException"))
+                                ),
+                                new SimpleIdentifier("e"),
+                                new CompoundStatement(new RaiseExceptionStatement())
+                        ),
+                        new CatchClause(new CompoundStatement())
+                ),
+                new CompoundStatement(new ExpressionStatement(new SimpleIdentifier("ok"))),
+                new CompoundStatement(new ExpressionStatement(new SimpleIdentifier("cleanup")))
+        );
+
+        ExceptionCatchStatement restored = assertInstanceOf(ExceptionCatchStatement.class,
+                new JsonDeserializer().deserialize(new JsonSerializer().serialize(statement)));
+
+        assertEquals(statement, statement.clone());
+        assertEquals(statement, restored);
+
+        assertEquals(2, restored.getCatchClauses().size());
+        CatchClause typed = restored.getCatchClauses().getFirst();
+        assertEquals(2, typed.getExceptionTypes().size());
+        assertEquals("e", typed.getName().getName());
+        assertTrue(restored.getCatchClauses().get(1).catchesAny());
+        assertFalse(restored.getCatchClauses().get(1).hasName());
+        assertTrue(restored.hasElseBranch());
+        assertTrue(restored.hasFinallyBranch());
+    }
+
+    @Test
+    void exceptionCatchStatementChildrenAreReachableByTraversal() {
+        // Все дочерние поля помечены @TreeNode, иначе обход дерева пропустит ветви
+        ExceptionCatchStatement statement = new ExceptionCatchStatement(
+                new CompoundStatement(new ExpressionStatement(new SimpleIdentifier("body"))),
+                List.of(new CatchClause(
+                        new org.vstu.meaningtree.nodes.types.user.Class(new SimpleIdentifier("Error")),
+                        new SimpleIdentifier("e"),
+                        new CompoundStatement(new ExpressionStatement(new SimpleIdentifier("handler")))
+                )),
+                new CompoundStatement(new ExpressionStatement(new SimpleIdentifier("elseBody"))),
+                new CompoundStatement(new ExpressionStatement(new SimpleIdentifier("finallyBody")))
+        );
+
+        List<String> names = nodesOf(statement, SimpleIdentifier.class).stream()
+                .map(SimpleIdentifier::getName)
+                .toList();
+
+        assertTrue(names.containsAll(List.of("body", "handler", "elseBody", "finallyBody", "e")),
+                "Traversal missed some children: " + names);
+        assertEquals(1, nodesOf(statement, CatchClause.class).size());
+        assertEquals(1, nodesOf(statement, org.vstu.meaningtree.nodes.types.user.Class.class).size());
+    }
+
+    @Test
+    void raiseExceptionStatementSurvivesRoundTripWithAndWithoutValue() {
+        RaiseExceptionStatement withValue = new RaiseExceptionStatement(
+                new ObjectNewExpression(new org.vstu.meaningtree.nodes.types.user.Class(new SimpleIdentifier("ValueError")), StringLiteral.fromUnescaped("boom", StringLiteral.Type.NONE))
+        );
+        RaiseExceptionStatement rethrow = new RaiseExceptionStatement();
+
+        RaiseExceptionStatement restoredWithValue = assertInstanceOf(RaiseExceptionStatement.class,
+                new JsonDeserializer().deserialize(new JsonSerializer().serialize(withValue)));
+        RaiseExceptionStatement restoredRethrow = assertInstanceOf(RaiseExceptionStatement.class,
+                new JsonDeserializer().deserialize(new JsonSerializer().serialize(rethrow)));
+
+        assertEquals(withValue, withValue.clone());
+        assertEquals(rethrow, rethrow.clone());
+        assertEquals(withValue, restoredWithValue);
+        assertEquals(rethrow, restoredRethrow);
+
+        assertTrue(restoredWithValue.hasException());
+        assertInstanceOf(ObjectNewExpression.class, restoredWithValue.getException());
+        assertFalse(restoredRethrow.hasException());
+        assertNull(restoredRethrow.getException());
     }
 
     /* -----------------------------

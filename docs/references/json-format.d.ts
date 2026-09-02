@@ -989,6 +989,34 @@ export type CaseBlockNode =
     | FallthroughCaseBlockNode
     | DefaultCaseBlockNode;
 
+/* --- Исключения --------------------------------------------------------- */
+
+export interface ExceptionCatchStatementNode extends NodeBase<"exception_catch_statement"> {
+    /** Тело `try`. */
+    body: AnyNode;
+    catch_clauses: CatchClauseNode[];
+    /** Ветвь `else` (Python). Ключ в camelCase. */
+    elseBranch?: AnyNode;
+    /** Ветвь `finally`. Ключ в camelCase. */
+    finallyBranch?: AnyNode;
+}
+
+export interface CatchClauseNode extends NodeBase<"catch_clause"> {
+    /**
+     * Перехватываемые типы. Несколько — это Java multi-catch (`catch (A | B e)`)
+     * или python-кортеж; пустой массив — `except:` / `catch (...)`.
+     */
+    exception_types: AnyType[];
+    /** Отсутствует, если исключение не связывается с переменной. */
+    name?: AnyNode;
+    body: AnyNode;
+}
+
+export interface RaiseExceptionStatementNode extends NodeBase<"raise_exception_statement"> {
+    /** Отсутствует у повторного возбуждения (`raise` в Python, `throw;` в C++). */
+    exception?: AnyNode;
+}
+
 /* --- Циклы -------------------------------------------------------------- */
 
 /** Общие для всех циклов поля. */
@@ -1510,6 +1538,9 @@ export type NodeTypeName =
     | "basic_case_block"
     | "default_case_block"
     | "fallthrough_case_block"
+    | "exception_catch_statement"
+    | "catch_clause"
+    | "raise_exception_statement"
     | "general_for_loop"
     | "range_for_loop"
     | "for_each_loop"
@@ -1701,6 +1732,9 @@ export type AnyNode =
     | ConditionBranchNode
     | SwitchStatementNode
     | CaseBlockNode
+    | ExceptionCatchStatementNode
+    | CatchClauseNode
+    | RaiseExceptionStatementNode
     | GeneralForLoopNode
     | RangeForLoopNode
     | ForEachLoopNode

@@ -50,6 +50,9 @@ import org.vstu.meaningtree.nodes.statements.conditions.components.BasicCaseBloc
 import org.vstu.meaningtree.nodes.statements.conditions.components.ConditionBranch;
 import org.vstu.meaningtree.nodes.statements.conditions.components.DefaultCaseBlock;
 import org.vstu.meaningtree.nodes.statements.conditions.components.FallthroughCaseBlock;
+import org.vstu.meaningtree.nodes.statements.exceptions.ExceptionCatchStatement;
+import org.vstu.meaningtree.nodes.statements.exceptions.RaiseExceptionStatement;
+import org.vstu.meaningtree.nodes.statements.exceptions.components.CatchClause;
 import org.vstu.meaningtree.nodes.statements.loops.*;
 import org.vstu.meaningtree.nodes.statements.loops.control.BreakStatement;
 import org.vstu.meaningtree.nodes.statements.loops.control.ContinueStatement;
@@ -639,6 +642,9 @@ public class JsonSerializer implements Serializer<JsonObject> {
             case ExpressionStatement stmt -> serializeExpressionStatement(stmt);
             case IfStatement stmt -> serializeIfStatement(stmt);
             case ConditionBranch stmt -> serializeConditionBranch(stmt);
+            case ExceptionCatchStatement stmt -> serializeExceptionCatchStatement(stmt);
+            case CatchClause clause -> serializeCatchClause(clause);
+            case RaiseExceptionStatement stmt -> serializeRaiseExceptionStatement(stmt);
             case InfiniteLoop infLoop -> serializeInfiniteLoop(infLoop);
             case GeneralForLoop stmt -> serializeGeneralForLoop(stmt);
             case RangeForLoop rangeLoop -> serializeRangeForLoop(rangeLoop);
@@ -1401,6 +1407,60 @@ public class JsonSerializer implements Serializer<JsonObject> {
         return branchJson;
     }
 
+
+    @NotNull
+    private JsonObject serializeExceptionCatchStatement(@NotNull ExceptionCatchStatement stmt) {
+        JsonObject json = new JsonObject();
+        json.addProperty("type", JsonNodeTypeClassMapper.getTypeForNode(stmt));
+
+        json.add("body", serialize(stmt.getBody()));
+
+        JsonArray clauses = new JsonArray();
+        for (var clause : stmt.getCatchClauses()) {
+            clauses.add(serialize(clause));
+        }
+        json.add("catch_clauses", clauses);
+
+        if (stmt.hasElseBranch()) {
+            json.add("elseBranch", serialize(stmt.getElseBranch()));
+        }
+        if (stmt.hasFinallyBranch()) {
+            json.add("finallyBranch", serialize(stmt.getFinallyBranch()));
+        }
+
+        return json;
+    }
+
+    @NotNull
+    private JsonObject serializeCatchClause(@NotNull CatchClause clause) {
+        JsonObject json = new JsonObject();
+        json.addProperty("type", JsonNodeTypeClassMapper.getTypeForNode(clause));
+
+        JsonArray exceptionTypes = new JsonArray();
+        for (var exceptionType : clause.getExceptionTypes()) {
+            exceptionTypes.add(serialize(exceptionType));
+        }
+        json.add("exception_types", exceptionTypes);
+
+        if (clause.hasName()) {
+            json.add("name", serialize(clause.getName()));
+        }
+        json.add("body", serialize(clause.getBody()));
+
+        return json;
+    }
+
+    @NotNull
+    private JsonObject serializeRaiseExceptionStatement(@NotNull RaiseExceptionStatement stmt) {
+        JsonObject json = new JsonObject();
+        json.addProperty("type", JsonNodeTypeClassMapper.getTypeForNode(stmt));
+
+        if (stmt.hasException()) {
+            json.add("exception", serialize(stmt.getException()));
+        }
+
+        return json;
+    }
 
     @NotNull
     private JsonObject serializeGeneralForLoop(@NotNull GeneralForLoop stmt) {

@@ -42,6 +42,9 @@ import org.vstu.meaningtree.nodes.statements.conditions.components.BasicCaseBloc
 import org.vstu.meaningtree.nodes.statements.conditions.components.ConditionBranch;
 import org.vstu.meaningtree.nodes.statements.conditions.components.DefaultCaseBlock;
 import org.vstu.meaningtree.nodes.statements.conditions.components.FallthroughCaseBlock;
+import org.vstu.meaningtree.nodes.statements.exceptions.ExceptionCatchStatement;
+import org.vstu.meaningtree.nodes.statements.exceptions.RaiseExceptionStatement;
+import org.vstu.meaningtree.nodes.statements.exceptions.components.CatchClause;
 import org.vstu.meaningtree.nodes.statements.loops.*;
 import org.vstu.meaningtree.nodes.statements.loops.control.BreakStatement;
 import org.vstu.meaningtree.nodes.statements.loops.control.ContinueStatement;
@@ -197,6 +200,11 @@ public class JsonNodeTypeClassMapper {
         register("basic_case_block", BasicCaseBlock.class);
         register("default_case_block", DefaultCaseBlock.class);
         register("fallthrough_case_block", FallthroughCaseBlock.class);
+
+        // Exceptions
+        register("exception_catch_statement", ExceptionCatchStatement.class);
+        register("catch_clause", CatchClause.class);
+        register("raise_exception_statement", RaiseExceptionStatement.class);
 
         // Loops
         register("general_for_loop", GeneralForLoop.class);

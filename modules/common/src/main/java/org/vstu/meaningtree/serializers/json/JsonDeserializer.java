@@ -1,11 +1,11 @@
 package org.vstu.meaningtree.serializers.json;
 
-import org.jetbrains.annotations.Nullable;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import org.apache.commons.lang3.tuple.Pair;
+import org.jetbrains.annotations.Nullable;
 import org.vstu.meaningtree.MeaningTree;
 import org.vstu.meaningtree.exceptions.MeaningTreeSerializationException;
 import org.vstu.meaningtree.iterators.utils.NodeIterable;
@@ -56,6 +56,9 @@ import org.vstu.meaningtree.nodes.statements.assignments.MultipleAssignmentState
 import org.vstu.meaningtree.nodes.statements.conditions.IfStatement;
 import org.vstu.meaningtree.nodes.statements.conditions.SwitchStatement;
 import org.vstu.meaningtree.nodes.statements.conditions.components.*;
+import org.vstu.meaningtree.nodes.statements.exceptions.ExceptionCatchStatement;
+import org.vstu.meaningtree.nodes.statements.exceptions.RaiseExceptionStatement;
+import org.vstu.meaningtree.nodes.statements.exceptions.components.CatchClause;
 import org.vstu.meaningtree.nodes.statements.loops.*;
 import org.vstu.meaningtree.nodes.statements.loops.control.BreakStatement;
 import org.vstu.meaningtree.nodes.statements.loops.control.ContinueStatement;
@@ -1127,6 +1130,33 @@ public class JsonDeserializer implements Deserializer<JsonObject> {
                         ? deserializeExpression(json.getAsJsonObject("condition")) : null;
                 Statement body = (Statement) deserialize(json.getAsJsonObject("body"));
                 yield new ConditionBranch(condition, body);
+            }
+            case "exception_catch_statement" -> {
+                Statement body = (Statement) deserialize(json.getAsJsonObject("body"));
+                List<CatchClause> catchClauses = new ArrayList<>();
+                for (JsonElement elem : json.getAsJsonArray("catch_clauses")) {
+                    catchClauses.add((CatchClause) deserialize(elem.getAsJsonObject()));
+                }
+                Statement elseBranch = json.has("elseBranch") && !json.get("elseBranch").isJsonNull()
+                        ? (Statement) deserialize(json.getAsJsonObject("elseBranch")) : null;
+                Statement finallyBranch = json.has("finallyBranch") && !json.get("finallyBranch").isJsonNull()
+                        ? (Statement) deserialize(json.getAsJsonObject("finallyBranch")) : null;
+                yield new ExceptionCatchStatement(body, catchClauses, elseBranch, finallyBranch);
+            }
+            case "catch_clause" -> {
+                List<Type> exceptionTypes = new ArrayList<>();
+                for (JsonElement elem : json.getAsJsonArray("exception_types")) {
+                    exceptionTypes.add((Type) deserialize(elem.getAsJsonObject()));
+                }
+                SimpleIdentifier name = json.has("name") && !json.get("name").isJsonNull()
+                        ? (SimpleIdentifier) deserialize(json.getAsJsonObject("name")) : null;
+                Statement body = (Statement) deserialize(json.getAsJsonObject("body"));
+                yield new CatchClause(exceptionTypes, name, body);
+            }
+            case "raise_exception_statement" -> {
+                Expression exception = json.has("exception") && !json.get("exception").isJsonNull()
+                        ? deserializeExpression(json.getAsJsonObject("exception")) : null;
+                yield new RaiseExceptionStatement(exception);
             }
             case "switch_statement" -> {
                 Expression targetExpr = deserializeExpression(json.getAsJsonObject("expression"));
