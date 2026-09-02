@@ -361,7 +361,7 @@ public class JavaViewer extends LanguageViewer {
             ctx.getNearestUnfilledViewerBody()
                     .indent(_indentLevel, _indentation)
                     .appendStringWithIndent(String.format("Scanner %s = new Scanner(System.in);", scannerName.getName()));
-            ctx.preserveImport(new ImportMembersFromModule(
+            ctx.imports().preserveImport(new ImportMembersFromModule(
                     new SimpleIdentifier("java.util"), new SimpleIdentifier("Scanner")));
         } else {
             scannerName = scanners.getFirst();

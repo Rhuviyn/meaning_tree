@@ -373,10 +373,10 @@ public class CppViewer extends LanguageViewer {
         StringBuilder builder = new StringBuilder();
 
         if (isCMode()) {
-            ctx.preserveImport(new Include(StringLiteral.fromEscaped("stdio.h", StringLiteral.Type.NONE),
+            ctx.imports().preserveImport(new Include(StringLiteral.fromEscaped("stdio.h", StringLiteral.Type.NONE),
                     Include.IncludeType.POINTY_BRACKETS_FORM));
         } else {
-            ctx.preserveImport(new Include(StringLiteral.fromEscaped("iostream", StringLiteral.Type.NONE),
+            ctx.imports().preserveImport(new Include(StringLiteral.fromEscaped("iostream", StringLiteral.Type.NONE),
                     Include.IncludeType.POINTY_BRACKETS_FORM));
         }
 
@@ -398,7 +398,7 @@ public class CppViewer extends LanguageViewer {
                 String value = toString(assignInput.getValue());
                 if (isCMode()) {
                     if (assignInput.hasLimitedLength()) {
-                        ctx.preserveImport(new Include(StringLiteral.fromEscaped("string.h", StringLiteral.Type.NONE),
+                        ctx.imports().preserveImport(new Include(StringLiteral.fromEscaped("string.h", StringLiteral.Type.NONE),
                                 Include.IncludeType.POINTY_BRACKETS_FORM));
                         builder
                                 .append(String.format("fgets(%s, %s, stdin);\n", value, toString(assignInput.maxInputLength)))
@@ -513,7 +513,7 @@ public class CppViewer extends LanguageViewer {
                             ctx.getNearestUnfilledViewerBody().appendStringWithIndent(indent(toStringVariableDeclaration(tmpInputVarDeclaration)));
                         }
 
-                        ctx.preserveImport(new Include(StringLiteral.fromEscaped("string", StringLiteral.Type.NONE),
+                        ctx.imports().preserveImport(new Include(StringLiteral.fromEscaped("string", StringLiteral.Type.NONE),
                                 Include.IncludeType.POINTY_BRACKETS_FORM));
                         builder.append("std::getline(std::cin, ").append(userInputVarName).append(");");
 
@@ -739,10 +739,10 @@ public class CppViewer extends LanguageViewer {
         StringBuilder builder = new StringBuilder();
 
         if (isCMode()) {
-            ctx.preserveImport(new Include(StringLiteral.fromEscaped("stdio.h", StringLiteral.Type.NONE),
+            ctx.imports().preserveImport(new Include(StringLiteral.fromEscaped("stdio.h", StringLiteral.Type.NONE),
                     Include.IncludeType.POINTY_BRACKETS_FORM));
         } else {
-            ctx.preserveImport(new Include(StringLiteral.fromEscaped("iostream", StringLiteral.Type.NONE),
+            ctx.imports().preserveImport(new Include(StringLiteral.fromEscaped("iostream", StringLiteral.Type.NONE),
                     Include.IncludeType.POINTY_BRACKETS_FORM));
         }
 
@@ -1897,7 +1897,7 @@ public class CppViewer extends LanguageViewer {
                 default -> throw new IllegalArgumentException(String.format("Unexpected node in format string: %s. Only StringLiteral and FormatSpecifier are allowed.", component.getNodeUniqueName()));
             }
         }
-        ctx.preserveImport(new Include(
+        ctx.imports().preserveImport(new Include(
                 StringLiteral.fromEscaped("format", StringLiteral.Type.NONE), Include.IncludeType.POINTY_BRACKETS_FORM)
         );
         return builder.append("\"").append(args).append(")").toString();
