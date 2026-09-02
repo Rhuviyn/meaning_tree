@@ -847,7 +847,11 @@ public class CppViewer extends LanguageViewer {
 
         Statement body = whileLoop.getBody();
         if (body instanceof CompoundStatement compStmt) {
-            return header + (_openBracketOnSameLine ? " " : "\n") + toString(compStmt);
+            // indent сдвигает только первую строку, а это как раз открывающая скобка тела:
+            // без него она осталась бы в нулевой колонке у вложенного цикла
+            return header + (_openBracketOnSameLine
+                    ? " " + toString(compStmt)
+                    : "\n" + indent(toString(compStmt)));
         }
         else {
             increaseIndentLevel();
@@ -863,7 +867,10 @@ public class CppViewer extends LanguageViewer {
         String condition = "while (" + toString(doWhileLoop.getCondition()) + ");";
 
         if (body instanceof CompoundStatement compoundStatement) {
-            return header + (_openBracketOnSameLine ? " " : "\n") + toString(compoundStatement) + " " + condition;
+            String renderedBody = _openBracketOnSameLine
+                    ? " " + toString(compoundStatement)
+                    : "\n" + indent(toString(compoundStatement));
+            return header + renderedBody + " " + condition;
         }
 
         increaseIndentLevel();
