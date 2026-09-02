@@ -56,6 +56,10 @@ public class ExceptionCatchStatement extends Statement {
         return catchClauses;
     }
 
+    public void setCatchClauses(@NotNull List<CatchClause> catchClauses) {
+        this.catchClauses = new ArrayList<>(catchClauses);
+    }
+
     public Statement getElseBranch() {
         return Objects.requireNonNull(_elseBranch, "Exception catch statement does not have else branch");
     }
@@ -64,12 +68,29 @@ public class ExceptionCatchStatement extends Statement {
         return _elseBranch != null;
     }
 
+    /**
+     * Ветвь {@code else} умеет разбирать только Python; в языках без такого синтаксиса её
+     * снимает {@code TryElseLowerer} перед генерацией кода.
+     */
+    public void setElseBranch(@Nullable Statement elseBranch) {
+        _elseBranch = elseBranch;
+    }
+
     public Statement getFinallyBranch() {
         return Objects.requireNonNull(_finallyBranch, "Exception catch statement does not have finally branch");
     }
 
     public boolean hasFinallyBranch() {
         return _finallyBranch != null;
+    }
+
+    public void setFinallyBranch(@Nullable Statement finallyBranch) {
+        _finallyBranch = finallyBranch;
+    }
+
+    public CompoundStatement makeCompoundBody() {
+        body = makeCompound(body);
+        return (CompoundStatement) body;
     }
 
     /**

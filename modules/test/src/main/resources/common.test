@@ -2764,3 +2764,205 @@ group: ForeignLibraryImports
 
         c++:
             auto x = json.dumps({});
+
+
+group: Exceptions
+    case: TryCatch
+        python:
+            try:
+                g()
+            except ValueError as e:
+                h()
+
+        java:
+            try {
+                g();
+            }
+            catch (ValueError e) {
+                h();
+            }
+
+        c++:
+            try
+            {
+                g();
+            }
+            catch (const ValueError& e)
+            {
+                h();
+            }
+
+
+    case: TryCatchFinally
+        python:
+            try:
+                g()
+            except ValueError as e:
+                h()
+            finally:
+                k()
+
+        java:
+            try {
+                g();
+            }
+            catch (ValueError e) {
+                h();
+            }
+            finally {
+                k();
+            }
+
+
+    case: BareExcept
+        main python:
+            try:
+                g()
+            except:
+                h()
+
+        java:
+            try {
+                g();
+            }
+            catch (Exception e) {
+                h();
+            }
+
+        c++:
+            try
+            {
+                g();
+            }
+            catch (...)
+            {
+                h();
+            }
+
+
+    case: MultiCatch
+        main java:
+            try {
+                g();
+            }
+            catch (IOError | ValueError e) {
+                h();
+            }
+
+        python:
+            try:
+                g()
+            except (IOError, ValueError) as e:
+                h()
+
+        c++:
+            try
+            {
+                g();
+            }
+            catch (const IOError& e)
+            {
+                h();
+            }
+            catch (const ValueError& e)
+            {
+                h();
+            }
+
+
+    case: TryElse
+        main python:
+            try:
+                g()
+            except ValueError as e:
+                h()
+            else:
+                m()
+
+        java:
+            boolean _try_else_1 = false;
+            try {
+                g();
+                _try_else_1 = true;
+            }
+            catch (ValueError e) {
+                h();
+            }
+            if (_try_else_1) {
+                m();
+            }
+
+        c++:
+            bool _try_else_1 = false;
+            try
+            {
+                g();
+                _try_else_1 = true;
+            }
+            catch (const ValueError& e)
+            {
+                h();
+            }
+            if (_try_else_1)
+            {
+                m();
+            }
+
+
+    case: TryElseFinally
+        main python:
+            try:
+                g()
+            except ValueError as e:
+                h()
+            else:
+                m()
+            finally:
+                k()
+
+        java:
+            try {
+                boolean _try_else_1 = false;
+                try {
+                    g();
+                    _try_else_1 = true;
+                }
+                catch (ValueError e) {
+                    h();
+                }
+                if (_try_else_1) {
+                    m();
+                }
+            }
+            finally {
+                k();
+            }
+
+
+    case: Raise
+        main c++:
+            throw ValueError("x");
+
+        java:
+            throw ValueError("x");
+
+        python:
+            raise ValueError("x")
+
+
+    case: BareRethrow
+        main c++:
+            try
+            {
+                g();
+            }
+            catch (...)
+            {
+                throw;
+            }
+
+        python:
+            try:
+                g()
+            except:
+                raise

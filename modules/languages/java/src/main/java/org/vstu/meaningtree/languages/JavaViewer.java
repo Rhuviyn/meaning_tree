@@ -6,6 +6,7 @@ import org.vstu.meaningtree.exceptions.MeaningTreeException;
 import org.vstu.meaningtree.exceptions.UnsupportedViewingException;
 import org.vstu.meaningtree.languages.helpers.ComprehensionLowerer;
 import org.vstu.meaningtree.languages.helpers.LoopElseLowerer;
+import org.vstu.meaningtree.languages.helpers.TryElseLowerer;
 import org.vstu.meaningtree.languages.support.SemanticFeature;
 import org.vstu.meaningtree.languages.support.features.*;
 import org.vstu.meaningtree.nodes.*;
@@ -55,6 +56,9 @@ import org.vstu.meaningtree.nodes.statements.assignments.MultipleAssignmentState
 import org.vstu.meaningtree.nodes.statements.conditions.IfStatement;
 import org.vstu.meaningtree.nodes.statements.conditions.SwitchStatement;
 import org.vstu.meaningtree.nodes.statements.conditions.components.*;
+import org.vstu.meaningtree.nodes.statements.exceptions.ExceptionCatchStatement;
+import org.vstu.meaningtree.nodes.statements.exceptions.RaiseExceptionStatement;
+import org.vstu.meaningtree.nodes.statements.exceptions.components.CatchClause;
 import org.vstu.meaningtree.nodes.statements.loops.*;
 import org.vstu.meaningtree.nodes.statements.loops.control.BreakStatement;
 import org.vstu.meaningtree.nodes.statements.loops.control.ContinueStatement;
@@ -92,6 +96,12 @@ public class JavaViewer extends LanguageViewer {
      */
     private static final String SYNTHETIC_VOID_MAIN = "javaSyntheticVoidMain";
 
+    /**
+     * Имя переменной исключения, когда его нет в дереве: в Java {@code catch} без имени
+     * записать нельзя, а python-форма {@code except E:} имени не несёт.
+     */
+    private static final String IMPLICIT_CATCH_VARIABLE = "e";
+
     public JavaViewer(LanguageTranslator translator, int indentSpaceCount,
                       boolean openBracketOnSameLine,
                       boolean bracketsAroundCaseBranches,
@@ -112,7 +122,7 @@ public class JavaViewer extends LanguageViewer {
 
     @Override
     protected MeaningTree preprocessTree(MeaningTree tree) {
-        return LoopElseLowerer.lower(comprehensionLowered(tree));
+        return TryElseLowerer.lower(LoopElseLowerer.lower(comprehensionLowered(tree)));
     }
 
     private MeaningTree comprehensionLowered(MeaningTree tree) {
@@ -193,6 +203,9 @@ public class JavaViewer extends LanguageViewer {
         registerRenderer(MethodDeclaration.class, this::toStringMethodDeclaration);
         registerRenderer(SimpleIdentifier.class, this::toStringSimpleIdentifier);
         registerRenderer(IfStatement.class, this::toStringIfStatement);
+        registerRenderer(ExceptionCatchStatement.class, this::toStringExceptionCatchStatement);
+        registerRenderer(CatchClause.class, this::toStringCatchClause);
+        registerRenderer(RaiseExceptionStatement.class, this::toStringRaiseExceptionStatement);
         registerRenderer(GeneralForLoop.class, this::toStringGeneralForLoop);
         registerRenderer(CompoundComparison.class, this::toStringCompoundComparison);
         registerRenderer(RangeForLoop.class, this::toStringRangeForLoop);
@@ -294,6 +307,7 @@ public class JavaViewer extends LanguageViewer {
         registerUnsupportedFeature(new PointerTypeFeature());
         registerUnsupportedFeature(new ConstInFunctionSignatureFeature());
         registerUnsupportedFeature(new MultipleInheritanceForJavaFeature());
+        registerUnsupportedFeature(new BareRaiseFeature());
     }
 
 
@@ -2048,6 +2062,59 @@ public class JavaViewer extends LanguageViewer {
         builder.delete(builder.length() - 4, builder.length());
 
         return builder.toString();
+    }
+
+    public String toStringExceptionCatchStatement(ExceptionCatchStatement stmt) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("try").append(toStringBlockAfterHeader(stmt.getBody()));
+
+        for (CatchClause clause : stmt.getCatchClauses()) {
+            builder.append("\n").append(indent(toString(clause)));
+        }
+
+        if (stmt.hasFinallyBranch()) {
+            builder
+                    .append("\n")
+                    .append(indent("finally"))
+                    .append(toStringBlockAfterHeader(stmt.getFinallyBranch()));
+        }
+
+        return builder.toString();
+    }
+
+    private String toStringCatchClause(CatchClause clause) {
+        // В Java нет перехвата без типа: ближайшее к python-форме `except:` — Exception,
+        // а имя переменной обязательно, поэтому при его отсутствии подставляется своё
+        String types = clause.catchesAny()
+                ? "Exception"
+                : clause.getExceptionTypes().stream().map(this::toString).collect(Collectors.joining(" | "));
+        String name = clause.hasName() ? toString(clause.getName()) : IMPLICIT_CATCH_VARIABLE;
+
+        return String.format("catch (%s %s)%s", types, name, toStringBlockAfterHeader(clause.getBody()));
+    }
+
+    private String toStringRaiseExceptionStatement(RaiseExceptionStatement stmt) {
+        return String.format("throw %s;", toString(stmt.getException()));
+    }
+
+    /**
+     * Тело, следующее за заголовком блочной конструкции ({@code try}, {@code catch},
+     * {@code finally}), с учётом настройки положения открывающей скобки.
+     */
+    private String toStringBlockAfterHeader(Statement body) {
+        String rendered;
+        if (body instanceof CompoundStatement) {
+            rendered = toString(body);
+        } else {
+            // Java не разрешает одиночный оператор в этих позициях, поэтому скобки
+            // дописываются текстом: создавать узел на каждый вызов рендера нельзя —
+            // у него был бы новый id, и карта исходников менялась бы от прохода к проходу
+            increaseIndentLevel();
+            String inner = indent(toString(body));
+            decreaseIndentLevel();
+            rendered = "{\n" + inner + "\n" + indent("}");
+        }
+        return _openBracketOnSameLine ? " " + rendered : "\n" + indent(rendered);
     }
 
     public String toStringIfStatement(IfStatement stmt) {

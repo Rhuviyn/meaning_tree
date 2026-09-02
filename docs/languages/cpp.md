@@ -108,6 +108,9 @@ MeaningTree meaningTree = cppLanguage.getMeaningTree("int main() { int a = 10; }
 - `BreakStatement`
 - `ContinueStatement`
 - `ReturnStatement`
+- `ExceptionCatchStatement`
+- `CatchClause`
+- `RaiseExceptionStatement`
 
 ## Текущие ограничения
 
@@ -117,6 +120,9 @@ MeaningTree meaningTree = cppLanguage.getMeaningTree("int main() { int a = 10; }
 - **ExpressionMode**: допускается только одно выражение в теле `main`.
 - **Частичная поддержка параметров шаблонов** и пользовательских типов (TODO).
 - **Расширения C++** (например, `parameter_pack_expansion`) обрабатываются упрощённо через рекурсию.
+- **Нет ветви `finally`**: вывод такой конструкции отвергается (`TryFinallyFeature`), а ветвь,
+  перехватывающая несколько типов, размножается по одной на тип. Подробности — в
+  [docs/references/exception-handling.md](../references/exception-handling.md).
 
 # CppViewer
 

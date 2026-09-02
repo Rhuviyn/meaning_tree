@@ -151,3 +151,7 @@ String code = pythonViewer.toString(meaningTree);
 - Форматирование пользовательских генераторов и comprehensions может быть упрощено.
 
 - Поддержка условных выражений и логических операторов базовая.
+
+- `raise ... from ...` и `except*` не поддерживаются: у узла нет поля причины, а групп
+  исключений в модели нет. Подробности — в
+  [docs/references/exception-handling.md](../references/exception-handling.md).

@@ -6,8 +6,11 @@ import org.vstu.meaningtree.MeaningTree;
 import org.vstu.meaningtree.exceptions.UnsupportedViewingException;
 import org.vstu.meaningtree.languages.helpers.ComprehensionLowerer;
 import org.vstu.meaningtree.languages.helpers.LoopElseLowerer;
+import org.vstu.meaningtree.languages.helpers.MultiCatchSplitter;
+import org.vstu.meaningtree.languages.helpers.TryElseLowerer;
 import org.vstu.meaningtree.languages.support.features.NonDirectionalRangeForFeature;
 import org.vstu.meaningtree.languages.support.features.PointerToMemberOperatorFeature;
+import org.vstu.meaningtree.languages.support.features.TryFinallyFeature;
 import org.vstu.meaningtree.languages.support.features.UninferableVariableTypeFeature;
 import org.vstu.meaningtree.nodes.*;
 import org.vstu.meaningtree.nodes.declarations.*;
@@ -59,6 +62,9 @@ import org.vstu.meaningtree.nodes.statements.assignments.MultipleAssignmentState
 import org.vstu.meaningtree.nodes.statements.conditions.IfStatement;
 import org.vstu.meaningtree.nodes.statements.conditions.SwitchStatement;
 import org.vstu.meaningtree.nodes.statements.conditions.components.*;
+import org.vstu.meaningtree.nodes.statements.exceptions.ExceptionCatchStatement;
+import org.vstu.meaningtree.nodes.statements.exceptions.RaiseExceptionStatement;
+import org.vstu.meaningtree.nodes.statements.exceptions.components.CatchClause;
 import org.vstu.meaningtree.nodes.statements.loops.*;
 import org.vstu.meaningtree.nodes.statements.loops.control.BreakStatement;
 import org.vstu.meaningtree.nodes.statements.loops.control.ContinueStatement;
@@ -92,7 +98,7 @@ public class CppViewer extends LanguageViewer {
 
     @Override
     protected MeaningTree preprocessTree(MeaningTree tree) {
-        return LoopElseLowerer.lower(comprehensionLowered(tree));
+        return MultiCatchSplitter.lower(TryElseLowerer.lower(LoopElseLowerer.lower(comprehensionLowered(tree))));
     }
 
     private MeaningTree comprehensionLowered(MeaningTree tree) {
@@ -195,6 +201,9 @@ public class CppViewer extends LanguageViewer {
         registerRenderer(MultipleAssignmentStatement.class, this::fromMultipleAssignmentStatement);
         registerRenderer(ChainedAssignmentStatement.class, this::toStringChainedAssignmentStatement);
         registerRenderer(IfStatement.class, this::toStringIfStatement);
+        registerRenderer(ExceptionCatchStatement.class, this::toStringExceptionCatchStatement);
+        registerRenderer(CatchClause.class, this::toStringCatchClause);
+        registerRenderer(RaiseExceptionStatement.class, this::toStringRaiseExceptionStatement);
         registerRenderer(CompoundStatement.class, this::toStringCompoundStatement);
         registerRenderer(RangeForLoop.class, this::toStringRangeForLoop);
         registerRenderer(GeneralForLoop.class, this::toStringGeneralForLoop);
@@ -253,6 +262,7 @@ public class CppViewer extends LanguageViewer {
         registerUnsupportedFeature(new NonDirectionalRangeForFeature());
         registerUnsupportedFeature(new PointerToMemberOperatorFeature());
         registerUnsupportedFeature(new UninferableVariableTypeFeature());
+        registerUnsupportedFeature(new TryFinallyFeature());
         registerUnsupportedFeature(MatMulOp.class);
     }
 
@@ -1087,6 +1097,59 @@ public class CppViewer extends LanguageViewer {
         decreaseIndentLevel();
         builder.append(indent("}"));
         return builder.toString();
+    }
+
+    /*******************************************************************/
+    /* Перевод обработки исключений */
+    public String toStringExceptionCatchStatement(ExceptionCatchStatement stmt) {
+        if (stmt.hasFinallyBranch()) {
+            // Гарантированное выполнение выражается в C++ деструкторами и scope guard'ами,
+            // а не блоком, поэтому автоматически перевести ветвь нельзя
+            throw new UnsupportedViewingException("C++ has no finally branch");
+        }
+
+        StringBuilder builder = new StringBuilder();
+        builder.append("try").append(toStringBlockAfterHeader(stmt.getBody()));
+        for (CatchClause clause : stmt.getCatchClauses()) {
+            builder.append("\n").append(indent(toString(clause)));
+        }
+        return builder.toString();
+    }
+
+    private String toStringCatchClause(CatchClause clause) {
+        return String.format("catch (%s)%s", toStringCatchParameter(clause), toStringBlockAfterHeader(clause.getBody()));
+    }
+
+    /**
+     * Параметр {@code catch}. Перехват без типа записывается многоточием, объекты принимаются
+     * по константной ссылке (иначе исключение копируется и срезается до объявленного типа),
+     * а встроенные типы — по значению.
+     */
+    private String toStringCatchParameter(CatchClause clause) {
+        if (clause.catchesAny()) {
+            return "...";
+        }
+
+        Type exceptionType = clause.getExceptionTypes().getFirst();
+        String rendered = exceptionType instanceof UserType || exceptionType instanceof UnknownType
+                ? "const " + toString(exceptionType) + "&"
+                : toString(exceptionType);
+
+        return clause.hasName() ? rendered + " " + toString(clause.getName()) : rendered;
+    }
+
+    private String toStringRaiseExceptionStatement(RaiseExceptionStatement stmt) {
+        return stmt.hasException() ? String.format("throw %s;", toString(stmt.getException())) : "throw;";
+    }
+
+    private String toStringBlockAfterHeader(Statement body) {
+        if (body instanceof CompoundStatement compound) {
+            return (_openBracketOnSameLine ? " " : "\n") + indent(toString(compound));
+        }
+        increaseIndentLevel();
+        String rendered = indent(toString(body));
+        decreaseIndentLevel();
+        return (_openBracketOnSameLine ? " {\n" : "\n" + indent("{") + "\n") + rendered + "\n" + indent("}");
     }
 
     /*******************************************************************/

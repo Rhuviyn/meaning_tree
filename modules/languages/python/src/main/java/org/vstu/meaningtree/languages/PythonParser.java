@@ -46,6 +46,9 @@ import org.vstu.meaningtree.nodes.statements.conditions.components.BasicCaseBloc
 import org.vstu.meaningtree.nodes.statements.conditions.components.CaseBlock;
 import org.vstu.meaningtree.nodes.statements.conditions.components.ConditionBranch;
 import org.vstu.meaningtree.nodes.statements.conditions.components.DefaultCaseBlock;
+import org.vstu.meaningtree.nodes.statements.exceptions.ExceptionCatchStatement;
+import org.vstu.meaningtree.nodes.statements.exceptions.RaiseExceptionStatement;
+import org.vstu.meaningtree.nodes.statements.exceptions.components.CatchClause;
 import org.vstu.meaningtree.nodes.statements.loops.*;
 import org.vstu.meaningtree.nodes.statements.loops.control.BreakStatement;
 import org.vstu.meaningtree.nodes.statements.loops.control.ContinueStatement;
@@ -157,6 +160,8 @@ public class PythonParser extends LanguageParser {
         registerTSNodeHandler(List.of("set_comprehension", "dictionary_comprehension", "list_comprehension", "generator_expression"), Comprehension.class, this::fromComprehension);
         registerTSNodeHandler("match_statement", SwitchStatement.class, this::fromMatchStatement);
         registerTSNodeHandler("pattern_list", ExpressionSequence.class, this::fromPatternList);
+        registerTSNodeHandler("try_statement", ExceptionCatchStatement.class, this::fromTryStatementTSNode);
+        registerTSNodeHandler("raise_statement", RaiseExceptionStatement.class, this::fromRaiseStatementTSNode);
     }
 
     @Override
@@ -1380,6 +1385,80 @@ public class PythonParser extends LanguageParser {
             itemType = nestedList.getItemType();
         }
         return new ArrayType((Type) itemType.freshClone(), dimensions);
+    }
+
+    private Node fromTryStatementTSNode(TSNode node) {
+        Statement body = (Statement) parseTSNode(node.getChildByFieldName("body"));
+
+        List<CatchClause> catchClauses = new ArrayList<>();
+        Statement elseBranch = null;
+        Statement finallyBranch = null;
+        for (int i = 0; i < node.getNamedChildCount(); i++) {
+            TSNode child = node.getNamedChild(i);
+            switch (child.getType()) {
+                case "except_clause" -> catchClauses.add(fromExceptClauseTSNode(child));
+                case "else_clause" -> elseBranch = (Statement) parseTSNode(child.getChildByFieldName("body"));
+                // у finally_clause блок лежит без имени поля, в отличие от else_clause
+                case "finally_clause" -> finallyBranch = (Statement) parseTSNode(findNamedChild(child, "block"));
+                case "except_group_clause" -> throw new UnsupportedParsingException(
+                        "Exception groups (except*) are not supported");
+                default -> { }
+            }
+        }
+
+        return new ExceptionCatchStatement(body, catchClauses, elseBranch, finallyBranch);
+    }
+
+    private CatchClause fromExceptClauseTSNode(TSNode node) {
+        List<Type> exceptionTypes = new ArrayList<>();
+        SimpleIdentifier name = null;
+
+        TSNode value = node.getChildByFieldName("value");
+        if (!value.isNull()) {
+            TSNode typesNode = value;
+            if (value.getType().equals("as_pattern")) {
+                // `except E as e` — типы лежат первым ребёнком, имя в поле alias,
+                // внутри которого настоящий идентификатор
+                typesNode = value.getNamedChild(0);
+                name = (SimpleIdentifier) parseTSNode(value.getChildByFieldName("alias").getNamedChild(0));
+            }
+
+            if (typesNode.getType().equals("tuple")) {
+                for (int i = 0; i < typesNode.getNamedChildCount(); i++) {
+                    exceptionTypes.add(determineType(typesNode.getNamedChild(i)));
+                }
+            } else {
+                exceptionTypes.add(determineType(typesNode));
+            }
+        }
+
+        if (name != null) {
+            // Тип переменной исключения нужен уже при разборе тела ветви, а узла-объявления
+            // у неё нет, поэтому обычный путь через BodyConstructor не подходит
+            ctx.getScopeTable().registerCatchVariable(name, exceptionTypes);
+        }
+
+        Statement body = (Statement) parseTSNode(findNamedChild(node, "block"));
+        return new CatchClause(exceptionTypes, name, body);
+    }
+
+    private Node fromRaiseStatementTSNode(TSNode node) {
+        if (!node.getChildByFieldName("cause").isNull()) {
+            throw new UnsupportedParsingException("Raising with an explicit cause (raise ... from ...) is not supported");
+        }
+        if (node.getNamedChildCount() == 0) {
+            return new RaiseExceptionStatement();
+        }
+        return new RaiseExceptionStatement((Expression) parseTSNode(node.getNamedChild(0)));
+    }
+
+    private static TSNode findNamedChild(TSNode node, String type) {
+        for (int i = 0; i < node.getNamedChildCount(); i++) {
+            if (node.getNamedChild(i).getType().equals(type)) {
+                return node.getNamedChild(i);
+            }
+        }
+        throw new UnsupportedParsingException("Node " + node.getType() + " has no child of type " + type);
     }
 
     private CompoundStatement fromCompoundTSNode(TSNode node, boolean newScope) {

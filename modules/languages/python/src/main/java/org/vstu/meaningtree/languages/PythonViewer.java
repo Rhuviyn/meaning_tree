@@ -50,6 +50,9 @@ import org.vstu.meaningtree.nodes.statements.conditions.components.BasicCaseBloc
 import org.vstu.meaningtree.nodes.statements.conditions.components.CaseBlock;
 import org.vstu.meaningtree.nodes.statements.conditions.components.ConditionBranch;
 import org.vstu.meaningtree.nodes.statements.conditions.components.FallthroughCaseBlock;
+import org.vstu.meaningtree.nodes.statements.exceptions.ExceptionCatchStatement;
+import org.vstu.meaningtree.nodes.statements.exceptions.RaiseExceptionStatement;
+import org.vstu.meaningtree.nodes.statements.exceptions.components.CatchClause;
 import org.vstu.meaningtree.nodes.statements.loops.*;
 import org.vstu.meaningtree.nodes.statements.loops.control.BreakStatement;
 import org.vstu.meaningtree.nodes.statements.loops.control.ContinueStatement;
@@ -82,6 +85,9 @@ public class PythonViewer extends LanguageViewer {
         registerTabRenderer(BinaryComparison.class, (node, tab) -> comparisonToString(node));
         registerTabRenderer(BinaryExpression.class, (node, tab) -> binaryOpToString(node));
         registerTabRenderer(IfStatement.class, this::conditionToString);
+        registerTabRenderer(ExceptionCatchStatement.class, this::exceptionCatchToString);
+        registerTabRenderer(CatchClause.class, this::catchClauseToString);
+        registerTabRenderer(RaiseExceptionStatement.class, (node, tab) -> raiseToString(node));
         registerTabRenderer(PointerPackOp.class, (node, tab) -> pointerPackToString(node));
         registerTabRenderer(PointerUnpackOp.class, (node, tab) -> pointerUnpackToString(node));
         registerTabRenderer(UnaryExpression.class, (node, tab) -> unaryToString(node));
@@ -823,6 +829,41 @@ public class PythonViewer extends LanguageViewer {
             builder.append(loopElseToString(infLoop, tab));
         }
         return builder.toString();
+    }
+
+    private String exceptionCatchToString(ExceptionCatchStatement stmt, Tab tab) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("try:\n").append(branchStmtToString(stmt.getBody(), tab));
+
+        for (CatchClause clause : stmt.getCatchClauses()) {
+            builder.append("\n").append(tab).append(toString(clause, tab));
+        }
+        if (stmt.hasElseBranch()) {
+            builder.append(String.format("\n%selse:\n%s", tab, branchStmtToString(stmt.getElseBranch(), tab)));
+        }
+        if (stmt.hasFinallyBranch()) {
+            builder.append(String.format("\n%sfinally:\n%s", tab, branchStmtToString(stmt.getFinallyBranch(), tab)));
+        }
+
+        return builder.toString();
+    }
+
+    private String catchClauseToString(CatchClause clause, Tab tab) {
+        StringBuilder header = new StringBuilder("except");
+        if (!clause.catchesAny()) {
+            List<Type> types = clause.getExceptionTypes();
+            String rendered = types.stream().map(this::toString).collect(Collectors.joining(", "));
+            header.append(" ").append(types.size() > 1 ? "(" + rendered + ")" : rendered);
+        }
+        if (clause.hasName()) {
+            header.append(" as ").append(toString(clause.getName()));
+        }
+
+        return String.format("%s:\n%s", header, branchStmtToString(clause.getBody(), tab));
+    }
+
+    private String raiseToString(RaiseExceptionStatement stmt) {
+        return stmt.hasException() ? String.format("raise %s", toString(stmt.getException())) : "raise";
     }
 
     private String loopElseToString(Loop loop, Tab tab) {

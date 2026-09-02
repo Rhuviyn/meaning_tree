@@ -410,6 +410,15 @@ public class SourceMapGeneratorTests {
                                 while (x > 0) {
                                     x--;
                                 }
+                                try {
+                                    x = 4;
+                                }
+                                catch (ValueError | IOError e) {
+                                    throw new ValueError("x");
+                                }
+                                finally {
+                                    x = 5;
+                                }
                             }
                         }
                         """, () -> new JavaTranslator(CONFIG)),
@@ -421,6 +430,14 @@ public class SourceMapGeneratorTests {
                             x = 3
                         for i in range(0, 3):
                             print(i)
+                        try:
+                            x = 4
+                        except ValueError as e:
+                            raise
+                        else:
+                            x = 5
+                        finally:
+                            x = 6
                         """, () -> new PythonTranslator(CONFIG)),
                 new Sample("c++", """
                         int main() {
@@ -430,6 +447,13 @@ public class SourceMapGeneratorTests {
                             }
                             for (int i = 0; i < 3; i++) {
                                 x += i;
+                            }
+                            try {
+                                x = 4;
+                            } catch (const ValueError& e) {
+                                throw;
+                            } catch (...) {
+                                x = 5;
                             }
                             return x;
                         }

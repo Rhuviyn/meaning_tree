@@ -51,6 +51,9 @@ import org.vstu.meaningtree.nodes.statements.conditions.components.BasicCaseBloc
 import org.vstu.meaningtree.nodes.statements.conditions.components.CaseBlock;
 import org.vstu.meaningtree.nodes.statements.conditions.components.DefaultCaseBlock;
 import org.vstu.meaningtree.nodes.statements.conditions.components.FallthroughCaseBlock;
+import org.vstu.meaningtree.nodes.statements.exceptions.ExceptionCatchStatement;
+import org.vstu.meaningtree.nodes.statements.exceptions.RaiseExceptionStatement;
+import org.vstu.meaningtree.nodes.statements.exceptions.components.CatchClause;
 import org.vstu.meaningtree.nodes.statements.loops.*;
 import org.vstu.meaningtree.nodes.statements.loops.control.BreakStatement;
 import org.vstu.meaningtree.nodes.statements.loops.control.ContinueStatement;
@@ -142,6 +145,8 @@ public class JavaParser extends LanguageParser {
         registerTSNodeHandler("labeled_statement", Node.class, this::fromLabeledStmtNode);
         registerTSNodeHandler("class_literal", MemberAccess.class, this::fromClassLiteralTSNode);
         registerTSNodeHandler("enhanced_for_statement", ForEachLoop.class, this::fromEnhancedForStatementTSNode);
+        registerTSNodeHandler("try_statement", ExceptionCatchStatement.class, this::fromTryStatementTSNode);
+        registerTSNodeHandler("throw_statement", RaiseExceptionStatement.class, this::fromThrowStatementTSNode);
     }
 
     public synchronized MeaningTree getMeaningTree(String code) {
@@ -327,6 +332,58 @@ public class JavaParser extends LanguageParser {
             case "block_comment" -> Comment.fromUnescaped(comment.substring(2, comment.length() - 2));
             default -> throw new IllegalArgumentException();
         };
+    }
+
+    private Node fromTryStatementTSNode(TSNode node) {
+        Statement body = (Statement) parseTSNode(node.getChildByFieldName("body"));
+
+        List<CatchClause> catchClauses = new ArrayList<>();
+        Statement finallyBranch = null;
+        for (int i = 0; i < node.getNamedChildCount(); i++) {
+            TSNode child = node.getNamedChild(i);
+            switch (child.getType()) {
+                case "catch_clause" -> catchClauses.add(fromCatchClauseTSNode(child));
+                // finally_clause не имеет именованного поля для блока, поэтому берём его как
+                // единственного именованного ребёнка
+                case "finally_clause" -> finallyBranch = (Statement) parseTSNode(child.getNamedChild(0));
+                default -> { }
+            }
+        }
+
+        return new ExceptionCatchStatement(body, catchClauses, null, finallyBranch);
+    }
+
+    private CatchClause fromCatchClauseTSNode(TSNode node) {
+        TSNode parameter = node.getNamedChild(0);
+        // У catch_formal_parameter перед catch_type может стоять modifiers (например, final),
+        // поэтому ищем по типу узла, а не по индексу
+        TSNode catchType = findNamedChild(parameter, "catch_type");
+
+        List<Type> exceptionTypes = new ArrayList<>();
+        for (int i = 0; i < catchType.getNamedChildCount(); i++) {
+            exceptionTypes.add(fromTypeTSNode(catchType.getNamedChild(i)));
+        }
+        SimpleIdentifier name = (SimpleIdentifier) parseTSNode(parameter.getChildByFieldName("name"));
+
+        // Тип переменной исключения нужен ещё при разборе тела ветви, поэтому регистрируется
+        // до него; узла-объявления у неё нет, и обычный путь через BodyConstructor не подходит
+        ctx.getScopeTable().registerCatchVariable(name, exceptionTypes);
+
+        Statement body = (Statement) parseTSNode(node.getChildByFieldName("body"));
+        return new CatchClause(exceptionTypes, name, body);
+    }
+
+    private static TSNode findNamedChild(TSNode node, String type) {
+        for (int i = 0; i < node.getNamedChildCount(); i++) {
+            if (node.getNamedChild(i).getType().equals(type)) {
+                return node.getNamedChild(i);
+            }
+        }
+        throw new UnsupportedParsingException("Node " + node.getType() + " has no child of type " + type);
+    }
+
+    private Node fromThrowStatementTSNode(TSNode node) {
+        return new RaiseExceptionStatement((Expression) parseTSNode(node.getNamedChild(0)));
     }
 
     private Node fromReturnStatementTSNode(TSNode node) {

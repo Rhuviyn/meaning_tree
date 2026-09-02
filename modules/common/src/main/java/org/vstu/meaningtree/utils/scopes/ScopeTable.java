@@ -14,6 +14,8 @@ import org.vstu.meaningtree.nodes.expressions.Identifier;
 import org.vstu.meaningtree.nodes.expressions.identifiers.SimpleIdentifier;
 import org.vstu.meaningtree.nodes.modules.Import;
 import org.vstu.meaningtree.nodes.statements.CompoundStatement;
+import org.vstu.meaningtree.nodes.statements.exceptions.components.CatchClause;
+import org.vstu.meaningtree.nodes.types.UnknownType;
 import org.vstu.meaningtree.nodes.types.UserType;
 
 import java.io.Serializable;
@@ -250,7 +252,25 @@ public class ScopeTable implements Serializable {
             registerDeclaration(decl.getName().getSimpleIdentifierOrThrow(), decl);
         } else if (node instanceof Import imprt) {
             registerImport(imprt);
+        } else if (node instanceof CatchClause clause && clause.hasName()) {
+            registerCatchVariable(Objects.requireNonNull(clause.getName()), clause.getExceptionTypes());
         }
+    }
+
+    /**
+     * Переменная исключения видна как обычная локальная, но объявления-узла у неё нет: в модели
+     * это имя на {@link CatchClause}, а не {@code VariableDeclaration}. Поэтому регистрируется
+     * только тип и только в текущей области — {@code changeVariableType} здесь не подходит, он
+     * поднялся бы к одноимённой внешней переменной и перезаписал её тип, хотя переменная
+     * исключения её затеняет, а не меняет.
+     * <p>
+     * Тип известен, только когда ветвь перехватывает ровно один тип: у multi-catch и
+     * python-кортежа статический тип — это надтип перечисленных, вычислить который модель пока
+     * не умеет.
+     */
+    public void registerCatchVariable(@NotNull SimpleIdentifier name, @NotNull List<Type> exceptionTypes) {
+        Type type = exceptionTypes.size() == 1 ? exceptionTypes.getFirst() : new UnknownType();
+        current.restoreVariable(name, type, null);
     }
 
     public void registerVariable(@NotNull VariableDeclaration variableDeclaration) {

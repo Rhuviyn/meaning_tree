@@ -62,6 +62,8 @@ MeaningTree meaningTree = javaLanguage.getMeaningTree("String a = \"Hello, world
 - `SwitchExpression`
 - `TernaryExpression`
 - `This`
+- `ThrowStatement`
+- `TryStatement`
 - `True`
 - `UnaryExpression`
 - `UpdateExpression`

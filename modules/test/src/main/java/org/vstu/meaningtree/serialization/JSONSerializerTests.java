@@ -303,6 +303,44 @@ public class JSONSerializerTests {
                 for v in [1, 2]:
                     continue
                 """);
+        java(snippets, "exceptions", """
+                try {
+                    g();
+                }
+                catch (IOError | ValueError e) {
+                    h();
+                }
+                catch (Exception e) {
+                    throw new ValueError("x");
+                }
+                finally {
+                    k();
+                }
+                """);
+        python(snippets, "exceptions", """
+                try:
+                    g()
+                except (IOError, ValueError) as e:
+                    h()
+                except Exception:
+                    raise
+                except:
+                    pass
+                else:
+                    m()
+                finally:
+                    k()
+                """);
+        cpp(snippets, "exceptions", """
+                try {
+                    g();
+                } catch (const std::exception& e) {
+                    h();
+                } catch (...) {
+                    throw;
+                }
+                throw ValueError("x");
+                """);
         python(snippets, "functions", """
                 def add(a, b):
                     return a + b
