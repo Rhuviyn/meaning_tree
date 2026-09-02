@@ -419,6 +419,9 @@ public class SourceMapGeneratorTests {
                                 finally {
                                     x = 5;
                                 }
+                                try (FileReader r = new FileReader("a")) {
+                                    x = 6;
+                                }
                             }
                         }
                         """, () -> new JavaTranslator(CONFIG)),
@@ -438,6 +441,8 @@ public class SourceMapGeneratorTests {
                             x = 5
                         finally:
                             x = 6
+                        with open("a") as f:
+                            x = 7
                         """, () -> new PythonTranslator(CONFIG)),
                 new Sample("c++", """
                         int main() {

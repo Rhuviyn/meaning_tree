@@ -7,6 +7,7 @@ import org.vstu.meaningtree.exceptions.UnsupportedViewingException;
 import org.vstu.meaningtree.languages.helpers.ComprehensionLowerer;
 import org.vstu.meaningtree.languages.helpers.LoopElseLowerer;
 import org.vstu.meaningtree.languages.helpers.MultiCatchSplitter;
+import org.vstu.meaningtree.languages.helpers.ResourceContextLowerer;
 import org.vstu.meaningtree.languages.helpers.TryElseLowerer;
 import org.vstu.meaningtree.languages.support.features.NonDirectionalRangeForFeature;
 import org.vstu.meaningtree.languages.support.features.PointerToMemberOperatorFeature;
@@ -98,7 +99,9 @@ public class CppViewer extends LanguageViewer {
 
     @Override
     protected MeaningTree preprocessTree(MeaningTree tree) {
-        return MultiCatchSplitter.lower(TryElseLowerer.lower(LoopElseLowerer.lower(comprehensionLowered(tree))));
+        // Владение ресурсами снимается первым: дальше по конвейеру никакой узел о нём не знает
+        return MultiCatchSplitter.lower(TryElseLowerer.lower(
+                LoopElseLowerer.lower(comprehensionLowered(ResourceContextLowerer.flatten(tree)))));
     }
 
     private MeaningTree comprehensionLowered(MeaningTree tree) {
@@ -202,6 +205,7 @@ public class CppViewer extends LanguageViewer {
         registerRenderer(ChainedAssignmentStatement.class, this::toStringChainedAssignmentStatement);
         registerRenderer(IfStatement.class, this::toStringIfStatement);
         registerRenderer(ExceptionCatchStatement.class, this::toStringExceptionCatchStatement);
+        registerRenderer(ResourceContextStatement.class, this::toStringResourceContextStatement);
         registerRenderer(CatchClause.class, this::toStringCatchClause);
         registerRenderer(RaiseExceptionStatement.class, this::toStringRaiseExceptionStatement);
         registerRenderer(CompoundStatement.class, this::toStringCompoundStatement);
@@ -1121,6 +1125,16 @@ public class CppViewer extends LanguageViewer {
             builder.append("\n").append(indent(toString(clause)));
         }
         return builder.toString();
+    }
+
+    /**
+     * Владение ресурсами C++ записать нечем, поэтому оно разворачивается в плоский блок.
+     * Обычно это уже сделано в {@link #preprocessTree}, и сюда узел доходит только при
+     * прямом рендере одного узла в обход {@code toString(MeaningTree)} — как и проверка
+     * {@code finally} ниже, это страховка на такой вызов.
+     */
+    private String toStringResourceContextStatement(ResourceContextStatement stmt) {
+        return toString(ResourceContextLowerer.flatten(new MeaningTree(stmt)).getRootNode());
     }
 
     private String toStringCatchClause(CatchClause clause) {

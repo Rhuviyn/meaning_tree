@@ -48,6 +48,7 @@ import org.vstu.meaningtree.nodes.modules.*;
 import org.vstu.meaningtree.nodes.statements.CompoundStatement;
 import org.vstu.meaningtree.nodes.statements.EmptyStatement;
 import org.vstu.meaningtree.nodes.statements.ExpressionStatement;
+import org.vstu.meaningtree.nodes.statements.ResourceContextStatement;
 import org.vstu.meaningtree.nodes.statements.ReturnStatement;
 import org.vstu.meaningtree.nodes.statements.assignments.AssignmentStatement;
 import org.vstu.meaningtree.nodes.statements.assignments.ChainedAssignmentStatement;
@@ -205,6 +206,7 @@ public class JavaViewer extends LanguageViewer {
         registerRenderer(IfStatement.class, this::toStringIfStatement);
         registerRenderer(ExceptionCatchStatement.class, this::toStringExceptionCatchStatement);
         registerRenderer(CatchClause.class, this::toStringCatchClause);
+        registerRenderer(ResourceContextStatement.class, this::toStringResourceContextStatement);
         registerRenderer(RaiseExceptionStatement.class, this::toStringRaiseExceptionStatement);
         registerRenderer(GeneralForLoop.class, this::toStringGeneralForLoop);
         registerRenderer(CompoundComparison.class, this::toStringCompoundComparison);
@@ -2066,7 +2068,10 @@ public class JavaViewer extends LanguageViewer {
 
     public String toStringExceptionCatchStatement(ExceptionCatchStatement stmt) {
         StringBuilder builder = new StringBuilder();
-        builder.append("try").append(toStringBlockAfterHeader(stmt.getBody()));
+        builder
+                .append("try")
+                .append(toStringResourceSpecification(stmt.getResourceDeclarations()))
+                .append(toStringBlockAfterHeader(stmt.getBody()));
 
         for (CatchClause clause : stmt.getCatchClauses()) {
             builder.append("\n").append(indent(toString(clause)));
@@ -2080,6 +2085,34 @@ public class JavaViewer extends LanguageViewer {
         }
 
         return builder.toString();
+    }
+
+    private String toStringResourceContextStatement(ResourceContextStatement stmt) {
+        return "try"
+                + toStringResourceSpecification(stmt.getResourceDeclarations())
+                + toStringBlockAfterHeader(stmt.getBody());
+    }
+
+    /**
+     * Заголовок try-with-resources. Пустой список ресурсов — это обычный {@code try},
+     * у которого скобок нет вовсе.
+     */
+    private String toStringResourceSpecification(List<Node> resources) {
+        if (resources.isEmpty()) {
+            return "";
+        }
+
+        return resources.stream()
+                .map(resource -> resource instanceof VariableDeclaration declaration
+                        // var читается только там, где тип выводится из инициализатора;
+                        // без него объявление уже отрендерено с точкой с запятой
+                        ? stripStatementSeparator(toStringVariableDeclaration(declaration, true))
+                        : toString(resource))
+                .collect(Collectors.joining("; ", " (", ")"));
+    }
+
+    private static String stripStatementSeparator(String rendered) {
+        return rendered.endsWith(";") ? rendered.substring(0, rendered.length() - 1) : rendered;
     }
 
     private String toStringCatchClause(CatchClause clause) {

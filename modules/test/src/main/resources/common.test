@@ -2966,3 +2966,106 @@ group: Exceptions
                 g()
             except:
                 raise
+
+
+group: ResourceContext
+    case: TryWithResources
+        main java:
+            try (FileReader r = new FileReader("a")) {
+                g(r);
+            }
+
+        python:
+            with FileReader("a") as r:
+                g(r)
+
+        c++:
+            {
+                FileReader r = new FileReader("a");
+                g(r);
+                delete r;
+            }
+
+
+    case: WithStatement
+        main python:
+            with open("a") as f:
+                g(f)
+
+        java:
+            try (var f = open("a")) {
+                g(f);
+            }
+
+        c++:
+            {
+                auto f = open("a");
+                g(f);
+                delete f;
+            }
+
+
+    case: SeveralResources
+        main python:
+            with open("a") as f, open("b") as k:
+                g(f, k)
+
+        java:
+            try (var f = open("a"); var k = open("b")) {
+                g(f, k);
+            }
+
+        c++:
+            {
+                auto f = open("a");
+                auto k = open("b");
+                g(f, k);
+                delete k;
+                delete f;
+            }
+
+
+    case: ResourceWithoutName
+        main python:
+            with lock:
+                g()
+
+        java:
+            try (lock) {
+                g();
+            }
+
+        c++:
+            {
+                lock;
+                g();
+            }
+
+
+    case: TryWithResourcesAndCatch
+        main java:
+            try (FileReader r = new FileReader("a")) {
+                g(r);
+            }
+            catch (IOError e) {
+                h();
+            }
+
+        python:
+            try:
+                with FileReader("a") as r:
+                    g(r)
+            except IOError as e:
+                h()
+
+        c++:
+            try
+            {
+                FileReader r = new FileReader("a");
+                g(r);
+                delete r;
+            }
+            catch (const IOError& e)
+            {
+                h();
+            }

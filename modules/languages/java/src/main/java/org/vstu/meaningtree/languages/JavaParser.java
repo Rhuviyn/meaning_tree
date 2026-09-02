@@ -42,6 +42,7 @@ import org.vstu.meaningtree.nodes.modules.*;
 import org.vstu.meaningtree.nodes.statements.CompoundStatement;
 import org.vstu.meaningtree.nodes.statements.ExpressionStatement;
 import org.vstu.meaningtree.nodes.statements.Loop;
+import org.vstu.meaningtree.nodes.statements.ResourceContextStatement;
 import org.vstu.meaningtree.nodes.statements.ReturnStatement;
 import org.vstu.meaningtree.nodes.statements.assignments.AssignmentStatement;
 import org.vstu.meaningtree.nodes.statements.assignments.MultipleAssignmentStatement;
@@ -146,6 +147,7 @@ public class JavaParser extends LanguageParser {
         registerTSNodeHandler("class_literal", MemberAccess.class, this::fromClassLiteralTSNode);
         registerTSNodeHandler("enhanced_for_statement", ForEachLoop.class, this::fromEnhancedForStatementTSNode);
         registerTSNodeHandler("try_statement", ExceptionCatchStatement.class, this::fromTryStatementTSNode);
+        registerTSNodeHandler("try_with_resources_statement", Statement.class, this::fromTryStatementTSNode);
         registerTSNodeHandler("throw_statement", RaiseExceptionStatement.class, this::fromThrowStatementTSNode);
     }
 
@@ -335,6 +337,8 @@ public class JavaParser extends LanguageParser {
     }
 
     private Node fromTryStatementTSNode(TSNode node) {
+        // Ресурсы разбираются до тела: объявленные в них переменные тело уже видит
+        List<Node> resources = fromResourceSpecificationTSNode(node.getChildByFieldName("resources"));
         Statement body = (Statement) parseTSNode(node.getChildByFieldName("body"));
 
         List<CatchClause> catchClauses = new ArrayList<>();
@@ -350,7 +354,48 @@ public class JavaParser extends LanguageParser {
             }
         }
 
-        return new ExceptionCatchStatement(body, catchClauses, null, finallyBranch);
+        // Без ветвей try-with-resources — это только владение ресурсами, и обработки
+        // исключений в нём нет; с ветвями ресурсы остаются полем той же конструкции,
+        // потому что ошибку захвата ресурса ловят те же ветви
+        if (!resources.isEmpty() && catchClauses.isEmpty() && finallyBranch == null) {
+            return new ResourceContextStatement(resources, body);
+        }
+        return new ExceptionCatchStatement(body, resources, catchClauses, null, finallyBranch);
+    }
+
+    /**
+     * Список ресурсов try-with-resources. Ресурс с именем — это объявление переменной,
+     * ресурс без имени (`try (existing)`) — уже существующая переменная, то есть выражение.
+     */
+    private List<Node> fromResourceSpecificationTSNode(TSNode specification) {
+        if (specification.isNull()) {
+            return List.of();
+        }
+
+        List<Node> resources = new ArrayList<>();
+        for (int i = 0; i < specification.getNamedChildCount(); i++) {
+            TSNode resource = specification.getNamedChild(i);
+            if (!resource.getType().equals("resource")) {
+                continue;
+            }
+
+            TSNode name = resource.getChildByFieldName("name");
+            if (name.isNull()) {
+                resources.add(parseTSNode(resource.getNamedChild(0)));
+                continue;
+            }
+
+            VariableDeclaration declaration = new VariableDeclaration(
+                    fromTypeTSNode(resource.getChildByFieldName("type")),
+                    (SimpleIdentifier) parseTSNode(name),
+                    (Expression) parseTSNode(resource.getChildByFieldName("value"))
+            );
+            // Обычный путь наполнения области (BodyConstructor) видит только узлы тела,
+            // а ресурс лежит в заголовке конструкции — регистрируем его отдельно
+            ctx.getScopeTable().registerVariable(declaration);
+            resources.add(declaration);
+        }
+        return resources;
     }
 
     private CatchClause fromCatchClauseTSNode(TSNode node) {

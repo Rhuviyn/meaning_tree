@@ -161,6 +161,7 @@ public class PythonParser extends LanguageParser {
         registerTSNodeHandler("match_statement", SwitchStatement.class, this::fromMatchStatement);
         registerTSNodeHandler("pattern_list", ExpressionSequence.class, this::fromPatternList);
         registerTSNodeHandler("try_statement", ExceptionCatchStatement.class, this::fromTryStatementTSNode);
+        registerTSNodeHandler("with_statement", ResourceContextStatement.class, this::fromWithStatementTSNode);
         registerTSNodeHandler("raise_statement", RaiseExceptionStatement.class, this::fromRaiseStatementTSNode);
     }
 
@@ -1407,6 +1408,53 @@ public class PythonParser extends LanguageParser {
         }
 
         return new ExceptionCatchStatement(body, catchClauses, elseBranch, finallyBranch);
+    }
+
+    private Node fromWithStatementTSNode(TSNode node) {
+        // async нет ни отдельным типом узла, ни полем — только безымянным первым токеном
+        if (node.getChildCount() > 0 && getCodePiece(node.getChild(0)).equals("async")) {
+            throw new UnsupportedParsingException("Asynchronous with statement is not supported");
+        }
+
+        // Ресурсы разбираются до тела: связанные ими имена тело уже видит
+        List<Node> resources = fromWithClauseTSNode(findNamedChild(node, "with_clause"));
+        Statement body = (Statement) parseTSNode(node.getChildByFieldName("body"));
+
+        return new ResourceContextStatement(resources, body);
+    }
+
+    /**
+     * Ресурсы {@code with}. Элемент с {@code as} — это объявление переменной, тип которой
+     * известен только из выражения; без {@code as} — само выражение.
+     */
+    private List<Node> fromWithClauseTSNode(TSNode clause) {
+        List<Node> resources = new ArrayList<>();
+        for (int i = 0; i < clause.getNamedChildCount(); i++) {
+            TSNode value = clause.getNamedChild(i).getChildByFieldName("value");
+            if (!value.getType().equals("as_pattern")) {
+                resources.add(parseTSNode(value));
+                continue;
+            }
+
+            TSNode target = value.getChildByFieldName("alias").getNamedChild(0);
+            if (!target.getType().equals("identifier")) {
+                // Распаковка `with a() as (x, y)`: у узла есть имя ресурса, но не набор имён,
+                // и молчаливая потеря цели дала бы неверный перевод
+                throw new UnsupportedParsingException(
+                        "Unpacking in a with target is not supported: " + getCodePiece(target));
+            }
+
+            VariableDeclaration declaration = new VariableDeclaration(
+                    new UnknownType(),
+                    (SimpleIdentifier) parseTSNode(target),
+                    (Expression) parseTSNode(value.getNamedChild(0))
+            );
+            // Обычный путь наполнения области (BodyConstructor) видит только узлы тела,
+            // а ресурс лежит в заголовке конструкции — регистрируем его отдельно
+            ctx.getScopeTable().registerVariable(declaration);
+            resources.add(declaration);
+        }
+        return resources;
     }
 
     private CatchClause fromExceptClauseTSNode(TSNode node) {

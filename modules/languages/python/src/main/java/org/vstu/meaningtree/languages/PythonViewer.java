@@ -1,8 +1,10 @@
 package org.vstu.meaningtree.languages;
 
+import org.vstu.meaningtree.MeaningTree;
 import org.vstu.meaningtree.exceptions.MeaningTreeException;
 import org.vstu.meaningtree.exceptions.UnsupportedViewingException;
 import org.vstu.meaningtree.languages.helpers.ContextualNodeRenderer;
+import org.vstu.meaningtree.languages.helpers.ResourceContextLowerer;
 import org.vstu.meaningtree.languages.support.features.*;
 import org.vstu.meaningtree.languages.utils.PythonSpecificFeatures;
 import org.vstu.meaningtree.languages.utils.Tab;
@@ -79,6 +81,13 @@ public class PythonViewer extends LanguageViewer {
         configureSupportAndRenderers();
     }
 
+    @Override
+    protected MeaningTree preprocessTree(MeaningTree tree) {
+        // `with` не совмещается с `except` в одном операторе, поэтому ресурсы java-try
+        // уходят во вложенный `with` — конструкции владения в Python больше нет
+        return ResourceContextLowerer.nest(tree);
+    }
+
     private void configureSupportAndRenderers() {
         registerTabRenderer(ProgramEntryPoint.class, this::entryPointToString);
         registerTabRenderer(AssignmentExpression.class, (node, tab) -> assignmentExpressionToString(node));
@@ -87,6 +96,7 @@ public class PythonViewer extends LanguageViewer {
         registerTabRenderer(IfStatement.class, this::conditionToString);
         registerTabRenderer(ExceptionCatchStatement.class, this::exceptionCatchToString);
         registerTabRenderer(CatchClause.class, this::catchClauseToString);
+        registerTabRenderer(ResourceContextStatement.class, this::resourceContextToString);
         registerTabRenderer(RaiseExceptionStatement.class, (node, tab) -> raiseToString(node));
         registerTabRenderer(PointerPackOp.class, (node, tab) -> pointerPackToString(node));
         registerTabRenderer(PointerUnpackOp.class, (node, tab) -> pointerUnpackToString(node));
@@ -846,6 +856,30 @@ public class PythonViewer extends LanguageViewer {
         }
 
         return builder.toString();
+    }
+
+    /**
+     * Ресурс с именем — это {@code as}, без имени печатается одно выражение. Тип объявления
+     * в {@code with} записать нечем, поэтому он и не печатается.
+     */
+    private String resourceContextToString(ResourceContextStatement stmt, Tab tab) {
+        String items = stmt.getResourceDeclarations().stream()
+                .map(resource -> {
+                    SimpleIdentifier name = ResourceContextStatement.resourceName(resource);
+                    if (name == null) {
+                        return toString(resource, tab);
+                    }
+                    VariableDeclaration declaration = (VariableDeclaration) resource;
+                    Expression value = declaration.getFirstDeclarator().getRValue();
+                    // Объявление без инициализатора ресурсом в `with` не записать: печатается
+                    // одно имя — ближайшее, что вообще имеет смысл в этой позиции
+                    return value == null
+                            ? toString(name, tab)
+                            : String.format("%s as %s", toString(value, tab), toString(name, tab));
+                })
+                .collect(Collectors.joining(", "));
+
+        return String.format("with %s:\n%s", items, branchStmtToString(stmt.getBody(), tab));
     }
 
     private String catchClauseToString(CatchClause clause, Tab tab) {
