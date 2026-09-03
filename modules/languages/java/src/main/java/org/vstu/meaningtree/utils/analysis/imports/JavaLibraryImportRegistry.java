@@ -36,7 +36,8 @@ public final class JavaLibraryImportRegistry {
             "Set", "java.util.Set",
             "TreeMap", "java.util.TreeMap",
             "HashMap", "java.util.HashMap",
-            "Map", "java.util.Map"
+            "Map", "java.util.Map",
+            "Scanner", "java.util.Scanner"
     );
 
     public static boolean isLibraryModule(String dottedName) {
