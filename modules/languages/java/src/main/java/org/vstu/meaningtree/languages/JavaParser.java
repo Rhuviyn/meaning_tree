@@ -656,7 +656,8 @@ public class JavaParser extends LanguageParser {
                     return makeInputCall(objectMethodName);
                 }
             } else if (objectNode.getType().equals("object_creation_expression")
-                    && getCodePiece(objectNode.getChildByFieldName("type")).equals("Scanner")) {
+                    && (getCodePiece(objectNode.getChildByFieldName("type")).equals("Scanner")
+                    || getCodePiece(objectNode.getChildByFieldName("type")).equals("java.util.Scanner"))) {
                 return makeInputCall(objectMethodName);
             }
             String objectName = getCodePiece(objectNode);
@@ -1736,7 +1737,8 @@ public class JavaParser extends LanguageParser {
         var decl = new VariableDeclaration(type, declarators);
         decl.setAnnotations(annotations);
 
-        if (getCodePiece(node.getChildByFieldName("type")).equals("Scanner")) {
+        if (getCodePiece(node.getChildByFieldName("type")).equals("Scanner")
+                || getCodePiece(node.getChildByFieldName("type")).equals("java.util.Scanner")) {
             ctx.scope.registerVariable(decl);
             ctx.rejectNode(decl);
         }
