@@ -358,11 +358,10 @@ public class JavaViewer extends LanguageViewer {
         if (scanners.isEmpty()) {
             scannerName = ctx.makeUniqueIdentifier("scanner");
             ctx.scope.registerVariable(new VariableDeclaration(new Class(new SimpleIdentifier("Scanner")), scannerName));
+            String scannerType = libraryClass("Scanner", inputCommand);
             ctx.getNearestUnfilledViewerBody()
                     .indent(_indentLevel, _indentation)
-                    .appendStringWithIndent(String.format("Scanner %s = new Scanner(System.in);", scannerName.getName()));
-            ctx.imports().preserveImport(new ImportMembersFromModule(
-                    new SimpleIdentifier("java.util"), new SimpleIdentifier("Scanner")));
+                    .appendStringWithIndent(String.format("%s %s = new %s(System.in);", scannerType, scannerName.getName(), scannerType));
         } else {
             scannerName = scanners.getFirst();
         }
