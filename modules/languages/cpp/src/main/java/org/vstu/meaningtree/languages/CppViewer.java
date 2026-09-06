@@ -443,7 +443,7 @@ public class CppViewer extends LanguageViewer {
                         builder.append(String.format("gets(%s)", value));
                     }
                 } else {
-                    builder.append(String.format("std::getline(std::cin, %s)", value));
+                    builder.append(String.format("%sgetline(%scin, %s)", stdPrefix(), stdPrefix(), value));
                     if (assignInput.hasLimitedLength()) {
                         builder
                                 .append(";\n")
@@ -488,15 +488,15 @@ public class CppViewer extends LanguageViewer {
                     }
 
                     if (isInputSimple) {
-                        builder.append("std::cin");
+                        builder.append("%scin".formatted(stdPrefix()));
                         for (Expression component : components) {
                             FormatSpecifier specifier = (FormatSpecifier) component;
                             builder.append(" >> ");
                             if (specifier.type.equals(FormatSpecifier.SpecifierType.OCTAL)) {
-                                builder.append("std::oct >> ");
+                                builder.append("%soct >> ".formatted(stdPrefix()));
                             } else if (specifier.type.equals(FormatSpecifier.SpecifierType.HEXADECIMAL_LOWERCASE)
                              || specifier.type.equals(FormatSpecifier.SpecifierType.HEXADECIMAL_UPPERCASE)) {
-                                builder.append("std::hex >> ");
+                                builder.append("%shex >> ".formatted(stdPrefix()));
                             }
                             if (specifier.assignmentIsSuppressed) {
                                 Optional<Type> type = specifier.getCorrespondingDataType();
@@ -520,7 +520,7 @@ public class CppViewer extends LanguageViewer {
                              || specifier.type.equals(FormatSpecifier.SpecifierType.HEXADECIMAL_LOWERCASE)
                              || specifier.type.equals(FormatSpecifier.SpecifierType.HEXADECIMAL_UPPERCASE))
                             && substitutionCounter < substitutions.length) {
-                                builder.append(" >> std::dec");
+                                builder.append(" >> %sdec".formatted(stdPrefix()));
                             }
                         }
                     } else {
@@ -550,7 +550,7 @@ public class CppViewer extends LanguageViewer {
 
                         ctx.imports().preserveImport(new Include(StringLiteral.fromEscaped("string", StringLiteral.Type.NONE),
                                 Include.IncludeType.POINTY_BRACKETS_FORM));
-                        builder.append("std::getline(std::cin, ").append(userInputVarName).append(");");
+                        builder.append("%sgetline(%scin, ".formatted(stdPrefix(), stdPrefix())).append(userInputVarName).append(");");
 
                         if (components.length > 1
                                 || (components[0] instanceof FormatSpecifier specifier
@@ -626,10 +626,10 @@ public class CppViewer extends LanguageViewer {
 
                                         builder.append(String.format("""
                                                         
-                                                        %swhile (%s < %s.length() && %s.find(%s[%s]) %s= std::string::npos) {
+                                                        %swhile (%s < %s.length() && %s.find(%s[%s]) %s= %sstring::npos) {
                                                         %s\t%s;""",
                                                 indent(""), iVarName, userInputVarName, dataTypeVarName, userInputVarName, iVarName,
-                                                (specifier.scanSetIsNegated || specifier.type.equals(FormatSpecifier.SpecifierType.STRING)) ? "=" : "!",
+                                                (specifier.scanSetIsNegated || specifier.type.equals(FormatSpecifier.SpecifierType.STRING)) ? "=" : "!", stdPrefix(),
                                                 indent(""), specifier.assignmentIsSuppressed ? (iVarName + "++") :
                                                         (tmpInputVarName + " += " + userInputVarName + "[" + iVarName +(specifier.isFloating() ? "]" : "++]"))));
 
@@ -639,7 +639,7 @@ public class CppViewer extends LanguageViewer {
                                                             %s\tif (%s[%s] == '.') {
                                                             %s\t\t%s.erase(%s.find("."), 1);
                                                             %s\t} else if (%s[%s] == 'e' || %s[%s] == 'E') {
-                                                            %s\t\tif (%s.find(".") != std::string::npos) {
+                                                            %s\t\tif (%s.find(".") != %sstring::npos) {
                                                             %s\t\t\t%s.erase(%s.find("."), 1);
                                                             %s\t\t}
                                                             %s\t\t%s.erase(%s.find("e"), 1);
@@ -657,7 +657,7 @@ public class CppViewer extends LanguageViewer {
                                                     indent(""), userInputVarName, iVarName,
                                                     indent(""), dataTypeVarName, dataTypeVarName,
                                                     indent(""), userInputVarName, iVarName, userInputVarName, iVarName,
-                                                    indent(""), dataTypeVarName,
+                                                    indent(""), dataTypeVarName, stdPrefix(),
                                                     indent(""), dataTypeVarName, dataTypeVarName,
                                                     indent(""),
                                                     indent(""), dataTypeVarName, dataTypeVarName,
@@ -718,8 +718,8 @@ public class CppViewer extends LanguageViewer {
                                         if (specifier.type.equals(FormatSpecifier.SpecifierType.SCANSET)) {
                                             ctx.imports().preserveImport(new Include(StringLiteral.fromEscaped("algorithm", StringLiteral.Type.NONE),
                                                     Include.IncludeType.POINTY_BRACKETS_FORM));
-                                            builder.append(String.format("\n%s += std::min(%d, %s.length());",
-                                                    indent(iVarName), specifier.width, tmpInputVarName));
+                                            builder.append(String.format("\n%s += %smin(%d, %s.length());",
+                                                    indent(iVarName), stdPrefix(), specifier.width, tmpInputVarName));
                                         } else {
                                             builder.append(String.format("\n%s += %d;",
                                                     indent(iVarName), specifier.width));
@@ -760,7 +760,7 @@ public class CppViewer extends LanguageViewer {
                     }
                     return String.format("scanf(\"%s\"%s)", builder, args);
                 } else {
-                    builder.append("std::cin");
+                    builder.append("%scin".formatted(stdPrefix()));
                     for (var expr : inputCommand.getArguments()) {
                         builder.append(" >> ").append(toString(expr));
                     }
@@ -794,8 +794,8 @@ public class CppViewer extends LanguageViewer {
             } else {
                 builder
                         .append(String.format(
-                                "std::cout << %s;\n",
-                                toString(prompt)))
+                                "%scout << %s;\n",
+                                stdPrefix(), toString(prompt)))
                         .append(indent(""));
             }
         }
@@ -804,7 +804,7 @@ public class CppViewer extends LanguageViewer {
             if (isCMode()) {
                 builder.append(String.format("gets(%s)", toString(value)));
             } else {
-                builder.append(String.format("std::getline(std::cin, %s)", toString(value)));
+                builder.append(String.format("%sgetline(%scin, %s)", stdPrefix(), stdPrefix(), toString(value)));
             }
         } else {
             if (isCMode()) {
@@ -813,7 +813,7 @@ public class CppViewer extends LanguageViewer {
                         type.getSymbol(),
                         (type.equals(FormatSpecifier.SpecifierType.STRING) ? "" : "&") + toString(value)));
             } else {
-                builder.append(String.format("std::cin >> %s", toString(value)));
+                builder.append(String.format("%scin >> %s", stdPrefix(), toString(value)));
             }
         }
 
@@ -1774,16 +1774,16 @@ public class CppViewer extends LanguageViewer {
             ctx.imports().preserveImport(new Include(StringLiteral.fromEscaped("iostream", StringLiteral.Type.NONE),
                     Include.IncludeType.POINTY_BRACKETS_FORM));
             return switch (print) {
-                case FormatPrint fmt -> String.format("std::cout << %s", fromStringFormat(fmt.getFormat()));
+                case FormatPrint fmt -> String.format("%scout << %s", stdPrefix(), fromStringFormat(fmt.getFormat()));
                 case PrintValues pv -> {
                     List<Expression> complete = pv.getCompleteValues();
                     if (pv.addsNewLine() || (pv.end != null && toString(pv.end).equals("\"\""))) {
                         complete.removeLast();
                     }
-                    yield String.format("std::cout << %s", complete.stream().map(this::toString).collect(Collectors.joining(" << "))) + (pv.addsNewLine() ? " << std::endl" : "");
+                    yield String.format("%scout << %s", stdPrefix(), complete.stream().map(this::toString).collect(Collectors.joining(" << "))) + (pv.addsNewLine() ? " << %sendl".formatted(stdPrefix()) : "");
                 }
                 default ->
-                        String.format("std::cout << %s", print.getArguments().stream().map(this::toString).collect(Collectors.joining(" << ")));
+                        String.format("%scout << %s", stdPrefix(), print.getArguments().stream().map(this::toString).collect(Collectors.joining(" << ")));
             };
         }
     }
@@ -1983,7 +1983,7 @@ public class CppViewer extends LanguageViewer {
         if (!args.isEmpty()) {
             args = ", " + args;
         }
-        StringBuilder builder = new StringBuilder("std::format(\"");
+        StringBuilder builder = new StringBuilder("%sformat(\"".formatted(stdPrefix()));
         for (Expression component : stringFormat.getTemplate().getComponents()) {
             switch (component) {
                 case StringLiteral literal -> builder.append(literal.getEscapedValue().replaceAll("([{}])", "$1$1"));
