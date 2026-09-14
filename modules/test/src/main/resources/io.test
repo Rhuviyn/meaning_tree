@@ -1,0 +1,3151 @@
+group: PythonInputTest
+    case: Int
+        main python:
+            a = int(input())
+        java:
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            var a = scanner.nextInt();
+        c++:
+            auto a;
+            std::cin >> a;
+        c:
+            auto a;
+            scanf("%d", &a);
+
+
+    case: Float
+        main python:
+            a = float(input())
+        java:
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            var a = scanner.nextFloat();
+        c++:
+            auto a;
+            std::cin >> a;
+        c:
+            auto a;
+            scanf("%f", &a);
+
+
+    case: String
+        main python:
+            a = input()
+        java:
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            var a = scanner.nextLine();
+        c++:
+            auto a;
+            std::getline(std::cin, a);
+        c:
+            auto a;
+            gets(a);
+
+
+    case: StringStr
+        main python:
+            a = str(input())
+        java:
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            var a = scanner.nextLine();
+        c++:
+            auto a;
+            std::getline(std::cin, a);
+        c:
+            auto a;
+            gets(a);
+
+
+    case: PromptString
+        main python:
+            a = input("prompt")
+        java:
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            System.out.print("prompt");
+            var a = scanner.nextLine();
+        c++:
+            auto a;
+            std::cout << "prompt";
+            std::getline(std::cin, a);
+        c:
+            auto a;
+            printf("prompt");
+            gets(a);
+
+
+    case: PromptInt
+        main python:
+            a = input(1)
+        java:
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            System.out.print(1);
+            var a = scanner.nextLine();
+        c++:
+            auto a;
+            std::cout << 1;
+            std::getline(std::cin, a);
+        c:
+            auto a;
+            printf("%d", 1);
+            gets(a);
+
+
+    case: PromptVariable
+        main python:
+            prompt = 1
+            a = input(prompt)
+        java:
+            int prompt = 1;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            System.out.print(prompt);
+            var a = scanner.nextLine();
+        c++:
+            int prompt = 1;
+            auto a;
+            std::cout << prompt;
+            std::getline(std::cin, a);
+        c:
+            int prompt = 1;
+            auto a;
+            printf("%d", prompt);
+            gets(a);
+
+
+group: PythonOutputTest
+    case: SimplePrint
+        main python:
+            print("data")
+        java:
+            System.out.println("data");
+        c++:
+            std::cout << "data" << std::endl;
+        c:
+            printf("%s\n", "data");
+
+
+    case: PrintVariable
+        main python:
+            data = 1
+            print(data)
+        java:
+            int data = 1;
+            System.out.println(data);
+        c++:
+            int data = 1;
+            std::cout << data << std::endl;
+        c:
+            int data = 1;
+            printf("%d\n", data);
+
+
+    case: PrintFew
+        main python:
+            print("data1", "data2")
+        java:
+            System.out.println("" + "data1" + " " + "data2");
+        c++:
+            std::cout << "data1" << " " << "data2" << std::endl;
+        c:
+            printf("%s %s\n", "data1", "data2");
+
+
+    case: PrintFewWithFormat
+        main python:
+            print("data1", f"text{40:1d}", "data2")
+        java:
+            System.out.println("" + "data1" + " " + (String.format("text%1d", 40)) + " " + "data2");
+        c++:
+            std::cout << "data1" << " " << std::format("text{:1d}", 40) << " " << "data2" << std::endl;
+        c:
+            printf("%s text%1d %s\n", "data1", 40, "data2");
+
+
+    case: EndString
+        main python:
+            print("data1", "data2", end = "*")
+        java:
+            System.out.print("" + "data1" + " " + "data2" + "*");
+        c++:
+            std::cout << "data1" << " " << "data2" << "*";
+        c:
+            printf("%s %s*", "data1", "data2");
+
+
+    case: EndInt
+        main python:
+            print("data1", "data2", end = 1)
+        java:
+            System.out.print("" + "data1" + " " + "data2" + 1);
+        c++:
+            std::cout << "data1" << " " << "data2" << 1;
+        c:
+            printf("%s %s%d", "data1", "data2", 1);
+
+
+    case: EndVariable
+        main python:
+            ender = 1
+            print("data1", "data2", end = ender)
+        java:
+            int ender = 1;
+            System.out.print("" + "data1" + " " + "data2" + ender);
+        c++:
+            int ender = 1;
+            std::cout << "data1" << " " << "data2" << ender;
+        c:
+            int ender = 1;
+            printf("%s %s%d", "data1", "data2", ender);
+
+
+    case: EndEmpty
+        main python:
+            print("data1", "data2", end = "")
+        java:
+            System.out.print("" + "data1" + " " + "data2");
+        c++:
+            std::cout << "data1" << " " << "data2";
+        c:
+            printf("%s %s", "data1", "data2");
+
+
+    case: SepString
+        main python:
+            print("data1", "data2", sep = "*")
+        java:
+            System.out.println("" + "data1" + "*" + "data2");
+        c++:
+            std::cout << "data1" << "*" << "data2" << std::endl;
+        c:
+            printf("%s*%s\n", "data1", "data2");
+
+
+    case: SepInt
+        main python:
+            print("data1", "data2", sep = 1)
+        java:
+            System.out.println("" + "data1" + 1 + "data2");
+        c++:
+            std::cout << "data1" << 1 << "data2" << std::endl;
+        c:
+            printf("%s%d%s\n", "data1", 1, "data2");
+
+
+    case: SepVariable
+        main python:
+            separator = 1
+            print("data1", "data2", sep = separator)
+        java:
+            int separator = 1;
+            System.out.println("" + "data1" + separator + "data2");
+        c++:
+            int separator = 1;
+            std::cout << "data1" << separator << "data2" << std::endl;
+        c:
+            int separator = 1;
+            printf("%s%d%s\n", "data1", separator, "data2");
+
+
+    case: SepEmpty
+        main python:
+            print("data1", "data2", sep = "")
+        java:
+            System.out.println("" + "data1" + "data2");
+        c++:
+            std::cout << "data1" << "data2" << std::endl;
+        c:
+            printf("%s%s\n", "data1", "data2");
+
+
+    case: SepMany
+        main python:
+            print("data1", "data2", "data3", sep = "*")
+        java:
+            System.out.println("" + "data1" + "*" + "data2" + "*" + "data3");
+        c++:
+            std::cout << "data1" << "*" << "data2" << "*" << "data3" << std::endl;
+        c:
+            printf("%s*%s*%s\n", "data1", "data2", "data3");
+
+
+    case: SepEnd
+        main python:
+            print("data1", "data2", sep = "*", end = "?")
+        java:
+            System.out.print("" + "data1" + "*" + "data2" + "?");
+        c++:
+            std::cout << "data1" << "*" << "data2" << "?";
+        c:
+            printf("%s*%s?", "data1", "data2");
+
+
+    case: PrintFormat
+        main python:
+            print("text {}".format("data"))
+        java:
+            System.out.println(String.format("text %s", "data"));
+        c++:
+            std::cout << std::format("text {}", "data") << std::endl;
+        c:
+            printf("text %s\n", "data");
+
+
+    case: PrintFormatted
+        main python:
+            print("text %s" % "data")
+        java:
+            System.out.println(String.format("text %s", "data"));
+        c++:
+            std::cout << std::format("text {:s}", "data") << std::endl;
+        c:
+            printf("text %s\n", "data");
+
+
+    case: PrintFormattedFew
+        main python:
+            print("text %s %d" % ("data", 1))
+        java:
+            System.out.println(String.format("text %s %d", "data", 1));
+        c++:
+            std::cout << std::format("text {:s} {:d}", "data", 1) << std::endl;
+        c:
+            printf("text %s %d\n", "data", 1);
+
+
+group: GeneralInputTest
+    case: Int
+        isolated python:
+            a: int
+            a = int(input())
+        java:
+            int a;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            a = scanner.nextInt();
+        c++:
+            int a;
+            std::cin >> a;
+        c:
+            int a;
+            scanf("%d", &a);
+
+
+    case: Float
+        isolated python:
+            a: float
+            a = float(input())
+        java:
+            float a;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            a = scanner.nextFloat();
+        c++:
+            float a;
+            std::cin >> a;
+        c:
+            float a;
+            scanf("%f", &a);
+
+
+    case: Char
+        isolated python:
+            a: object
+            a = input()[0]
+        isolated java:
+            char a;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            a = scanner.next().charAt(0);
+        c++:
+            char a;
+            std::cin >> a;
+        c:
+            char a;
+            scanf("%c", &a);
+
+
+    case: String
+        isolated python:
+            a: str
+            a = input()
+        java:
+            String a;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            a = scanner.next();
+        c++:
+            std::string a;
+            std::cin >> a;
+
+
+    case: Line
+        isolated python:
+            a: str
+            a = input()
+        java:
+            String a;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            a = scanner.nextLine();
+        c++:
+            std::string a;
+            std::getline(std::cin, a);
+
+
+    case: StringJavaToC
+        main java:
+            String a;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            a = scanner.next();
+        c:
+            char16_t * a;
+            scanf("%s", a);
+
+
+    case: StringCppToC
+        main c++:
+            std::string a;
+            std::cin >> a;
+        c:
+            char * a;
+            scanf("%s", a);
+
+
+    case: LineJavaToC
+        main java:
+            String a;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            a = scanner.nextLine();
+        c:
+            char16_t * a;
+            gets(a);
+
+
+    case: LineCppToC
+        main c++:
+            std::string a;
+            std::getline(std::cin, a);
+        c:
+            char * a;
+            gets(a);
+
+
+    case: FewValuesCin
+        python:
+            a: int
+            b: float
+            c: object
+            d: str
+            a = int(input())
+            b = float(input())
+            c = input()[0]
+            d = input()
+        java:
+            int a;
+            float b;
+            char c;
+            String d;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            a = scanner.nextInt();
+            b = scanner.nextFloat();
+            c = scanner.next().charAt(0);
+            d = scanner.next();
+        main c++:
+            int a;
+            float b;
+            char c;
+            std::string d;
+            std::cin >> a >> b >> c >> d;
+        c:
+            int a;
+            float b;
+            char c;
+            char * d;
+            scanf("%d%f%c%s", &a, &b, &c, d);
+
+
+group: GeneralOutputTest
+    case: Int
+        python:
+            print(1, end="")
+        java:
+            System.out.print(1);
+        c++:
+            std::cout << 1;
+        isolated c:
+            printf("%d", 1);
+
+
+    case: Float
+        python:
+            print(1.01, end="")
+        java:
+            System.out.print(1.01);
+        c++:
+            std::cout << 1.01;
+        isolated c:
+            printf("%f", 1.01);
+
+
+    case: String
+        python:
+            print("text", end="")
+        java:
+            System.out.print("text");
+        c++:
+            std::cout << "text";
+        isolated c:
+            printf("%s", "text");
+
+
+    case: Char
+        isolated python:
+            print("t", end="")
+        java:
+            System.out.print('t');
+        c++:
+            std::cout << 't';
+        isolated c:
+            printf("%c", 't');
+
+
+    case: Variable
+        python:
+            a: int = 1
+            print(a, end="")
+        java:
+            int a = 1;
+            System.out.print(a);
+        c++:
+            int a = 1;
+            std::cout << a;
+        isolated c:
+            int a = 1;
+            printf("%d", a);
+
+
+    case: FewValuesCout
+        python:
+            print(1, 1.01, "text", "t", sep="", end="")
+        java:
+            System.out.print("" + 1 + 1.01 + "text" + 't');
+        main c++:
+            std::cout << 1 << 1.01 << "text" << 't';
+        c:
+            printf("%d%f%s%c", 1, 1.01, "text", 't');
+
+
+    case: NewLine
+        python:
+            print(1)
+        java:
+            System.out.println(1);
+        c++:
+            std::cout << 1 << std::endl;
+        isolated c:
+            printf("%d\n", 1);
+
+
+group: ScanfTest
+    case: SingleSimpleInt
+        python:
+            a: int
+            a = int(input())
+        java:
+            int a;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            a = scanner.nextInt();
+        c++:
+            int a;
+            std::cin >> a;
+        main c:
+            #include <stdio.h>
+            int a;
+            scanf("%d", &a);
+
+
+    case: SingleWidthInt
+        python:
+            a: int
+            a = int(input()[:2])
+        java:
+            int a;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            a = Integer.parseInt(scanner.next().substring(0, 2));
+        c++:
+            int a;
+            std::string user_input;
+            std::getline(std::cin, user_input);
+            a = stoi(user_input.substr(0, 2));
+        main c:
+            int a;
+            scanf("%2d", &a);
+
+
+    case: SingleSuppressInt
+        python:
+            tmp = int(input())
+        java:
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            int tmp;
+            tmp = scanner.nextInt();
+        c++:
+            int tmp;
+            std::cin >> tmp;
+        main c:
+            scanf("%*d");
+
+
+    case: SingleSuppressWidthInt
+        python:
+            tmp = int(input()[:2])
+        java:
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            int tmp;
+            tmp = Integer.parseInt(scanner.next().substring(0, 2));
+        c++:
+            std::string user_input;
+            std::getline(std::cin, user_input);
+        main c:
+            scanf("%*2d");
+
+
+    case: SingleSimpleOctal
+        python:
+            a: int
+            a = int(input(), 8)
+        java:
+            int a;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            a = Integer.parseInt(scanner.next(), 8);
+        c++:
+            int a;
+            std::cin >> std::oct >> a;
+        main c:
+            int a;
+            scanf("%o", &a);
+
+
+    case: SingleWidthOctal
+        python:
+            a: int
+            a = int(input()[:2], 8)
+        java:
+            int a;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            a = Integer.parseInt(scanner.next().substring(0, 2), 8);
+        c++:
+            int a;
+            std::string user_input;
+            std::getline(std::cin, user_input);
+            a = stoi(user_input.substr(0, 2), nullptr, 8);
+        main c:
+            int a;
+            scanf("%2o", &a);
+
+
+    case: SingleSuppressOctal
+        python:
+            tmp = int(input(), 8)
+        java:
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            int tmp;
+            tmp = Integer.parseInt(scanner.next(), 8);
+        c++:
+            int tmp;
+            std::cin >> std::oct >> tmp;
+        main c:
+            scanf("%*o");
+
+
+    case: SingleSuppressWidthOctal
+        python:
+            tmp = int(input()[:2], 8)
+        java:
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            int tmp;
+            tmp = Integer.parseInt(scanner.next().substring(0, 2), 8);
+        c++:
+            std::string user_input;
+            std::getline(std::cin, user_input);
+        main c:
+            scanf("%*2o");
+
+
+    case: SingleSimpleHex
+        python:
+            a: int
+            a = int(input(), 16)
+        java:
+            int a;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            a = Integer.parseInt(scanner.next(), 16);
+        c++:
+            int a;
+            std::cin >> std::hex >> a;
+        main c:
+            int a;
+            scanf("%x", &a);
+
+
+    case: SingleWidthHex
+        python:
+            tmp = int(input(), 16)
+        java:
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            int tmp;
+            tmp = Integer.parseInt(scanner.next(), 16);
+        c++:
+            int tmp;
+            std::cin >> std::hex >> tmp;
+        main c:
+            scanf("%*x");
+
+
+    case: SingleSuppressHex
+        python:
+            tmp = int(input(), 16)
+        java:
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            int tmp;
+            tmp = Integer.parseInt(scanner.next(), 16);
+        c++:
+            int tmp;
+            std::cin >> std::hex >> tmp;
+        main c:
+            scanf("%*x");
+
+
+    case: SingleSuppressWidthHex
+        python:
+            tmp = int(input()[:2], 16)
+        java:
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            int tmp;
+            tmp = Integer.parseInt(scanner.next().substring(0, 2), 16);
+        c++:
+            std::string user_input;
+            std::getline(std::cin, user_input);
+        main c:
+            scanf("%*2x");
+
+
+    case: SingleSimpleFloat
+        python:
+            a: float
+            a = float(input())
+        java:
+            float a;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            a = scanner.nextFloat();
+        c++:
+            float a;
+            std::cin >> a;
+        main c:
+            float a;
+            scanf("%f", &a);
+
+
+    case: SingleWidthFloat
+        python:
+            a: float
+            a = float(input()[:2])
+        java:
+            float a;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            a = Float.parseFloat(scanner.next().substring(0, 2));
+        c++:
+            float a;
+            std::string user_input;
+            std::getline(std::cin, user_input);
+            a = stof(user_input.substr(0, 2));
+        main c:
+            float a;
+            scanf("%2f", &a);
+
+
+    case: SingleSuppressFloat
+        python:
+            tmp = float(input())
+        java:
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            float tmp;
+            tmp = scanner.nextFloat();
+        c++:
+            float tmp;
+            std::cin >> tmp;
+        main c:
+            scanf("%*f");
+
+
+    case: SingleSuppressWidthFloat
+        python:
+            tmp = float(input()[:2])
+        java:
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            float tmp;
+            tmp = Float.parseFloat(scanner.next().substring(0, 2));
+        c++:
+            std::string user_input;
+            std::getline(std::cin, user_input);
+        main c:
+            scanf("%*2f");
+
+
+    case: SingleSimpleChar
+        python:
+            a: object
+            a = input()[0]
+        java:
+            char a;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            a = scanner.next().charAt(0);
+        c++:
+            char a;
+            std::cin >> a;
+        main c:
+            char a;
+            scanf("%c", &a);
+
+
+    case: SingleSuppressChar
+        python:
+            tmp = input()[0]
+        java:
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            char tmp;
+            tmp = scanner.next().charAt(0);
+        c++:
+            char tmp;
+            std::cin >> tmp;
+        main c:
+            scanf("%*c");
+
+
+    case: SingleSimpleString
+        python:
+            a: str = ""
+            a = input()
+        java:
+            String a = "";
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            a = scanner.next();
+        c++:
+            char * a = "";
+            std::cin >> a;
+        main c:
+            char * a = "";
+            scanf("%s", a);
+
+
+    case: SingleWidthString
+        python:
+            a: str = ""
+            a = input()[:2]
+        java:
+            String a = "";
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            a = scanner.next().substring(0, 2);
+        c++:
+            char * a = "";
+            std::string user_input;
+            std::getline(std::cin, user_input);
+            a = user_input.substr(0, 2);
+        main c:
+            char * a = "";
+            scanf("%2s", a);
+
+
+    case: SingleSuppressString
+        python:
+            tmp = input()
+        java:
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String tmp;
+            tmp = scanner.next();
+        c++:
+            std::string tmp;
+            std::cin >> tmp;
+        main c:
+            scanf("%*s");
+
+
+    case: SingleSuppressWidthString
+        python:
+            tmp = input()[:2]
+        java:
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String tmp;
+            tmp = scanner.next().substring(0, 2);
+        c++:
+            std::string user_input;
+            std::getline(std::cin, user_input);
+        main c:
+            scanf("%*2s");
+
+
+    case: SingleSimpleScan
+        python:
+            x: str = ""
+            user_input = input()
+            i = 0
+            tmp_input = ""
+            data_type = "abcd"
+            while i < len(user_input) and user_input[i] in data_type:
+                tmp_input += user_input[i]
+                i += 1
+            x = tmp_input
+        java:
+            String x = "";
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            String tmpInput;
+            int i;
+            String dataType;
+            userInput = scanner.nextLine();
+            i = 0;
+            tmpInput = "";
+            dataType = "abcd";
+            while (i < userInput.length() && dataType.indexOf(userInput.charAt(i)) != -1) {
+                tmpInput += userInput.charAt(i++);
+            }
+            x = tmpInput;
+        c++:
+            char * x = "";
+            std::string user_input;
+            std::string tmp_input;
+            int i;
+            std::string data_type;
+            std::getline(std::cin, user_input);
+            i = 0;
+            tmp_input = "";
+            data_type = "abcd";
+            while (i < user_input.length() && data_type.find(user_input[i]) != std::string::npos) {
+                tmp_input += user_input[i++];
+            }
+            x = tmp_input;
+        main c:
+            char * x = "";
+            scanf("%[abcd]", x);
+
+
+    case: SingleNegatedScan
+        python:
+            x: str = ""
+            user_input = input()
+            i = 0
+            tmp_input = ""
+            data_type = "abcd"
+            while i < len(user_input) and user_input[i] not in data_type:
+                tmp_input += user_input[i]
+                i += 1
+            x = tmp_input
+        java:
+            String x = "";
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            String tmpInput;
+            int i;
+            String dataType;
+            userInput = scanner.nextLine();
+            i = 0;
+            tmpInput = "";
+            dataType = "abcd";
+            while (i < userInput.length() && dataType.indexOf(userInput.charAt(i)) == -1) {
+                tmpInput += userInput.charAt(i++);
+            }
+            x = tmpInput;
+        c++:
+            char * x = "";
+            std::string user_input;
+            std::string tmp_input;
+            int i;
+            std::string data_type;
+            std::getline(std::cin, user_input);
+            i = 0;
+            tmp_input = "";
+            data_type = "abcd";
+            while (i < user_input.length() && data_type.find(user_input[i]) == std::string::npos) {
+                tmp_input += user_input[i++];
+            }
+            x = tmp_input;
+        main c:
+            char * x = "";
+            scanf("%[^abcd]", x);
+
+
+    case: SingleWidthScan
+        python:
+            x: str = ""
+            user_input = input()
+            i = 0
+            tmp_input = ""
+            data_type = "abcd"
+            while i < len(user_input) and user_input[i] in data_type:
+                tmp_input += user_input[i]
+                i += 1
+            x = tmp_input[0: 2]
+        java:
+            String x = "";
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            String tmpInput;
+            int i;
+            String dataType;
+            userInput = scanner.nextLine();
+            i = 0;
+            tmpInput = "";
+            dataType = "abcd";
+            while (i < userInput.length() && dataType.indexOf(userInput.charAt(i)) != -1) {
+                tmpInput += userInput.charAt(i++);
+            }
+            x = tmpInput.substring(0, 2);
+        c++:
+            char * x = "";
+            std::string user_input;
+            std::string tmp_input;
+            int i;
+            std::string data_type;
+            std::getline(std::cin, user_input);
+            i = 0;
+            tmp_input = "";
+            data_type = "abcd";
+            while (i < user_input.length() && data_type.find(user_input[i]) != std::string::npos) {
+                tmp_input += user_input[i++];
+            }
+            x = tmp_input.substr(0, 2);
+        main c:
+            char * x = "";
+            scanf("%2[abcd]", x);
+
+
+    case: SingleSuppressedScan
+        python:
+            tmp = input()
+        java:
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String tmp;
+            tmp = scanner.next();
+        c++:
+            std::string user_input;
+            std::getline(std::cin, user_input);
+        main c:
+            scanf("%*[abcd]");
+
+
+    case: SingleSuppressedWidthScan
+        python:
+            tmp = input()[:2]
+        java:
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String tmp;
+            tmp = scanner.next().substring(0, 2));
+        c++:
+            std::string user_input;
+            std::getline(std::cin, user_input);
+        main c:
+            scanf("%*2[abcd]");
+
+
+    case: SingleSkip
+        python:
+            user_input = input()
+        java:
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            userInput = scanner.nextLine();
+        c++:
+            std::string user_input;
+            std::getline(std::cin, user_input);
+        main c:
+            scanf("abcd");
+
+
+    case: MiddleSimpleInt
+        python:
+            a: int
+            b: object
+            user_input = input()
+            i = 0
+            tmp_input = ""
+            data_type = "0123456789"
+            if user_input[i] == '-' or user_input[i] == '+':
+                tmp_input += user_input[i]
+                i += 1
+            while i < len(user_input) and user_input[i] in data_type:
+                tmp_input += user_input[i]
+                i += 1
+            a = int(tmp_input)
+            b = user_input[i]
+        java:
+            int a;
+            char b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            String tmpInput;
+            int i;
+            String dataType;
+            userInput = scanner.nextLine();
+            i = 0;
+            tmpInput = "";
+            dataType = "0123456789";
+            if (userInput.charAt(i) == '-' || userInput.charAt(i) == '+') {
+                tmpInput += userInput.charAt(i++);
+            }
+            while (i < userInput.length() && dataType.indexOf(userInput.charAt(i)) != -1) {
+                tmpInput += userInput.charAt(i++);
+            }
+            a = Integer.parseInt(tmpInput);
+            b = userInput.charAt(i);
+        c++:
+            int a;
+            char b;
+            std::cin >> a >> b;
+        main c:
+            int a;
+            char b;
+            scanf("%d%c", &a, &b);
+
+
+    case: MiddleWidthInt
+        python:
+            a: int
+            b: object
+            user_input = input()
+            i = 0
+            a = int(user_input[i:i + 2])
+            i += 2
+            b = user_input[i]
+        java:
+            int a;
+            char b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            a = Integer.parseInt(userInput.substring(i, i + 2));
+            i += 2;
+            b = userInput.charAt(i);
+        c++:
+            int a;
+            char b;
+            std::string user_input;
+            int i;
+            std::getline(std::cin, user_input);
+            i = 0;
+            a = stoi(user_input.substr(i, 2));
+            i += 2;
+            b = user_input[i];
+        main c:
+            int a;
+            char b;
+            scanf("%2d%c", &a, &b);
+
+
+    case: MiddleSuppressInt
+        python:
+            b: object
+            user_input = input()
+            i = 0
+            data_type = "0123456789"
+            if user_input[i] == '-' or user_input[i] == '+':
+                i += 1
+            while i < len(user_input) and user_input[i] in data_type:
+                i += 1
+            b = user_input[i]
+        java:
+            char b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            String dataType;
+            userInput = scanner.nextLine();
+            i = 0;
+            dataType = "0123456789";
+            if (userInput.charAt(i) == '-' || userInput.charAt(i) == '+') {
+                i++;
+            }
+            while (i < userInput.length() && dataType.indexOf(userInput.charAt(i)) != -1) {
+                i++;
+            }
+            b = userInput.charAt(i);
+        c++:
+            char b;
+            int tmp;
+            std::cin >> tmp >> b;
+        main c:
+            char b;
+            scanf("%*d%c", &b);
+
+
+    case: MiddleSuppressWidthInt
+        python:
+            b: object
+            user_input = input()
+            i = 0
+            i += 2
+            b = user_input[i]
+        java:
+            char b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            i += 2;
+            b = userInput.charAt(i);
+        c++:
+            char b;
+            std::string user_input;
+            int i;
+            std::getline(std::cin, user_input);
+            i = 0;
+            i += 2;
+            b = user_input[i];
+        main c:
+            char b;
+            scanf("%*2d%c", &b);
+
+
+    case: MiddleSimpleOctal
+        python:
+            a: int
+            b: object
+            user_input = input()
+            i = 0
+            tmp_input = ""
+            data_type = "01234567"
+            if user_input[i] == '-' or user_input[i] == '+':
+                tmp_input += user_input[i]
+                i += 1
+            while i < len(user_input) and user_input[i] in data_type:
+                tmp_input += user_input[i]
+                i += 1
+            a = int(tmp_input, 8)
+            b = user_input[i]
+        java:
+            int a;
+            char b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            String tmpInput;
+            int i;
+            String dataType;
+            userInput = scanner.nextLine();
+            i = 0;
+            tmpInput = "";
+            dataType = "01234567";
+            if (userInput.charAt(i) == '-' || userInput.charAt(i) == '+') {
+                tmpInput += userInput.charAt(i++);
+            }
+            while (i < userInput.length() && dataType.indexOf(userInput.charAt(i)) != -1) {
+                tmpInput += userInput.charAt(i++);
+            }
+            a = Integer.parseInt(tmpInput, 8);
+            b = userInput.charAt(i);
+        c++:
+            int a;
+            char b;
+            std::cin >> std::oct >> a >> std::dec >> b;
+        main c:
+            int a;
+            char b;
+            scanf("%o%c", &a, &b);
+
+
+    case: MiddleWidthOctal
+        python:
+            a: int
+            b: object
+            user_input = input()
+            i = 0
+            a = int(user_input[i:i + 2], 8)
+            i += 2
+            b = user_input[i]
+        java:
+            int a;
+            char b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            a = Integer.parseInt(userInput.substring(i, i + 2), 8);
+            i += 2;
+            b = userInput.charAt(i);
+        c++:
+            int a;
+            char b;
+            std::string user_input;
+            int i;
+            std::getline(std::cin, user_input);
+            i = 0;
+            a = stoi(user_input.substr(i, 2), nullptr, 8);
+            i += 2;
+            b = user_input[i];
+        main c:
+            int a;
+            char b;
+            scanf("%2o%c", &a, &b);
+
+
+    case: MiddleSuppressOctal
+        python:
+            b: object
+            user_input = input()
+            i = 0
+            data_type = "01234567"
+            if user_input[i] == '-' or user_input[i] == '+':
+                i += 1
+            while i < len(user_input) and user_input[i] in data_type:
+                i += 1
+            b = user_input[i]
+        java:
+            char b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            String dataType;
+            userInput = scanner.nextLine();
+            i = 0;
+            dataType = "01234567";
+            if (userInput.charAt(i) == '-' || userInput.charAt(i) == '+') {
+                i++;
+            }
+            while (i < userInput.length() && dataType.indexOf(userInput.charAt(i)) != -1) {
+                i++;
+            }
+            b = userInput.charAt(i);
+        c++:
+            char b;
+            int tmp;
+            std::cin >> std::oct >> tmp >> std::dec >> b;
+        main c:
+            char b;
+            scanf("%*o%c", &b);
+
+
+    case: MiddleSuppressWidthOctal
+        python:
+            b: object
+            user_input = input()
+            i = 0
+            i += 2
+            b = user_input[i]
+        java:
+            char b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            i += 2;
+            b = userInput.charAt(i);
+        c++:
+            char b;
+            std::string user_input;
+            int i;
+            std::getline(std::cin, user_input);
+            i = 0;
+            i += 2;
+            b = user_input[i];
+        main c:
+            char b;
+            scanf("%*2o%c", &b);
+
+
+    case: MiddleSimpleHex
+        python:
+            a: int
+            b: object
+            user_input = input()
+            i = 0
+            tmp_input = ""
+            data_type = "0123456789abcdefABCDEF"
+            if user_input[i] == '-' or user_input[i] == '+':
+                tmp_input += user_input[i]
+                i += 1
+            while i < len(user_input) and user_input[i] in data_type:
+                tmp_input += user_input[i]
+                i += 1
+            a = int(tmp_input, 16)
+            b = user_input[i]
+        java:
+            int a;
+            char b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            String tmpInput;
+            int i;
+            String dataType;
+            userInput = scanner.nextLine();
+            i = 0;
+            tmpInput = "";
+            dataType = "0123456789abcdefABCDEF";
+            if (userInput.charAt(i) == '-' || userInput.charAt(i) == '+') {
+                tmpInput += userInput.charAt(i++);
+            }
+            while (i < userInput.length() && dataType.indexOf(userInput.charAt(i)) != -1) {
+                tmpInput += userInput.charAt(i++);
+            }
+            a = Integer.parseInt(tmpInput, 16);
+            b = userInput.charAt(i);
+        c++:
+            int a;
+            char b;
+            std::cin >> std::hex >> a >> std::dec >> b;
+        main c:
+            int a;
+            char b;
+            scanf("%x%c", &a, &b);
+
+
+    case: MiddleWidthHex
+        python:
+            a: int
+            b: object
+            user_input = input()
+            i = 0
+            a = int(user_input[i:i + 2], 16)
+            i += 2
+            b = user_input[i]
+        java:
+            int a;
+            char b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            a = Integer.parseInt(userInput.substring(i, i + 2), 16);
+            i += 2;
+            b = userInput.charAt(i);
+        c++:
+            int a;
+            char b;
+            std::string user_input;
+            int i;
+            std::getline(std::cin, user_input);
+            i = 0;
+            a = stoi(user_input.substr(i, 2), nullptr, 16);
+            i += 2;
+            b = user_input[i];
+        main c:
+            int a;
+            char b;
+            scanf("%2x%c", &a, &b);
+
+
+    case: MiddleSuppressHex
+        python:
+            b: object
+            user_input = input()
+            i = 0
+            data_type = "0123456789abcdefABCDEF"
+            if user_input[i] == '-' or user_input[i] == '+':
+                i += 1
+            while i < len(user_input) and user_input[i] in data_type:
+                i += 1
+            b = user_input[i]
+        java:
+            char b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            String dataType;
+            userInput = scanner.nextLine();
+            i = 0;
+            dataType = "0123456789abcdefABCDEF";
+            if (userInput.charAt(i) == '-' || userInput.charAt(i) == '+') {
+                i++;
+            }
+            while (i < userInput.length() && dataType.indexOf(userInput.charAt(i)) != -1) {
+                i++;
+            }
+            b = userInput.charAt(i);
+        c++:
+            char b;
+            int tmp;
+            std::cin >> std::hex >> tmp >> std::dec >> b;
+        main c:
+            char b;
+            scanf("%*x%c", &b);
+
+
+    case: MiddleSuppressWidthHex
+        python:
+            b: object
+            user_input = input()
+            i = 0
+            i += 2
+            b = user_input[i]
+        java:
+            char b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            i += 2;
+            b = userInput.charAt(i);
+        c++:
+            char b;
+            std::string user_input;
+            int i;
+            std::getline(std::cin, user_input);
+            i = 0;
+            i += 2;
+            b = user_input[i];
+        main c:
+            char b;
+            scanf("%*2x%c", &b);
+
+
+    case: MiddleSimpleFloat
+        python:
+            a: float
+            b: object
+            user_input = input()
+            i = 0
+            tmp_input = ""
+            data_type = "0123456789.eE+-"
+            if user_input[i] == 'e' or user_input[i] == 'E':
+                data_type = ""
+            if user_input[i] == '-' or user_input[i] == '+':
+                tmp_input += user_input[i]
+                i += 1
+            while i < len(user_input) and user_input[i] in data_type:
+                tmp_input += user_input[i]
+                if user_input[i] == '.':
+                    data_type = data_type.replace(".", "")
+                elif user_input[i] == 'e' or user_input[i] == 'E':
+                    data_type = data_type.replace(".", "")
+                    data_type = data_type.replace("e", "")
+                    data_type = data_type.replace("E", "")
+                elif user_input[i] == '+' or user_input[i] == '-':
+                    if user_input[i - 1] == 'e' or user_input[i - 1] == 'E':
+                        data_type = data_type.replace("+", "")
+                        data_type = data_type.replace("-", "")
+                    else:
+                        tmp_input = tmp_input[:i]
+                        i -= 1
+                        data_type = ""
+                i += 1
+            a = float(tmp_input)
+            b = user_input[i]
+        java:
+            float a;
+            char b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            String tmpInput;
+            int i;
+            String dataType;
+            userInput = scanner.nextLine();
+            i = 0;
+            tmpInput = "";
+            dataType = "0123456789.eE+-";
+            if (userInput.charAt(i) == 'e' || userInput.charAt(i) == 'E') {
+                dataType = "";
+            }
+            if (userInput.charAt(i) == '-' || userInput.charAt(i) == '+') {
+                tmpInput += userInput.charAt(i++);
+            }
+            while (i < userInput.length() && dataType.indexOf(userInput.charAt(i)) != -1) {
+                tmpInput += userInput.charAt(i);
+                if (userInput.charAt(i) == '.') {
+                    dataType.replace(".", "");
+                } else if (userInput.charAt(i) == 'e' || userInput.charAt(i) == 'E') {
+                    dataType.replace(".", "");
+                    dataType.replace("e", "");
+                    dataType.replace("E", "");
+                } else if (userInput.charAt(i) == '+' || userInput.charAt(i) == '-') {
+                    if (userInput.charAt(i - 1) == 'e' || userInput.charAt(i - 1) == 'E') {
+                        dataType.replace("+", "");
+                        dataType.replace("-", "");
+                    } else {
+                        tmpInput = tmpInput.substring(0, i--);
+                        dataType = "";
+                    }
+                }
+                i++;
+            }
+            a = Float.parseFloat(tmpInput);
+            b = userInput.charAt(i);
+        c++:
+            float a;
+            char b;
+            std::cin >> a >> b;
+        main c:
+            float a;
+            char b;
+            scanf("%f%c", &a, &b);
+
+
+    case: MiddleWidthFloat
+        python:
+            a: float
+            b: object
+            user_input = input()
+            i = 0
+            a = float(user_input[i:i + 2])
+            i += 2
+            b = user_input[i]
+        java:
+            float a;
+            char b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            a = Float.parseFloat(userInput.substring(i, i + 2));
+            i += 2;
+            b = userInput.charAt(i);
+        c++:
+            float a;
+            char b;
+            std::string user_input;
+            int i;
+            std::getline(std::cin, user_input);
+            i = 0;
+            a = stof(user_input.substr(i, 2));
+            i += 2;
+            b = user_input[i];
+        main c:
+            float a;
+            char b;
+            scanf("%2f%c", &a, &b);
+
+
+    case: MiddleSuppressFloat
+        python:
+            b: object
+            user_input = input()
+            i = 0
+            data_type = "0123456789.eE+-"
+            if user_input[i] == 'e' or user_input[i] == 'E':
+                data_type = ""
+            if user_input[i] == '-' or user_input[i] == '+':
+                i += 1
+            while i < len(user_input) and user_input[i] in data_type:
+                if user_input[i] == '.':
+                    data_type = data_type.replace(".", "")
+                elif user_input[i] == 'e' or user_input[i] == 'E':
+                    data_type = data_type.replace(".", "")
+                    data_type = data_type.replace("e", "")
+                    data_type = data_type.replace("E", "")
+                elif user_input[i] == '+' or user_input[i] == '-':
+                    if user_input[i - 1] == 'e' or user_input[i - 1] == 'E':
+                        data_type = data_type.replace("+", "")
+                        data_type = data_type.replace("-", "")
+                    else:
+                        i -= 1
+                        data_type = ""
+                i += 1
+            b = user_input[i]
+        java:
+            char b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            String dataType;
+            userInput = scanner.nextLine();
+            i = 0;
+            dataType = "0123456789.eE+-";
+            if (userInput.charAt(i) == 'e' || userInput.charAt(i) == 'E') {
+                dataType = "";
+            }
+            if (userInput.charAt(i) == '-' || userInput.charAt(i) == '+') {
+                i++;
+            }
+            while (i < userInput.length() && dataType.indexOf(userInput.charAt(i)) != -1) {
+                if (userInput.charAt(i) == '.') {
+                    dataType.replace(".", "");
+                } else if (userInput.charAt(i) == 'e' || userInput.charAt(i) == 'E') {
+                    dataType.replace(".", "");
+                    dataType.replace("e", "");
+                    dataType.replace("E", "");
+                } else if (userInput.charAt(i) == '+' || userInput.charAt(i) == '-') {
+                    if (userInput.charAt(i - 1) == 'e' || userInput.charAt(i - 1) == 'E') {
+                        dataType.replace("+", "");
+                        dataType.replace("-", "");
+                    } else {
+                        i--;
+                        dataType = "";
+                    }
+                }
+                i++;
+            }
+            b = userInput.charAt(i);
+        c++:
+            char b;
+            float tmp;
+            std::cin >> tmp >> b;
+        main c:
+            char b;
+            scanf("%*f%c", &b);
+
+
+    case: MiddleSuppressWidthFloat
+        python:
+            b: object
+            user_input = input()
+            i = 0
+            i += 2
+            b = user_input[i]
+        java:
+            char b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            i += 2;
+            b = userInput.charAt(i);
+        c++:
+            char b;
+            std::string user_input;
+            int i;
+            std::getline(std::cin, user_input);
+            i = 0;
+            i += 2;
+            b = user_input[i];
+        main c:
+            char b;
+            scanf("%*2f%c", &b);
+
+
+    case: MiddleSimpleChar
+        python:
+            a: object
+            b: object
+            user_input = input()
+            i = 0
+            a = user_input[i]
+            i += 1
+            b = user_input[i]
+        java:
+            char a;
+            char b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            a = userInput.charAt(i++);
+            b = userInput.charAt(i);
+        c++:
+            char a;
+            char b;
+            std::cin >> a >> b;
+        main c:
+            char a;
+            char b;
+            scanf("%c%c", &a, &b);
+
+
+    case: MiddleSuppressChar
+        python:
+            b: object
+            user_input = input()
+            i = 0
+            i += 1
+            b = user_input[i]
+        java:
+            char b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            i++;
+            b = userInput.charAt(i);
+        c++:
+            char b;
+            char tmp;
+            std::cin >> tmp >> b;
+        main c:
+            char b;
+            scanf("%*c%c", &b);
+
+
+    case: MiddleWidthString
+        python:
+            a: str = ""
+            b: object
+            user_input = input()
+            i = 0
+            a = user_input[i:i + 2]
+            i += 2
+            b = user_input[i]
+        java:
+            String a = "";
+            char b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            a = userInput.substring(i, i + 2);
+            i += 2;
+            b = userInput.charAt(i);
+        c++:
+            char * a = "";
+            char b;
+            std::string user_input;
+            int i;
+            std::getline(std::cin, user_input);
+            i = 0;
+            a = user_input.substr(i, 2);
+            i += 2;
+            b = user_input[i];
+        main c:
+            char * a = "";
+            char b;
+            scanf("%2s%c", a, &b);
+
+
+    case: MiddleSuppressWidthString
+        python:
+            b: object
+            user_input = input()
+            i = 0
+            i += 2
+            b = user_input[i]
+        java:
+            char b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            i += 2;
+            b = userInput.charAt(i);
+        c++:
+            char b;
+            std::string user_input;
+            int i;
+            std::getline(std::cin, user_input);
+            i = 0;
+            i += 2;
+            b = user_input[i];
+        main c:
+            char b;
+            scanf("%*2s%c", &b);
+
+
+    case: MiddleSimpleScan
+        python:
+            x: str = ""
+            y: object
+            user_input = input()
+            i = 0
+            tmp_input = ""
+            data_type = "abcd"
+            while i < len(user_input) and user_input[i] in data_type:
+                tmp_input += user_input[i]
+                i += 1
+            x = tmp_input
+            y = user_input[i]
+        java:
+            String x = "";
+            char y;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            String tmpInput;
+            int i;
+            String dataType;
+            userInput = scanner.nextLine();
+            i = 0;
+            tmpInput = "";
+            dataType = "abcd";
+            while (i < userInput.length() && dataType.indexOf(userInput.charAt(i)) != -1) {
+                tmpInput += userInput.charAt(i++);
+            }
+            x = tmpInput;
+            y = userInput.charAt(i);
+        c++:
+            char * x = "";
+            char y;
+            std::string user_input;
+            std::string tmp_input;
+            int i;
+            std::string data_type;
+            std::getline(std::cin, user_input);
+            i = 0;
+            tmp_input = "";
+            data_type = "abcd";
+            while (i < user_input.length() && data_type.find(user_input[i]) != std::string::npos) {
+                tmp_input += user_input[i++];
+            }
+            x = tmp_input;
+            y = user_input[i];
+        main c:
+            char * x = "";
+            char y;
+            scanf("%[abcd]%c", x, &y);
+
+
+    case: MiddleNegatedScan
+        python:
+            x: str = ""
+            y: object
+            user_input = input()
+            i = 0
+            tmp_input = ""
+            data_type = "abcd"
+            while i < len(user_input) and user_input[i] not in data_type:
+                tmp_input += user_input[i]
+                i += 1
+            x = tmp_input
+            y = user_input[i]
+        java:
+            String x = "";
+            char y;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            String tmpInput;
+            int i;
+            String dataType;
+            userInput = scanner.nextLine();
+            i = 0;
+            tmpInput = "";
+            dataType = "abcd";
+            while (i < userInput.length() && dataType.indexOf(userInput.charAt(i)) == -1) {
+                tmpInput += userInput.charAt(i++);
+            }
+            x = tmpInput;
+            y = userInput.charAt(i);
+        c++:
+            char * x = "";
+            char y;
+            std::string user_input;
+            std::string tmp_input;
+            int i;
+            std::string data_type;
+            std::getline(std::cin, user_input);
+            i = 0;
+            tmp_input = "";
+            data_type = "abcd";
+            while (i < user_input.length() && data_type.find(user_input[i]) == std::string::npos) {
+                tmp_input += user_input[i++];
+            }
+            x = tmp_input;
+            y = user_input[i];
+        main c:
+            char * x = "";
+            char y;
+            scanf("%[^abcd]%c", x, &y);
+
+
+    case: MiddleWidthScan
+        python:
+            x: str = ""
+            y: object
+            user_input = input()
+            i = 0
+            tmp_input = ""
+            data_type = "abcd"
+            while i < len(user_input) and user_input[i] in data_type:
+                tmp_input += user_input[i]
+                i += 1
+            i -= len(tmp_input)
+            x = tmp_input[0: 2]
+            i += min(2, len(tmp_input))
+            y = user_input[i]
+        java:
+            String x = "";
+            char y;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            String tmpInput;
+            int i;
+            String dataType;
+            userInput = scanner.nextLine();
+            i = 0;
+            tmpInput = "";
+            dataType = "abcd";
+            while (i < userInput.length() && dataType.indexOf(userInput.charAt(i)) != -1) {
+                tmpInput += userInput.charAt(i++);
+            }
+            i -= tmpInput.length();
+            x = tmpInput.substring(0, 2);
+            i += Math.min(2, tmpInput.length());
+            y = userInput.charAt(i);
+        c++:
+            char * x = "";
+            char y;
+            std::string user_input;
+            std::string tmp_input;
+            int i;
+            std::string data_type;
+            std::getline(std::cin, user_input);
+            i = 0;
+            tmp_input = "";
+            data_type = "abcd";
+            while (i < user_input.length() && data_type.find(user_input[i]) != std::string::npos) {
+                tmp_input += user_input[i++];
+            }
+            i -= tmp_input.length();
+            x = tmp_input.substr(0, 2);
+            i += std::min(2, tmp_input.length());
+            y = user_input[i];
+        main c:
+            char * x = "";
+            char y;
+            scanf("%2[abcd]%c", x, &y);
+
+
+    case: MiddleSuppressedScan
+        python:
+            y: object
+            user_input = input()
+            i = 0
+            data_type = "abcd"
+            while i < len(user_input) and user_input[i] in data_type:
+                i += 1
+            y = user_input[i]
+        java:
+            char y;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            String dataType;
+            userInput = scanner.nextLine();
+            i = 0;
+            dataType = "abcd";
+            while (i < userInput.length() && dataType.indexOf(userInput.charAt(i)) != -1) {
+                i++;
+            }
+            y = userInput.charAt(i);
+        c++:
+            char y;
+            std::string user_input;
+            int i;
+            std::string data_type;
+            std::getline(std::cin, user_input);
+            i = 0;
+            data_type = "abcd";
+            while (i < user_input.length() && data_type.find(user_input[i]) != std::string::npos) {
+                i++;
+            }
+            y = user_input[i];
+        main c:
+            char y;
+            scanf("%*[abcd]%c", &y);
+
+
+    case: MiddleSuppressedWidthScan
+        python:
+            y: object
+            user_input = input()
+            i = 0
+            data_type = "abcd"
+            while i < len(user_input) and user_input[i] in data_type:
+                i += 1
+            i -= len(tmp_input)
+            i += min(2, len(tmp_input))
+            y = user_input[i]
+        java:
+            char y;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            String dataType;
+            userInput = scanner.nextLine();
+            i = 0;
+            dataType = "abcd";
+            while (i < userInput.length() && dataType.indexOf(userInput.charAt(i)) != -1) {
+                i++;
+            }
+            i -= tmpInput.length();
+            i += Math.min(2, tmpInput.length());
+            y = userInput.charAt(i);
+        c++:
+            char y;
+            std::string user_input;
+            int i;
+            std::string data_type;
+            std::getline(std::cin, user_input);
+            i = 0;
+            data_type = "abcd";
+            while (i < user_input.length() && data_type.find(user_input[i]) != std::string::npos) {
+                i++;
+            }
+            i -= tmp_input.length();
+            i += std::min(2, tmp_input.length());
+            y = user_input[i];
+        main c:
+            char y;
+            scanf("%*2[abcd]%c", &y);
+
+
+    case: MiddleSkip
+        python:
+            a: object
+            b: object
+            user_input = input()
+            i = 0
+            a = user_input[i]
+            i += 1
+            if user_input[i:i + len("abcd")] == "abcd":
+                i += len("abcd")
+            else:
+                return
+            b = user_input[i]
+        java:
+            char a;
+            char b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            a = userInput.charAt(i++);
+            if (userInput.substring(i, i + "abcd".length()) == "abcd") {
+                i += "abcd".length();
+            } else {
+                return;
+            }
+            b = userInput.charAt(i);
+        c++:
+            char a;
+            char b;
+            std::string user_input;
+            int i;
+            std::getline(std::cin, user_input);
+            i = 0;
+            a = user_input[i++];
+            if (user_input.substr(i, "abcd".length()) == "abcd") {
+                i += "abcd".length();
+            } else {
+                return 0;
+            }
+            b = user_input[i];
+        main c:
+            char a;
+            char b;
+            scanf("%cabcd%c", &a, &b);
+
+
+    case: LastSimpleInt
+        python:
+            a: object
+            b: int
+            user_input = input()
+            i = 0
+            a = user_input[i]
+            i += 1
+            b = int(user_input[i:])
+        java:
+            char a;
+            int b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            a = userInput.charAt(i++);
+            b = Integer.parseInt(userInput.substring(i));
+        c++:
+            char a;
+            int b;
+            std::cin >> a >> b;
+        main c:
+            char a;
+            int b;
+            scanf("%c%d", &a, &b);
+
+
+    case: LastWidthInt
+        python:
+            a: object
+            b: int
+            user_input = input()
+            i = 0
+            a = user_input[i]
+            i += 1
+            b = int(user_input[i:i + 2])
+        java:
+            char a;
+            int b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            a = userInput.charAt(i++);
+            b = Integer.parseInt(userInput.substring(i, i + 2));
+        c++:
+            char a;
+            int b;
+            std::string user_input;
+            int i;
+            std::getline(std::cin, user_input);
+            i = 0;
+            a = user_input[i++];
+            b = stoi(user_input.substr(i, 2));
+        main c:
+            char a;
+            int b;
+            scanf("%c%2d", &a, &b);
+
+
+    case: LastSuppressInt
+        python:
+            a: object
+            user_input = input()
+            i = 0
+            a = user_input[i]
+            i += 1
+        java:
+            char a;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            a = userInput.charAt(i++);
+        c++:
+            char a;
+            int tmp;
+            std::cin >> a >> tmp;
+        main c:
+            char a;
+            scanf("%c%*d", &a);
+
+
+    case: LastSimpleOctal
+        python:
+            a: object
+            b: int
+            user_input = input()
+            i = 0
+            a = user_input[i]
+            i += 1
+            b = int(user_input[i:], 8)
+        java:
+            char a;
+            int b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            a = userInput.charAt(i++);
+            b = Integer.parseInt(userInput.substring(i), 8);
+        c++:
+            char a;
+            int b;
+            std::cin >> a >> std::oct >> b;
+        main c:
+            char a;
+            int b;
+            scanf("%c%o", &a, &b);
+
+
+    case: LastWidthOctal
+        python:
+            a: object
+            b: int
+            user_input = input()
+            i = 0
+            a = user_input[i]
+            i += 1
+            b = int(user_input[i:i + 2], 8)
+        java:
+            char a;
+            int b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            a = userInput.charAt(i++);
+            b = Integer.parseInt(userInput.substring(i, i + 2), 8);
+        c++:
+            char a;
+            int b;
+            std::string user_input;
+            int i;
+            std::getline(std::cin, user_input);
+            i = 0;
+            a = user_input[i++];
+            b = stoi(user_input.substr(i, 2), nullptr, 8);
+        main c:
+            char a;
+            int b;
+            scanf("%c%2o", &a, &b);
+
+
+    case: LastSuppressOctal
+        python:
+            a: object
+            user_input = input()
+            i = 0
+            a = user_input[i]
+            i += 1
+        java:
+            char a;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            a = userInput.charAt(i++);
+        c++:
+            char a;
+            int tmp;
+            std::cin >> a >> std::oct >> tmp;
+        main c:
+            char a;
+            scanf("%c%*o", &a);
+
+
+    case: LastSimpleHex
+        python:
+            a: object
+            b: int
+            user_input = input()
+            i = 0
+            a = user_input[i]
+            i += 1
+            b = int(user_input[i:], 16)
+        java:
+            char a;
+            int b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            a = userInput.charAt(i++);
+            b = Integer.parseInt(userInput.substring(i), 16);
+        c++:
+            char a;
+            int b;
+            std::cin >> a >> std::hex >> b;
+        main c:
+            char a;
+            int b;
+            scanf("%c%x", &a, &b);
+
+
+    case: LastWidthHex
+        python:
+            a: object
+            b: int
+            user_input = input()
+            i = 0
+            a = user_input[i]
+            i += 1
+            b = int(user_input[i:i + 2], 16)
+        java:
+            char a;
+            int b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            a = userInput.charAt(i++);
+            b = Integer.parseInt(userInput.substring(i, i + 2), 16);
+        c++:
+            char a;
+            int b;
+            std::string user_input;
+            int i;
+            std::getline(std::cin, user_input);
+            i = 0;
+            a = user_input[i++];
+            b = stoi(user_input.substr(i, 2), nullptr, 16);
+        main c:
+            char a;
+            int b;
+            scanf("%c%2x", &a, &b);
+
+
+    case: LastSuppressHex
+        python:
+            a: object
+            user_input = input()
+            i = 0
+            a = user_input[i]
+            i += 1
+        java:
+            char a;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            a = userInput.charAt(i++);
+        c++:
+            char a;
+            int tmp;
+            std::cin >> a >> std::hex >> tmp;
+        main c:
+            char a;
+            scanf("%c%*x", &a);
+
+
+    case: LastSimpleFloat
+        python:
+            a: object
+            b: float
+            user_input = input()
+            i = 0
+            a = user_input[i]
+            i += 1
+            b = float(user_input[i:])
+        java:
+            char a;
+            float b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            a = userInput.charAt(i++);
+            b = Float.parseFloat(userInput.substring(i));
+        c++:
+            char a;
+            float b;
+            std::cin >> a >> b;
+        main c:
+            char a;
+            float b;
+            scanf("%c%f", &a, &b);
+
+
+    case: LastWidthFloat
+        python:
+            a: object
+            b: float
+            user_input = input()
+            i = 0
+            a = user_input[i]
+            i += 1
+            b = float(user_input[i:i + 2])
+        java:
+            char a;
+            float b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            a = userInput.charAt(i++);
+            b = Float.parseFloat(userInput.substring(i, i + 2));
+        c++:
+            char a;
+            float b;
+            std::string user_input;
+            int i;
+            std::getline(std::cin, user_input);
+            i = 0;
+            a = user_input[i++];
+            b = stof(user_input.substr(i, 2));
+        main c:
+            char a;
+            float b;
+            scanf("%c%2f", &a, &b);
+
+
+    case: LastSuppressFloat
+        python:
+            a: object
+            user_input = input()
+            i = 0
+            a = user_input[i]
+            i += 1
+        java:
+            char a;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            a = userInput.charAt(i++);
+        c++:
+            char a;
+            float tmp;
+            std::cin >> a >> tmp;
+        main c:
+            char a;
+            scanf("%c%*f", &a);
+
+
+    case: LastSimpleChar
+        python:
+            a: object
+            b: object
+            user_input = input()
+            i = 0
+            a = user_input[i]
+            i += 1
+            b = user_input[i]
+        java:
+            char a;
+            char b;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            a = userInput.charAt(i++);
+            b = userInput.charAt(i);
+        c++:
+            char a;
+            char b;
+            std::cin >> a >> b;
+        main c:
+            char a;
+            char b;
+            scanf("%c%c", &a, &b);
+
+
+    case: LastSuppressChar
+        python:
+            a: object
+            user_input = input()
+            i = 0
+            a = user_input[i]
+            i += 1
+        java:
+            char a;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            a = userInput.charAt(i++);
+        c++:
+            char a;
+            char tmp;
+            std::cin >> a >> tmp;
+        main c:
+            char a;
+            scanf("%c%*c", &a);
+
+
+    case: LastSimpleString
+        python:
+            a: object
+            b: str = ""
+            user_input = input()
+            i = 0
+            a = user_input[i]
+            i += 1
+            b = user_input[i:]
+        java:
+            char a;
+            String b = "";
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            a = userInput.charAt(i++);
+            b = userInput.substring(i);
+        c++:
+            char a;
+            char * b = "";
+            std::cin >> a >> b;
+        main c:
+            char a;
+            char * b = "";
+            scanf("%c%s", &a, b);
+
+
+    case: LastWidthString
+        python:
+            a: object
+            b: str = ""
+            user_input = input()
+            i = 0
+            a = user_input[i]
+            i += 1
+            b = user_input[i:i + 2]
+        java:
+            char a;
+            String b = "";
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            a = userInput.charAt(i++);
+            b = userInput.substring(i, i + 2);
+        c++:
+            char a;
+            char * b = "";
+            std::string user_input;
+            int i;
+            std::getline(std::cin, user_input);
+            i = 0;
+            a = user_input[i++];
+            b = user_input.substr(i, 2);
+        main c:
+            char a;
+            char * b = "";
+            scanf("%c%2s", &a, b);
+
+
+    case: LastSuppressString
+        python:
+            a: object
+            user_input = input()
+            i = 0
+            a = user_input[i]
+            i += 1
+        java:
+            char a;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            a = userInput.charAt(i++);
+        c++:
+            char a;
+            std::string tmp;
+            std::cin >> a >> tmp;
+        main c:
+            char a;
+            scanf("%c%*s", &a);
+
+
+    case: LastSimpleScan
+        python:
+            x: object
+            y: str = ""
+            user_input = input()
+            i = 0
+            x = user_input[i]
+            i += 1
+            tmp_input = ""
+            data_type = "abcd"
+            while i < len(user_input) and user_input[i] in data_type:
+                tmp_input += user_input[i]
+                i += 1
+            y = tmp_input
+        java:
+            char x;
+            String y = "";
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            String tmpInput;
+            int i;
+            String dataType;
+            userInput = scanner.nextLine();
+            i = 0;
+            x = userInput.charAt(i++);
+            tmpInput = "";
+            dataType = "abcd";
+            while (i < userInput.length() && dataType.indexOf(userInput.charAt(i)) != -1) {
+                tmpInput += userInput.charAt(i++);
+            }
+            y = tmpInput;
+        c++:
+            char x;
+            char * y = "";
+            std::string user_input;
+            std::string tmp_input;
+            int i;
+            std::string data_type;
+            std::getline(std::cin, user_input);
+            i = 0;
+            x = user_input[i++];
+            tmp_input = "";
+            data_type = "abcd";
+            while (i < user_input.length() && data_type.find(user_input[i]) != std::string::npos) {
+                tmp_input += user_input[i++];
+            }
+            y = tmp_input;
+        main c:
+            char x;
+            char * y = "";
+            scanf("%c%[abcd]",  &x, y);
+
+
+    case: LastNegatedScan
+        python:
+            x: object
+            y: str = ""
+            user_input = input()
+            i = 0
+            x = user_input[i]
+            i += 1
+            tmp_input = ""
+            data_type = "abcd"
+            while i < len(user_input) and user_input[i] not in data_type:
+                tmp_input += user_input[i]
+                i += 1
+            y = tmp_input
+        java:
+            char x;
+            String y = "";
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            String tmpInput;
+            int i;
+            String dataType;
+            userInput = scanner.nextLine();
+            i = 0;
+            x = userInput.charAt(i++);
+            tmpInput = "";
+            dataType = "abcd";
+            while (i < userInput.length() && dataType.indexOf(userInput.charAt(i)) == -1) {
+                tmpInput += userInput.charAt(i++);
+            }
+            y = tmpInput;
+        c++:
+            char x;
+            char * y = "";
+            std::string user_input;
+            std::string tmp_input;
+            int i;
+            std::string data_type;
+            std::getline(std::cin, user_input);
+            i = 0;
+            x = user_input[i++];
+            tmp_input = "";
+            data_type = "abcd";
+            while (i < user_input.length() && data_type.find(user_input[i]) == std::string::npos) {
+                tmp_input += user_input[i++];
+            }
+            y = tmp_input;
+        main c:
+            char x;
+            char * y = "";
+            scanf("%c%[^abcd]",  &x, y);
+
+
+    case: LastWidthScan
+        python:
+            x: object
+            y: str = ""
+            user_input = input()
+            i = 0
+            x = user_input[i]
+            i += 1
+            tmp_input = ""
+            data_type = "abcd"
+            while i < len(user_input) and user_input[i] in data_type:
+                tmp_input += user_input[i]
+                i += 1
+            y = tmp_input[0: 2]
+        java:
+            char x;
+            String y = "";
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            String tmpInput;
+            int i;
+            String dataType;
+            userInput = scanner.nextLine();
+            i = 0;
+            x = userInput.charAt(i++);
+            tmpInput = "";
+            dataType = "abcd";
+            while (i < userInput.length() && dataType.indexOf(userInput.charAt(i)) != -1) {
+                tmpInput += userInput.charAt(i++);
+            }
+            y = tmpInput.substring(0, 2);
+        c++:
+            char x;
+            char * y = "";
+            std::string user_input;
+            std::string tmp_input;
+            int i;
+            std::string data_type;
+            std::getline(std::cin, user_input);
+            i = 0;
+            x = user_input[i++];
+            tmp_input = "";
+            data_type = "abcd";
+            while (i < user_input.length() && data_type.find(user_input[i]) != std::string::npos) {
+                tmp_input += user_input[i++];
+            }
+            y = tmp_input.substr(0, 2);
+        main c:
+            char x;
+            char * y = "";
+            scanf("%c%2[abcd]",  &x, y);
+
+
+    case: LastSuppressedScan
+        python:
+            x: object
+            user_input = input()
+            i = 0
+            x = user_input[i]
+            i += 1
+        java:
+            char x;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            x = userInput.charAt(i++);
+        c++:
+            char x;
+            std::string user_input;
+            int i;
+            std::getline(std::cin, user_input);
+            i = 0;
+            x = user_input[i++];
+        main c:
+            char x;
+            scanf("%c%*[abcd]",  &x);
+
+
+    case: LastSkip
+        python:
+            a: object
+            user_input = input()
+            i = 0
+            a = user_input[i]
+            i += 1
+        java:
+            char a;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            String userInput;
+            int i;
+            userInput = scanner.nextLine();
+            i = 0;
+            a = userInput.charAt(i++);
+        c++:
+            char a;
+            std::string user_input;
+            int i;
+            std::getline(std::cin, user_input);
+            i = 0;
+            a = user_input[i++];
+        main c:
+            char a;
+            scanf("%cabcd", &a);
+
+
+group: PrintfTest
+    case: SimpleInt
+        isolated python:
+            print(f"{1:d}", end="")
+        java:
+            System.out.printf("%d", 1);
+        isolated c++:
+            std::cout << std::format("{:d}", 1);
+        c:
+            printf("%d", 1);
+
+
+    case: SimpleFloat
+        isolated python:
+            print(f"{1.01:f}", end="")
+        java:
+            System.out.printf("%f", 1.01);
+        isolated c++:
+            std::cout << std::format("{:f}", 1.01);
+        c:
+            printf("%f", 1.01);
+
+
+    case: SimpleChar
+        isolated python:
+            print(f"{"t":c}", end="")
+        java:
+            System.out.printf("%c", 't');
+        isolated c++:
+            std::cout << std::format("{:c}", 't');
+        c:
+            printf("%c", 't');
+
+
+    case: SimpleString
+        isolated python:
+            print(f"{"text":s}", end="")
+        java:
+            System.out.printf("%s", "text");
+        isolated c++:
+            std::cout << std::format("{:s}", "text");
+        c:
+            printf("%s", "text");
+
+
+    case: SimpleOctal
+        isolated python:
+            print(f"{1:o}", end="")
+        java:
+            System.out.printf("%o", 1);
+        isolated c++:
+            std::cout << std::format("{:o}", 1);
+        c:
+            printf("%o", 1);
+
+
+    case: SimpleHexLower
+        isolated python:
+            print(f"{1:x}", end="")
+        java:
+            System.out.printf("%x", 1);
+        isolated c++:
+            std::cout << std::format("{:x}", 1);
+        c:
+            printf("%x", 1);
+
+
+    case: SimpleHexUpper
+        isolated python:
+            print(f"{1:X}", end="")
+        java:
+            System.out.printf("%X", 1);
+        isolated c++:
+            std::cout << std::format("{:X}", 1);
+        c:
+            printf("%X", 1);
+
+
+    case: SimpleExpLower
+        isolated python:
+            print(f"{1:e}", end="")
+        java:
+            System.out.printf("%e", 1);
+        isolated c++:
+            std::cout << std::format("{:e}", 1);
+        c:
+            printf("%e", 1);
+
+
+    case: SimpleExpUpper
+        isolated python:
+            print(f"{1:E}", end="")
+        java:
+            System.out.printf("%E", 1);
+        isolated c++:
+            std::cout << std::format("{:E}", 1);
+        c:
+            printf("%E", 1);
+
+
+    case: Width
+        isolated python:
+            print(f"{1000:2d}", end="")
+        java:
+            System.out.printf("%2d", 1000);
+        isolated c++:
+            std::cout << std::format("{:2d}", 1000);
+        c:
+            printf("%2d", 1000);
+
+
+    case: Precision
+        isolated python:
+            print(f"{1.0001:.2d}", end="")
+        java:
+            System.out.printf("%.2d", 1.0001);
+        isolated c++:
+            std::cout << std::format("{:.2d}", 1.0001);
+        c:
+            printf("%.2d", 1.0001);
+
+
+    case: ShowPositive
+        isolated python:
+            print(f"{1:+d}", end="")
+        java:
+            System.out.printf("%+d", 1);
+        isolated c++:
+            std::cout << std::format("{:+d}", 1);
+        c:
+            printf("%+d", 1);
+
+
+    case: FillZero
+        isolated python:
+            print(f"{1:0d}", end="")
+        java:
+            System.out.printf("%0d", 1);
+        isolated c++:
+            std::cout << std::format("{:0d}", 1);
+        c:
+            printf("%0d", 1);
+
+
+    case: AllFlags
+        isolated python:
+            print(f"{1.00001:+02.4f}", end="")
+        java:
+            System.out.printf("%+02.4f", 1.00001);
+        isolated c++:
+            std::cout << std::format("{:+02.4f}", 1.00001);
+        c:
+            printf("%+02.4f", 1.00001);
+
+
+group: StringFormatTest
+    case: Simple
+        python:
+            f"text{1:d}"
+        java:
+            String.format("text%d", 1);
+        c++:
+            std::format("text{:d}", 1);
+
+
+    case: Modifiers
+        python:
+            f"text{100.001:+02.2d}"
+        java:
+            String.format("text%+02.2d", 100.001);
+        c++:
+            std::format("text{:+02.2d}", 100.001);
+
+
+    case: NoSpecifier
+        python:
+            f"text{1}"
+        isolated java:
+            String.format("text%d", 1);
+        c++:
+            std::format("text{}", 1);
+
+
+    case: Expression
+        python:
+            a: int = 1
+            f"text{a + 1}"
+        isolated java:
+            int a = 1;
+            String.format("text%d", a + 1);
+        c++:
+            int a = 1;
+            std::format("text{}", a + 1);
+
+
+    case: FewValues
+        python:
+            f"text{1:d}text{1.001:f}text{"value":s}"
+        java:
+            String.format("text%dtext%ftext%s", 1, 1.001, "value");
+        c++:
+            std::format("text{:d}text{:f}text{:s}", 1, 1.001, "value");
+
+
+    case: PythonFormat
+        main python:
+            "text{}".format(1)
+        java:
+            String.format("text%d", 1);
+        c++:
+            std::format("text{}", 1);
+
+
+    case: PythonFormatSpecifier
+        main python:
+            "text{:d}".format(1)
+        java:
+            String.format("text%d", 1);
+        c++:
+            std::format("text{:d}", 1);
+
+
+    case: PythonCStyleFewValues
+        main python:
+            "text%dtext%ftext%s" % (1, 1.001, "value")
+        java:
+            String.format("text%dtext%ftext%s", 1, 1.001, "value");
+        c++:
+            std::format("text{:d}text{:f}text{:s}", 1, 1.001, "value");
+
+
+    case: JavaFormatted
+        python:
+            f"text{1:d}"
+        main java:
+            "text%d".formatted(1);
+        c++:
+            std::format("text{:d}", 1);
+
+
+    case: JavaFormattedFewValues
+        python:
+            f"text{1:d}text{1.001:f}text{"value":s}"
+        main java:
+            "text%dtext%ftext%s".formatted(1, 1.001, "value");
+        c++:
+            std::format("text{:d}text{:f}text{:s}", 1, 1.001, "value");
+
+
+group: ImportTest
+    case[translationUnitMode="procedural"]: Input
+        python:
+            print(1, end="")
+        java:
+            System.out.print(1);
+        c++:
+            #include <iostream>
+            std::cout << 1;
+        isolated c:
+            #include <stdio.h>
+            printf("%d", 1);
+
+
+    case[translationUnitMode="procedural"]: CToCppInput
+        c++:
+            #include <iostream>
+            int a;
+            std::cin >> a;
+        main c:
+            #include <stdio.h>
+            int a;
+            scanf("%d", &a);
+
+
+    case[translationUnitMode="procedural"]: Output
+        python:
+            a: int = 1
+            a = int(input())
+        java:
+            int a = 1;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            a = scanner.nextInt();
+        c++:
+            #include <iostream>
+            int a = 1;
+            std::cin >> a;
+        c:
+            #include <stdio.h>
+            int a = 1;
+            scanf("%d", &a);
+
+
+    case[translationUnitMode="procedural"]: Format
+        python:
+            f"text{1:d}"
+        java:
+            String.format("text%d", 1);
+        c++:
+            #include <format>
+            std::format("text{:d}", 1);
+
+
+    case[translationUnitMode="procedural"]: Scanner
+        python:
+            a: int
+            a = int(input())
+        main java:
+            import java.util.Scanner;
+            int a;
+            Scanner scanner = new Scanner(System.in);
+            a = scanner.nextInt();
+        c++:
+            #include <iostream>
+            int a;
+            std::cin >> a;
+        c:
+            #include <stdio.h>
+            int a;
+            scanf("%d", &a);
+
+
+
+
+
+
