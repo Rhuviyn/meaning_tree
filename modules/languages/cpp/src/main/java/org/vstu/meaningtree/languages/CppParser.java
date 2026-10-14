@@ -1855,7 +1855,16 @@ public class CppParser extends LanguageParser {
                     , scoped.getScopeResolution().getLast(), arguments);
         }
         if (functionName instanceof MemberAccess memAccess) {
+            if (memAccess.getMember().getName().equals("getline")) {
+                throw new UnsupportedParsingException("cin.getline() method in C++ is not supported.");
+            } else if (memAccess.getMember().getName().equals("get")) {
+                throw new UnsupportedParsingException("cin.get() method in C++ is not supported.");
+            }
             return new MethodCall(memAccess.getExpression(), memAccess.getMember(), arguments);
+        }
+
+        if (clearFunctionName.toString().equals("format")) {
+            throw new UnsupportedParsingException("format() function in C++ is not supported.");
         }
 
         if (clearFunctionName.toString().equals("printf")) {
@@ -1874,6 +1883,18 @@ public class CppParser extends LanguageParser {
 
         if (clearFunctionName.toString().equals("gets") || clearFunctionName.toString().equals("gets_s")) {
             return new PointerInputCommand(arguments.getFirst(), arguments.subList(1, arguments.size()));
+        }
+
+        if (clearFunctionName.toString().equals("fgets")) {
+            throw new UnsupportedParsingException("fgets() function in C/C++ is not supported.");
+        }
+
+        if (clearFunctionName.toString().equals("getchar") || clearFunctionName.toString().equals("getc")) {
+            throw new UnsupportedParsingException("getchar() and getc() functions in C/C++ are not supported.");
+        }
+
+        if (clearFunctionName.toString().equals("getline")) {
+            throw new UnsupportedParsingException("getline() function in C++ is not supported.");
         }
 
         String allocationFunction = clearFunctionName.toString();

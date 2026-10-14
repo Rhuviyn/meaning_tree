@@ -13,6 +13,7 @@ public class InterpolatedStringLiteral extends Literal {
     // Содержит подставляемые в строку выражения, а также статичные StringLiteral
     @TreeNode private List<Expression> components;
     private StringLiteral.Type type;
+    private boolean containsSpecifier = false;
 
     public InterpolatedStringLiteral(StringLiteral.Type type, Expression ... components) {
         this.type = type;
@@ -34,6 +35,14 @@ public class InterpolatedStringLiteral extends Literal {
     }
 
     public List<Expression> components() {return components;}
+
+    public void containSpecifier() {
+        containsSpecifier = true;
+    }
+
+    public boolean containsSpecifier() {
+        return containsSpecifier;
+    }
 
     @Override
     public boolean equals(Object o) {

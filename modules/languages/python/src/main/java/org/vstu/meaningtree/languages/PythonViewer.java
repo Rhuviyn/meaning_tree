@@ -206,6 +206,9 @@ public class PythonViewer extends LanguageViewer {
         registerUnsupportedFeature(new PointerTypeFeature());
         registerUnsupportedFeature(new ConstInFunctionSignatureFeature());
         registerUnsupportedFeature(FallthroughCaseBlock.class);
+        registerUnsupportedFeature(FormatPrint.class);
+        registerUnsupportedFeature(FormatInput.class);
+        registerUnsupportedFeature(new SpecificInputOutputFeature().includeSpecifier().includeAnyInput().includeSepEndPy());
     }
 
     /**
