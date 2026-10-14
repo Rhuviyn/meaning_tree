@@ -39,6 +39,7 @@ import org.vstu.meaningtree.nodes.expressions.unary.*;
 import org.vstu.meaningtree.nodes.interfaces.Generic;
 import org.vstu.meaningtree.nodes.interfaces.PrimitiveType;
 import org.vstu.meaningtree.nodes.interfaces.HasVariableDeclaration;
+import org.vstu.meaningtree.nodes.io.FormatPrint;
 import org.vstu.meaningtree.nodes.io.PrintCommand;
 import org.vstu.meaningtree.nodes.io.PrintValues;
 import org.vstu.meaningtree.nodes.modules.*;
@@ -649,6 +650,15 @@ public class JavaParser extends LanguageParser {
 
         String objectMethodName = getCodePiece(nameNode);
         if (!objectNode.isNull()) {
+            if (objectNode.getType().equals("identifier")) {
+                Type objectType = ctx.scope.getVariableType((SimpleIdentifier) fromIdentifierTSNode(objectNode));
+                if (objectType instanceof UserType userType && userType.getName().equalsIdentifier("Scanner")) {
+                    throw new UnsupportedParsingException("Scanner in Java is not supported.");
+                }
+            } else if (objectNode.getType().equals("object_creation_expression")
+                    && getCodePiece(objectNode.getChildByFieldName("type")).equals("Scanner")) {
+                throw new UnsupportedParsingException("Scanner in Java is not supported.");
+            }
             String objectName = getCodePiece(objectNode);
             if (objectName.equals("System.out")
                     && (objectMethodName.equals("println") || objectMethodName.equals("print"))) {
@@ -681,8 +691,22 @@ public class JavaParser extends LanguageParser {
             arguments.add(argument);
         }
 
+        if (getCodePiece(objectNode).equals("System.out") && (objectMethodName.equals("printf")
+                && argumentsNode.getNamedChild(0).getType().equals("string_literal"))) {
+            String formatString = ((StringLiteral) arguments.removeFirst()).getUnescapedValue();
+            throw new UnsupportedParsingException("System.out.printf() method in Java is not supported.");
+        }
+
         if (objectNode.isNull()) {
             return new FunctionCall(methodName, arguments);
+        }
+
+        if (objectMethodName.equals("formatted")) {
+            throw new UnsupportedParsingException("formatted() method in Java is not supported.");
+
+        }
+        if (getCodePiece(objectNode).equals("String") && objectMethodName.equals("format")) {
+            throw new UnsupportedParsingException("String.format() method in Java is not supported.");
         }
 
         Expression object = (Expression) parseTSNode(objectNode);
@@ -1706,6 +1730,11 @@ public class JavaParser extends LanguageParser {
 
         var decl = new VariableDeclaration(type, declarators);
         decl.setAnnotations(annotations);
+
+        if (getCodePiece(node.getChildByFieldName("type")).equals("Scanner")) {
+            throw new UnsupportedParsingException("Scanner in Java is not supported.");
+        }
+
         return decl;
     }
 

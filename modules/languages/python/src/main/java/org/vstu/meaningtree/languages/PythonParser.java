@@ -436,12 +436,31 @@ public class PythonParser extends LanguageParser {
             }
         }
 
-        if (getCodePiece(tsNode).equals("print")) {
+        if (tsNode.getType().equals("attribute") && getCodePiece(tsNode.getChildByFieldName("attribute")).equals("format")) {
+            throw new UnsupportedParsingException("format() method in Python is not supported.");
+        }
+
+        String codePiece = getCodePiece(tsNode);
+        if (codePiece.equals("print")) {
+            if (exprs.stream()
+                    .anyMatch(
+                            argument -> argument instanceof DefinitionArgument def
+                                    && def.hasVisibleName()
+                                    && (def.getName().equalsIdentifier("sep") || def.getName().equalsIdentifier("end"))
+                    )) {
+                throw new UnsupportedParsingException("Print with separator and/or end in Python is not supported.");
+            }
             return new PrintValues.PrintValuesBuilder()
                     .endWithNewline()
                     .separateBySpace()
                     .setValues(exprs)
                     .build();
+        } else if (codePiece.equals("input")) {
+            throw new UnsupportedParsingException("input() function in Python is not supported.");
+        } else if ((codePiece.equals("int") || codePiece.equals("float") || codePiece.equals("str"))
+                && exprs.size() == 1 && arguments.getNamedChild(0).getType().equals("call")
+                && getCodePiece(arguments.getNamedChild(0).getChildByFieldName("function")).equals("input")) {
+            throw new UnsupportedParsingException("input() function in Python is not supported.");
         }
 
         if (getCodePiece(tsNode).equals("isinstance") && exprs.size() == 2) {
@@ -1126,16 +1145,24 @@ public class PythonParser extends LanguageParser {
                 .anyMatch((String prefix) -> getCodePiece(node.getChild(0)).startsWith(prefix))) {
             TSNode contentNode = getNamedChildWithoutExtras(node, 1);
             List<Expression> interpolation = new ArrayList<>();
+            boolean hasSpecifier = false;
 
             while (!contentNode.getType().equals("string_end")) {
                 if (contentNode.getType().equals("string_content")) {
                     interpolation.add(StringLiteral.fromEscaped(getCodePiece(contentNode), type));
                 } else {
                     interpolation.add((Expression) parseTSNode(contentNode));
+                    if (contentNode.getChildByFieldName("format_specifier") != null) {
+                        hasSpecifier = true;
+                    }
                 }
                 contentNode = contentNode.getNextNamedSibling();
             }
-            return new InterpolatedStringLiteral(type, interpolation);
+            InterpolatedStringLiteral interpolatedString = new InterpolatedStringLiteral(type, interpolation);
+            if (hasSpecifier) {
+                interpolatedString.containSpecifier();
+            }
+            return interpolatedString;
         }
 
         if (type == StringLiteral.Type.RAW) {
@@ -1923,7 +1950,13 @@ public class PythonParser extends LanguageParser {
             case "**" -> new PowOp(left, right);
             case "/" -> new DivOp(left, right);
             case "//" -> new FloorDivOp(left, right);
-            case "%" -> new ModOp(left, right);
+            case "%" -> {
+                if (node.getChildByFieldName("left").getType().equals("string")) {
+                    throw new UnsupportedParsingException("C-style formatting in Python is not supported.");
+                } else {
+                    yield new ModOp(left, right);
+                }
+            }
             case "<<" -> new LeftShiftOp(left, right);
             case ">>" -> new RightShiftOp(left, right);
             case "&" -> new BitwiseAndOp(left, right);

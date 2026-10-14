@@ -10,14 +10,9 @@ import org.vstu.meaningtree.languages.helpers.MeaningTreeTransformations;
 import org.vstu.meaningtree.languages.helpers.MultiCatchSplitter;
 import org.vstu.meaningtree.languages.helpers.ResourceContextLowerer;
 import org.vstu.meaningtree.languages.helpers.ScopeDeclarationLowerer;
-import org.vstu.meaningtree.languages.support.features.NonlocalBindingFeature;
+import org.vstu.meaningtree.languages.support.features.*;
 import org.vstu.meaningtree.languages.helpers.ReferenceToPointerLowerer;
 import org.vstu.meaningtree.languages.helpers.TryElseLowerer;
-import org.vstu.meaningtree.languages.support.features.NonDirectionalRangeForFeature;
-import org.vstu.meaningtree.languages.support.features.PointerToMemberOperatorFeature;
-import org.vstu.meaningtree.languages.support.features.ReferenceTypeFeature;
-import org.vstu.meaningtree.languages.support.features.TryFinallyFeature;
-import org.vstu.meaningtree.languages.support.features.UninferableVariableTypeFeature;
 import org.vstu.meaningtree.nodes.*;
 import org.vstu.meaningtree.nodes.declarations.*;
 import org.vstu.meaningtree.nodes.declarations.components.DeclarationArgument;
@@ -53,10 +48,7 @@ import org.vstu.meaningtree.nodes.expressions.pointers.PointerMemberAccess;
 import org.vstu.meaningtree.nodes.expressions.pointers.PointerPackOp;
 import org.vstu.meaningtree.nodes.expressions.pointers.PointerUnpackOp;
 import org.vstu.meaningtree.nodes.expressions.unary.*;
-import org.vstu.meaningtree.nodes.io.FormatPrint;
-import org.vstu.meaningtree.nodes.io.InputCommand;
-import org.vstu.meaningtree.nodes.io.PrintCommand;
-import org.vstu.meaningtree.nodes.io.PrintValues;
+import org.vstu.meaningtree.nodes.io.*;
 import org.vstu.meaningtree.nodes.memory.MemoryAllocationCall;
 import org.vstu.meaningtree.nodes.memory.MemoryFreeCall;
 import org.vstu.meaningtree.nodes.modules.*;
@@ -305,6 +297,8 @@ public class CppViewer extends LanguageViewer {
         registerUnsupportedFeature(GeneratorDefinition.class);
         registerUnsupportedFeature(IteratorDefinition.class);
         registerUnsupportedFeature(YieldStatement.class);
+        registerUnsupportedFeature(FormatInput.class);
+        registerUnsupportedFeature(new SpecificInputOutputFeature().includeSpecifier().includeSepPrint().includeEndPrint());
     }
 
     private final String _indentation;

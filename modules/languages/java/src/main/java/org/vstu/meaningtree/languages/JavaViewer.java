@@ -338,6 +338,9 @@ public class JavaViewer extends LanguageViewer {
         registerUnsupportedFeature(new BareRaiseFeature());
         registerUnsupportedFeature(new NonlocalBindingFeature());
         registerUnsupportedFeature(new UnloweredGeneratorFeature());
+        registerUnsupportedFeature(FormatPrint.class);
+        registerUnsupportedFeature(FormatInput.class);
+        registerUnsupportedFeature(new SpecificInputOutputFeature().includeSpecifier().includeMultipleValuesInput().includeEndPrint());
     }
 
 
