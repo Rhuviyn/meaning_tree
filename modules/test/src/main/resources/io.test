@@ -2979,6 +2979,74 @@ group: PrintfTest
             printf("%+02.4f", 1.00001);
 
 
+group: NestedInputTest
+    case: ReadInput
+        python:
+            if int(input()):
+                pass
+        java:
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            if (scanner.nextInt()) {
+
+            }
+        isolated c++:
+            int tmp;
+            std::cin >> tmp;
+            if (tmp)
+            {
+
+            }
+        isolated c:
+            int tmp;
+            scanf("%d", &tmp);
+            if (tmp)
+            {
+
+            }
+
+
+    case: AssignInput
+        python:
+            a: str = ""
+            a = input()
+            if a:
+                pass
+        java:
+            String a = "";
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            a = scanner.nextLine();
+            if (a) {
+
+            }
+        c++:
+            char * a = "";
+            std::getline(std::cin, a);
+            if (a)
+            {
+
+            }
+        main c:
+            char * a = "";
+            if (gets(a))
+            {
+
+            }
+
+
+    case: Declaration
+        python:
+            a: int = int(input())
+        java:
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            int a = scanner.nextInt();
+        isolated c++:
+            int a;
+            std::cin >> a;
+        isolated c:
+            int a;
+            scanf("%d", &a);
+
+
 group: StringFormatTest
     case: Simple
         python:
